@@ -1,0 +1,29 @@
+# Environment files — never commit
+.env
+.env.*
+!.env.example
+frontend/.env*
+frontend/.env.local
+frontend/.env.sentry-build-plugin
+
+# VSCode history extension
+.history/
+
+# Python
+**/__pycache__/
+**/*.pyc
+*.pyc
+
+# ML models and processed data
+backend/models/*.pkl
+backend/data/processed/
+backend/data/action_log.jsonl
+
+# Node
+node_modules/
+frontend/.next/
+frontend/tsconfig.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db

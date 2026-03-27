@@ -1,0 +1,93 @@
+{
+  "training_date": "2026-03-18T23:56:11.522614",
+  "targets": {
+    "label_stage_migration": {
+      "target": "label_stage_migration",
+      "best_model": "GradientBoosting",
+      "auc": 0.8073058108953215,
+      "cv_auc": 0.7997285752397628,
+      "feature_cols": [
+        "rating_deterioration",
+        "stage_age_months",
+        "exposure_growth_rate",
+        "dpd_trend",
+        "repayment_rate_avg",
+        "repayment_rate_min",
+        "missed_payment_count",
+        "missed_payment_ratio",
+        "consecutive_lates",
+        "NetAmount",
+        "Ammount"
+      ],
+      "all_results": {
+        "GradientBoosting": {
+          "auc": 0.8073058108953215,
+          "cv_auc": 0.7997285752397628
+        },
+        "RandomForest": {
+          "auc": 0.7682434368117026,
+          "cv_auc": 0.7645877744369224
+        },
+        "LogisticRegression": {
+          "auc": 0.7263888499669886,
+          "cv_auc": 0.7185156858098564
+        }
+      }
+    },
+    "label_default_90d": {
+      "target": "label_default_90d",
+      "best_model": "GradientBoosting",
+      "auc": 0.9313039770935874,
+      "cv_auc": 0.9295331021173219,
+      "feature_cols": [
+        "rating_deterioration",
+        "stage_age_months",
+        "exposure_growth_rate",
+        "dpd_trend",
+        "repayment_rate_avg",
+        "repayment_rate_min",
+        "missed_payment_count",
+        "missed_payment_ratio",
+        "consecutive_lates",
+        "NetAmount",
+        "Ammount"
+      ],
+      "all_results": {
+        "GradientBoosting": {
+          "auc": 0.9313039770935874,
+          "cv_auc": 0.9295331021173219
+        },
+        "RandomForest": {
+          "auc": 0.9113449423528013,
+          "cv_auc": 0.9147934438006828
+        },
+        "LogisticRegression": {
+          "auc": 0.6461871219505462,
+          "cv_auc": 0.6698737662947368
+        }
+      }
+    },
+    "label_dpd_escalation": {
+      "target": "label_dpd_escalation",
+      "best_model": null,
+      "auc": null,
+      "cv_auc": null,
+      "feature_cols": [
+        "rating_deterioration",
+        "stage_age_months",
+        "exposure_growth_rate",
+        "dpd_trend",
+        "repayment_rate_avg",
+        "repayment_rate_min",
+        "missed_payment_count",
+        "missed_payment_ratio",
+        "consecutive_lates",
+        "NetAmount",
+        "Ammount"
+      ],
+      "all_results": {},
+      "skipped": true,
+      "skip_reason": "positive_rate=0.0001"
+    }
+  }
+}
