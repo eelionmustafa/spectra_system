@@ -17,11 +17,11 @@ export default function SegmentBarChart({ data }: { data: SegmentDelinquency[] }
         <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
         <XAxis dataKey="product_type" tick={axTick} tickLine={false} axisLine={false} />
         <YAxis tickFormatter={v => `${v}%`} tick={axTick} tickLine={false} axisLine={false} width={34} />
-        <Tooltip formatter={(v: any) => [`${v}%`, 'Delinquency ≥30 DPD']} contentStyle={tipStyle} />
+        <Tooltip formatter={(v) => [`${v}%`, 'Delinquency ≥30 DPD']} contentStyle={tipStyle} />
         <Bar dataKey="delinquency_pct" radius={[4, 4, 0, 0]}>
           {data.map((d, i) => <Cell key={i} fill={SEGMENT_COLORS[d.product_type] ?? C.navy} />)}
           <LabelList dataKey="delinquency_pct" position="top"
-            formatter={(v: any) => `${v}%`} style={{ fontSize: 9, fill: C.muted }} />
+            formatter={(v) => `${v}%`} style={{ fontSize: 9, fill: C.muted }} />
         </Bar>
       </BarChart>
     </ResponsiveContainer>

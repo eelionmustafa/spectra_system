@@ -20,7 +20,7 @@ export default function ECLGroupedChart({ data }: { data: ECLByStage[] }) {
         <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
         <XAxis dataKey="stage" tick={axTick} tickLine={false} axisLine={false} />
         <YAxis tickFormatter={v => `€${v}M`} tick={axTick} tickLine={false} axisLine={false} width={46} />
-        <Tooltip formatter={(v: any, name: any) => [`€${v}M`, name]} contentStyle={tipStyle} />
+        <Tooltip formatter={(v, name) => [`€${v}M`, name]} contentStyle={tipStyle} />
         <Bar dataKey="Exposure"    fill={`${C.navy}30`} stroke={C.navy}  strokeWidth={1} radius={[3,3,0,0]} />
         <Bar dataKey="Bank Prov."  fill={C.blue}        radius={[3,3,0,0]} />
         <Bar dataKey="Calc. ECL"   fill={C.amber}       radius={[3,3,0,0]} />

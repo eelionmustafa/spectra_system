@@ -1,4 +1,12 @@
+'use client'
+import { useState } from 'react'
+
 export default function DashboardLoading() {
+  // Pre-generate random heights once to avoid calling Math.random() during render
+  const [barHeights] = useState(() =>
+    Array.from({ length: 12 }, () => 20 + Math.random() * 70)
+  )
+
   const pulse: React.CSSProperties = {
     background: 'linear-gradient(90deg, #EEF2F7 25%, #E2E8F0 50%, #EEF2F7 75%)',
     backgroundSize: '200% 100%',
@@ -55,7 +63,7 @@ export default function DashboardLoading() {
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: '5px', height: '110px' }}>
               {Array.from({ length: 12 }, (_, i) => (
                 <div key={i} style={{ flex: 1, display: 'flex', alignItems: 'flex-end' }}>
-                  <div style={{ ...pulse, width: '100%', height: `${20 + Math.random() * 70}px`, borderRadius: '3px 3px 0 0' }} />
+                  <div style={{ ...pulse, width: '100%', height: `${barHeights[i]}px`, borderRadius: '3px 3px 0 0' }} />
                 </div>
               ))}
             </div>

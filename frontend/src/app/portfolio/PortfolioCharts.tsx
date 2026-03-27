@@ -51,8 +51,8 @@ export function ProductExposureChart({ data }: { data: ProductRow[] }) {
           width={64}
         />
         <Tooltip
-          formatter={(v: any, _: any, props: any) => [
-            `${fmt(v)} (${props.payload?.pct?.toFixed(1)}%)`,
+          formatter={(v, _name, props) => [
+            `${fmt(v as number)} (${(props as { payload?: { pct?: number } }).payload?.pct?.toFixed(1)}%)`,
             'Exposure',
           ]}
           contentStyle={{ fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 6, padding: '6px 10px' }}
@@ -64,7 +64,7 @@ export function ProductExposureChart({ data }: { data: ProductRow[] }) {
           <LabelList
             dataKey="pct"
             position="right"
-            formatter={(v: any) => `${Number(v).toFixed(1)}%`}
+            formatter={(v) => `${Number(v).toFixed(1)}%`}
             style={{ fontSize: 10, fill: C.muted, fontWeight: 600 }}
           />
         </Bar>

@@ -23,35 +23,35 @@ function initials(row: ClientTableRow) {
   return row.personal_id.slice(0, 2).toUpperCase()
 }
 
+interface FormData {
+  phone: string
+  email: string
+  address: string
+  occupation: string
+  status: string
+  notes: string
+}
+
 interface Props {
   row: ClientTableRow | null
   onClose: () => void
 }
 
-export default function ClientDrawer({ row, onClose }: Props) {
+// Inner form component that uses lazy initialization
+function ClientDrawerForm({ row, onClose }: Props) {
   const [editing, setEditing] = useState(false)
   const [pending, startTransition] = useTransition()
-  const [toast, setToast]   = useState<{ ok: boolean; msg: string } | null>(null)
+  const [toast, setToast] = useState<{ ok: boolean; msg: string } | null>(null)
 
-  const [phone,      setPhone]      = useState('')
-  const [email,      setEmail]      = useState('')
-  const [address,    setAddress]    = useState('')
-  const [occupation, setOccupation] = useState('')
-  const [status,     setStatus]     = useState('')
-  const [notes,      setNotes]      = useState('')
-
-  // Reset form whenever the selected row changes
-  useEffect(() => {
-    if (!row) return
-    setPhone(row.phone)
-    setEmail(row.email)
-    setAddress(row.address)
-    setOccupation(row.occupation)
-    setStatus(row.status)
-    setNotes('')
-    setEditing(false)
-    setToast(null)
-  }, [row])
+  // Lazy initializer - initializes only once on mount from row prop
+  const [formData, setFormData] = useState<FormData>(() => ({
+    phone: row?.phone ?? '',
+    email: row?.email ?? '',
+    address: row?.address ?? '',
+    occupation: row?.occupation ?? '',
+    status: row?.status ?? '',
+    notes: '',
+  }))
 
   // Close on Escape
   useEffect(() => {
@@ -68,12 +68,16 @@ export default function ClientDrawer({ row, onClose }: Props) {
 
   function handleSave() {
     startTransition(async () => {
-      const res = await updateClient(row!.personal_id, { phone, email, address, occupation, status, notes })
+      const res = await updateClient(row!.personal_id, formData)
       setToast(res.ok
         ? { ok: true,  msg: 'Changes saved successfully.' }
         : { ok: false, msg: res.error ?? 'Save failed.' })
       if (res.ok) setEditing(false)
     })
+  }
+
+  function handleChange(field: keyof FormData, value: string) {
+    setFormData(prev => ({ ...prev, [field]: value }))
   }
 
   return (
@@ -175,7 +179,7 @@ export default function ClientDrawer({ row, onClose }: Props) {
           }} aria-label="Close">×</button>
         </div>
 
-        {/* ── Body ── */}
+        {/* ── Body── */}
         <div style={{ padding: '20px 22px', flex: 1 }}>
 
           {/* Risk summary row */}
@@ -249,21 +253,21 @@ export default function ClientDrawer({ row, onClose }: Props) {
             <div className="dr-field">
               <label className="dr-label">Phone</label>
               {editing
-                ? <input className="dr-input" value={phone} onChange={e => setPhone(e.target.value)} />
+                ? <input className="dr-input" value={formData.phone} onChange={e => handleChange('phone', e.target.value)} />
                 : <div className="dr-value">{row.phone || '—'}</div>}
             </div>
             {/* Email */}
             <div className="dr-field">
               <label className="dr-label">Email</label>
               {editing
-                ? <input className="dr-input" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                ? <input className="dr-input" type="email" value={formData.email} onChange={e => handleChange('email', e.target.value)} />
                 : <div className="dr-value" style={{ wordBreak: 'break-all' }}>{row.email || '—'}</div>}
             </div>
             {/* Status */}
             <div className="dr-field">
               <label className="dr-label">KYC / Status</label>
               {editing
-                ? <select className="dr-select" value={status} onChange={e => setStatus(e.target.value)}>
+                ? <select className="dr-select" value={formData.status} onChange={e => handleChange('status', e.target.value)}>
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                     <option value="Suspended">Suspended</option>
@@ -275,14 +279,14 @@ export default function ClientDrawer({ row, onClose }: Props) {
             <div className="dr-field">
               <label className="dr-label">Occupation</label>
               {editing
-                ? <input className="dr-input" value={occupation} onChange={e => setOccupation(e.target.value)} />
+                ? <input className="dr-input" value={formData.occupation} onChange={e => handleChange('occupation', e.target.value)} />
                 : <div className="dr-value">{row.occupation || '—'}</div>}
             </div>
             {/* Address */}
             <div className="dr-field" style={{ gridColumn: '1 / -1' }}>
               <label className="dr-label">Address</label>
               {editing
-                ? <input className="dr-input" value={address} onChange={e => setAddress(e.target.value)} />
+                ? <input className="dr-input" value={formData.address} onChange={e => handleChange('address', e.target.value)} />
                 : <div className="dr-value">{row.address || '—'}</div>}
             </div>
           </div>
@@ -293,8 +297,8 @@ export default function ClientDrawer({ row, onClose }: Props) {
               <label className="dr-label">Notes (saved to activity log)</label>
               <textarea
                 className="dr-textarea"
-                value={notes}
-                onChange={e => setNotes(e.target.value)}
+                value={formData.notes}
+                onChange={e => handleChange('notes', e.target.value)}
                 placeholder="Add a note about this update…"
               />
             </div>
@@ -314,4 +318,10 @@ export default function ClientDrawer({ row, onClose }: Props) {
       </div>
     </>
   )
+}
+
+// Wrapper component that forces remount when row changes
+export default function ClientDrawer({ row, onClose }: Props) {
+  // Force remount when row changes to reset all state cleanly
+  return <ClientDrawerForm key={row?.personal_id ?? 'null'} row={row} onClose={onClose} />
 }

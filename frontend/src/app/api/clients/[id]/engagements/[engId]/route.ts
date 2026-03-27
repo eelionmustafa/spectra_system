@@ -55,7 +55,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'At least one of status, outcome, or notes is required' }, { status: 400 })
     }
 
-    await updateEngagement(engId, { status: status as any, outcome, notes })
+    await updateEngagement(engId, { status: status as 'scheduled' | 'completed' | 'cancelled', outcome, notes })
     return NextResponse.json({ ok: true })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })

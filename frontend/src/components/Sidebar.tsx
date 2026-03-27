@@ -7,6 +7,31 @@ import { ROLE_BADGE } from '@/lib/users'
 
 interface Props { session: SessionPayload }
 
+interface NavItemProps {
+  href: string
+  icon: React.ReactNode
+  label: string
+  count?: number | null
+  countColor?: string
+  collapsed: boolean
+  isActive: (href: string) => boolean
+}
+
+function NavItem({ href, icon, label, count, countColor, collapsed, isActive }: NavItemProps) {
+  const active = isActive(href)
+  return (
+    <Link href={href} className={`nav-item${active ? ' active' : ''}`} title={collapsed ? label : undefined}>
+      <span className="ni">{icon}</span>
+      {!collapsed && <span className="nt">{label}</span>}
+      {count != null && count > 0 && (
+        collapsed
+          ? <span className="nb-dot" style={countColor ? { background: countColor } : undefined} />
+          : <span className="nb" style={countColor ? { background: countColor } : undefined}>{count > 99 ? '99+' : count}</span>
+      )}
+    </Link>
+  )
+}
+
 const NAV_ICON = {
   home: <svg viewBox="0 0 15 15" fill="none"><path d="M1 8L7.5 2 14 8v6H9.5v-4h-4V14H1V8z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>,
   monitoring: <svg viewBox="0 0 15 15" fill="none"><rect x="1" y="3" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M4 9l2-2.5 2 1.5 2-3 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
@@ -59,23 +84,6 @@ export default function Sidebar({ session }: Props) {
   const badge = ROLE_BADGE[session.role] ?? { label: session.role, color: '#94A3B8' }
   const isActive = (href: string) => path === href || (href !== '/' && path.startsWith(href))
 
-  function NavItem({ href, icon, label, count, countColor }: {
-    href: string; icon: React.ReactNode; label: string; count?: number | null; countColor?: string
-  }) {
-    const active = isActive(href)
-    return (
-      <Link href={href} className={`nav-item${active ? ' active' : ''}`} title={collapsed ? label : undefined}>
-        <span className="ni">{icon}</span>
-        {!collapsed && <span className="nt">{label}</span>}
-        {count != null && count > 0 && (
-          collapsed
-            ? <span className="nb-dot" style={countColor ? { background: countColor } : undefined} />
-            : <span className="nb" style={countColor ? { background: countColor } : undefined}>{count > 99 ? '99+' : count}</span>
-        )}
-      </Link>
-    )
-  }
-
   return (
     <div className={`sidebar${collapsed ? ' sc' : ''}`}>
 
@@ -98,29 +106,29 @@ export default function Sidebar({ session }: Props) {
       <div className="nav">
         <div className="nav-group">
           {!collapsed && <div className="nav-label">Monitor</div>}
-          <NavItem href="/"               icon={NAV_ICON.home}          label="Dashboard" />
-          <NavItem href="/portfolio"      icon={NAV_ICON.portfolio}     label="Portfolio" />
-          <NavItem href="/monitoring"     icon={NAV_ICON.monitoring}    label="Monitoring" />
-          <NavItem href="/notifications"  icon={NAV_ICON.notifications} label="Notifications" count={notifCount} countColor="var(--red)" />
+          <NavItem href="/"               icon={NAV_ICON.home}          label="Dashboard"     collapsed={collapsed} isActive={isActive} />
+          <NavItem href="/portfolio"      icon={NAV_ICON.portfolio}     label="Portfolio"     collapsed={collapsed} isActive={isActive} />
+          <NavItem href="/monitoring"     icon={NAV_ICON.monitoring}    label="Monitoring"    collapsed={collapsed} isActive={isActive} />
+          <NavItem href="/notifications"  icon={NAV_ICON.notifications} label="Notifications"  count={notifCount} countColor="var(--red)" collapsed={collapsed} isActive={isActive} />
         </div>
 
         <div className="nav-div"/>
 
         <div className="nav-group">
           {!collapsed && <div className="nav-label">Risk</div>}
-          <NavItem href="/warnings"      icon={NAV_ICON.warnings}      label="Early Warnings" count={alertCount} />
-          <NavItem href="/watchlist"     icon={NAV_ICON.watchlist}     label="Watchlist"      count={watchlistCount} countColor="var(--amber)" />
-          <NavItem href="/clients"       icon={NAV_ICON.clients}       label="Clients" />
-          <NavItem href="/analytics"     icon={NAV_ICON.analytics}     label="Analytics" />
-          <NavItem href="/concentration" icon={NAV_ICON.concentration} label="Concentration" />
-          <NavItem href="/stress"        icon={NAV_ICON.stress}        label="Stress Test" />
+          <NavItem href="/warnings"      icon={NAV_ICON.warnings}      label="Early Warnings" count={alertCount}     collapsed={collapsed} isActive={isActive} />
+          <NavItem href="/watchlist"     icon={NAV_ICON.watchlist}    label="Watchlist"      count={watchlistCount} countColor="var(--amber)" collapsed={collapsed} isActive={isActive} />
+          <NavItem href="/clients"       icon={NAV_ICON.clients}      label="Clients"        collapsed={collapsed} isActive={isActive} />
+          <NavItem href="/analytics"     icon={NAV_ICON.analytics}    label="Analytics"      collapsed={collapsed} isActive={isActive} />
+          <NavItem href="/concentration" icon={NAV_ICON.concentration} label="Concentration"  collapsed={collapsed} isActive={isActive} />
+          <NavItem href="/stress"        icon={NAV_ICON.stress}       label="Stress Test"    collapsed={collapsed} isActive={isActive} />
         </div>
 
         <div className="nav-div"/>
 
         <div className="nav-group">
           {!collapsed && <div className="nav-label">System</div>}
-          <NavItem href="/audit" icon={NAV_ICON.audit} label="Audit Log" />
+          <NavItem href="/audit" icon={NAV_ICON.audit} label="Audit Log" collapsed={collapsed} isActive={isActive} />
         </div>
 
       </div>

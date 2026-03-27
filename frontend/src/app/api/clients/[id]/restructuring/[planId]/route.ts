@@ -48,7 +48,7 @@ export async function PATCH(
     }
 
     await updateRestructuringPlan(planId, {
-      status:     status as any,
+      status:     status as 'Proposed' | 'Approved' | 'Rejected' | 'Active' | 'Completed',
       approvedBy: status === 'Approved' ? session.username : undefined,
       notes,
     })

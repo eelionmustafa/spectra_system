@@ -55,8 +55,8 @@ export function ExposureHBarChart({
           width={70}
         />
         <Tooltip
-          formatter={(v: any, _: any, props: any) => [
-            `${fmt(v)} · ${props.payload?.client_count ?? ''} clients`,
+          formatter={(v, _name, props) => [
+            `${fmt(v as number)} · ${(props as { payload?: { client_count?: number } }).payload?.client_count ?? ''} clients`,
             'Exposure',
           ]}
           contentStyle={tipStyle}
@@ -72,7 +72,7 @@ export function ExposureHBarChart({
           <LabelList
             dataKey="exposure"
             position="right"
-            formatter={(v: any) => fmt(v)}
+            formatter={(v) => fmt(v as number)}
             style={{ fontSize: 10, fill: C.muted }}
           />
         </Bar>

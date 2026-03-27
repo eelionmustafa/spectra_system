@@ -71,11 +71,11 @@ async function ConcentrationContent() {
 
   const sortedObl   = [...obligors].sort((a, b) => b.exposure - a.exposure)
   const totalOblExp = sortedObl.reduce((s, o) => s + o.exposure, 0)
-  let cumExp = 0
-  const lorenz = sortedObl.map((o, i) => {
-    cumExp += o.exposure
-    return { x: Math.round(((i + 1) / sortedObl.length) * 100), y: Math.round((cumExp / totalOblExp) * 100) }
-  })
+  const lorenz = sortedObl.reduce<{ x: number; y: number }[]>((acc, o, i) => {
+    const cumExp = (acc.length > 0 ? acc[acc.length - 1].y : 0) + (o.exposure / totalOblExp) * 100
+    acc.push({ x: Math.round(((i + 1) / sortedObl.length) * 100), y: Math.round(cumExp) })
+    return acc
+  }, [])
 
   const breaches: { label: string; why: string; href: string; btnLabel: string }[] = []
   if (top1Pct >= TOP1_OBLIGOR_WARN)

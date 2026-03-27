@@ -15,7 +15,7 @@ export default function ActionUserChart({ data }: { data: [string, number][] }) 
           tick={{ fontSize: 10, fill: C.muted, fontFamily: 'IBM Plex Mono, monospace' }} tickLine={false} axisLine={false} />
         <Tooltip cursor={{ fill: '#F1F5F9' }}
           contentStyle={{ fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px' }}
-          formatter={(v: any) => [v, 'Actions']} />
+          formatter={(v) => [v, 'Actions']} />
         <Bar dataKey="count" fill={C.navy} radius={[0, 3, 3, 0]} maxBarSize={18}>
           <LabelList dataKey="count" position="right"
             style={{ fontSize: 10, fontWeight: 700, fill: C.navy, fontFamily: 'IBM Plex Mono, monospace' }} />

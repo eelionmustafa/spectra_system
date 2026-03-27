@@ -28,7 +28,7 @@ export default function ActionTypeChart({ data }: { data: [string, number][] }) 
           tick={{ fontSize: 10, fill: C.muted }} tickLine={false} axisLine={false} />
         <Tooltip cursor={{ fill: '#F1F5F9' }}
           contentStyle={{ fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 10px' }}
-          formatter={(v: any) => [v, 'Count']} />
+          formatter={(v) => [v, 'Count']} />
         <Bar dataKey="count" radius={[0, 3, 3, 0]} maxBarSize={18}>
           {rows.map((r, i) => <Cell key={i} fill={ACTION_COLORS[r.action] ?? C.muted} />)}
           <LabelList dataKey="count" position="right"

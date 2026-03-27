@@ -19,13 +19,13 @@ export default function VintageBarChart({ data, warnThreshold }: { data: Vintage
         <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
         <XAxis dataKey="year" tick={axTick} tickLine={false} axisLine={false} />
         <YAxis tickFormatter={v => `${v}%`} tick={axTick} tickLine={false} axisLine={false} width={34} />
-        <Tooltip formatter={(v: any) => [`${v}%`, 'Delinquency rate']} contentStyle={tipStyle} />
+        <Tooltip formatter={(v) => [`${v}%`, 'Delinquency rate']} contentStyle={tipStyle} />
         <ReferenceLine y={warnThreshold} stroke={C.red} strokeDasharray="4 2" strokeWidth={1}
           label={{ value: `${warnThreshold}%`, position: 'insideTopRight', fontSize: 9, fill: C.red }} />
         <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
           {rows.map((r, i) => <Cell key={i} fill={r.flagged ? C.red : C.navy} />)}
           <LabelList dataKey="pct" position="top"
-            formatter={(v: any) => `${v}%`} style={{ fontSize: 9, fill: C.muted }} />
+            formatter={(v) => `${v}%`} style={{ fontSize: 9, fill: C.muted }} />
         </Bar>
       </BarChart>
     </ResponsiveContainer>

@@ -2,12 +2,17 @@ import sql from 'mssql'
 
 const useWindowsAuth = !process.env.DB_USER
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const authOptions: any = useWindowsAuth
+  ? { trustServerCertificate: process.env.NODE_ENV !== 'production', enableArithAbort: true }
+  : { trustServerCertificate: process.env.NODE_ENV !== 'production', enableArithAbort: true }
+
 const config: sql.config = useWindowsAuth
   ? {
       server:   process.env.DB_SERVER!,
       database: process.env.DB_NAME!,
       // domain: leave unset — tedious uses the current process identity
-      options:  { trustServerCertificate: process.env.NODE_ENV !== 'production', enableArithAbort: true, integratedSecurity: true },
+      options:  authOptions,
       pool: { max: 30, min: 2, idleTimeoutMillis: 60000, acquireTimeoutMillis: 15000 },
       requestTimeout: 60000,
     }

@@ -19,6 +19,18 @@ function fmt(n: number) {
   return '€' + n.toLocaleString()
 }
 
+interface CustomDotProps {
+  cx?: number
+  cy?: number
+  index?: number
+  totalPoints: number
+}
+
+function CustomDot({ cx, cy, index, totalPoints }: CustomDotProps) {
+  if (index !== totalPoints - 1 || cx == null || cy == null) return null
+  return <circle cx={cx} cy={cy} r={5} fill={C.navy} stroke={C.gold} strokeWidth={2} />
+}
+
 export function ExposureTrendChart({ data }: { data: TrendPoint[] }) {
   const rows = data.map((t, i) => ({
     month: MM[t.month.slice(5, 7)] ?? t.month,
@@ -26,12 +38,7 @@ export function ExposureTrendChart({ data }: { data: TrendPoint[] }) {
     isCurrent: i === data.length - 1,
   }))
 
-  // Custom dot to highlight current month
-  const CustomDot = (props: { cx?: number; cy?: number; index?: number }) => {
-    const { cx, cy, index } = props
-    if (index !== rows.length - 1 || cx == null || cy == null) return null
-    return <circle cx={cx} cy={cy} r={5} fill={C.navy} stroke={C.gold} strokeWidth={2} />
-  }
+  const totalPoints = rows.length
 
   return (
     <ResponsiveContainer width="100%" height={150}>
@@ -55,7 +62,7 @@ export function ExposureTrendChart({ data }: { data: TrendPoint[] }) {
           width={46}
         />
         <Tooltip
-          formatter={(v: any) => [fmt(v), 'Exposure']}
+          formatter={(v: unknown) => [fmt(v as number), 'Exposure']}
           contentStyle={{ fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 6, padding: '6px 10px' }}
           labelStyle={{ fontWeight: 600, color: C.navy }}
         />
@@ -69,7 +76,7 @@ export function ExposureTrendChart({ data }: { data: TrendPoint[] }) {
         <Area
           type="monotone" dataKey="exposure"
           stroke="transparent" fill="transparent"
-          dot={<CustomDot />}
+          dot={<CustomDot totalPoints={totalPoints} />}
         />
       </AreaChart>
     </ResponsiveContainer>

@@ -7,6 +7,33 @@ import { ROLE_BADGE } from '@/lib/users'
 
 interface Props { session: SessionPayload | null; onClose: () => void }
 
+interface MobileNavItemProps {
+  href: string
+  icon: React.ReactNode
+  label: string
+  isActive: (href: string) => boolean
+}
+
+function MobileNavItem({ href, icon, label, isActive }: MobileNavItemProps) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '11px 16px', borderRadius: 7, textDecoration: 'none',
+        background: isActive(href) ? 'rgba(201,168,76,0.1)' : 'none',
+        borderLeft: isActive(href) ? '2px solid var(--gold)' : '2px solid transparent',
+        color: isActive(href) ? 'var(--gold2)' : 'var(--slate)',
+        fontSize: 13, fontWeight: isActive(href) ? 600 : 400,
+        marginBottom: 1,
+      }}
+    >
+      <span style={{ width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
+      {label}
+    </Link>
+  )
+}
+
 const NAV_ICON = {
   home: <svg viewBox="0 0 15 15" fill="none"><path d="M1 8L7.5 2 14 8v6H9.5v-4h-4V14H1V8z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/></svg>,
   monitoring: <svg viewBox="0 0 15 15" fill="none"><rect x="1" y="3" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M4 9l2-2.5 2 1.5 2-3 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>,
@@ -41,26 +68,6 @@ export default function MobileSidebar({ session, onClose }: Props) {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
     router.refresh()
-  }
-
-  function NavItem({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
-    return (
-      <Link
-        href={href}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 10,
-          padding: '11px 16px', borderRadius: 7, textDecoration: 'none',
-          background: isActive(href) ? 'rgba(201,168,76,0.1)' : 'none',
-          borderLeft: isActive(href) ? '2px solid var(--gold)' : '2px solid transparent',
-          color: isActive(href) ? 'var(--gold2)' : 'var(--slate)',
-          fontSize: 13, fontWeight: isActive(href) ? 600 : 400,
-          marginBottom: 1,
-        }}
-      >
-        <span style={{ width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
-        {label}
-      </Link>
-    )
   }
 
   return (
@@ -105,25 +112,25 @@ export default function MobileSidebar({ session, onClose }: Props) {
         {/* Nav */}
         <div style={{ flex: 1, padding: '10px 8px' }}>
           <div style={{ fontSize: '8.5px', letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(143,163,184,0.5)', padding: '0 8px', marginBottom: 4 }}>Monitor</div>
-          <NavItem href="/"              icon={NAV_ICON.home}          label="Dashboard" />
-          <NavItem href="/portfolio"     icon={NAV_ICON.portfolio}     label="Portfolio" />
-          <NavItem href="/monitoring"    icon={NAV_ICON.monitoring}    label="Monitoring" />
-          <NavItem href="/notifications" icon={NAV_ICON.notifications} label="Notifications" />
+          <MobileNavItem href="/"              icon={NAV_ICON.home}          label="Dashboard"     isActive={isActive} />
+          <MobileNavItem href="/portfolio"     icon={NAV_ICON.portfolio}     label="Portfolio"     isActive={isActive} />
+          <MobileNavItem href="/monitoring"    icon={NAV_ICON.monitoring}    label="Monitoring"    isActive={isActive} />
+          <MobileNavItem href="/notifications" icon={NAV_ICON.notifications} label="Notifications" isActive={isActive} />
 
           <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '8px 0' }} />
 
           <div style={{ fontSize: '8.5px', letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(143,163,184,0.5)', padding: '0 8px', marginBottom: 4 }}>Risk</div>
-          <NavItem href="/warnings"      icon={NAV_ICON.warnings}      label="Early Warnings" />
-          <NavItem href="/watchlist"     icon={NAV_ICON.watchlist}     label="Watchlist" />
-          <NavItem href="/clients"       icon={NAV_ICON.clients}       label="Clients" />
-          <NavItem href="/analytics"     icon={NAV_ICON.analytics}     label="Analytics" />
-          <NavItem href="/concentration" icon={NAV_ICON.concentration} label="Concentration" />
-          <NavItem href="/stress"        icon={NAV_ICON.stress}        label="Stress Test" />
+          <MobileNavItem href="/warnings"      icon={NAV_ICON.warnings}      label="Early Warnings"  isActive={isActive} />
+          <MobileNavItem href="/watchlist"     icon={NAV_ICON.watchlist}     label="Watchlist"       isActive={isActive} />
+          <MobileNavItem href="/clients"       icon={NAV_ICON.clients}       label="Clients"         isActive={isActive} />
+          <MobileNavItem href="/analytics"     icon={NAV_ICON.analytics}     label="Analytics"       isActive={isActive} />
+          <MobileNavItem href="/concentration" icon={NAV_ICON.concentration} label="Concentration"   isActive={isActive} />
+          <MobileNavItem href="/stress"        icon={NAV_ICON.stress}        label="Stress Test"     isActive={isActive} />
 
           <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '8px 0' }} />
 
           <div style={{ fontSize: '8.5px', letterSpacing: '2px', textTransform: 'uppercase', color: 'rgba(143,163,184,0.5)', padding: '0 8px', marginBottom: 4 }}>System</div>
-          <NavItem href="/audit" icon={NAV_ICON.audit} label="Audit Log" />
+          <MobileNavItem href="/audit" icon={NAV_ICON.audit} label="Audit Log" isActive={isActive} />
         </div>
 
         {/* User footer */}

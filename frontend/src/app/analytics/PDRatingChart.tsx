@@ -16,13 +16,13 @@ export default function PDRatingChart({ data }: { data: PDByRating[] }) {
         <CartesianGrid strokeDasharray="3 3" stroke={C.border} horizontal={false} />
         <XAxis type="number" tickFormatter={v => `${v}%`} tick={axTick} tickLine={false} axisLine={false} domain={[0, 'auto']} />
         <YAxis type="category" dataKey="rating_last_month" tick={axTick} tickLine={false} axisLine={false} width={30} />
-        <Tooltip formatter={(v: any) => [`${v}%`, 'PD']} contentStyle={tipStyle} />
+        <Tooltip formatter={(v) => [`${v}%`, 'PD']} contentStyle={tipStyle} />
         <Bar dataKey="pd_pct" radius={[0, 4, 4, 0]}>
           {sorted.map((r, i) => (
             <Cell key={i} fill={r.pd_pct > 10 ? C.red : r.pd_pct > 5 ? C.amber : C.green} />
           ))}
           <LabelList dataKey="pd_pct" position="right"
-            formatter={(v: any) => `${v}%`}
+            formatter={(v) => `${v}%`}
             style={{ fontSize: 10, fill: C.muted, fontWeight: 600 }} />
         </Bar>
       </BarChart>

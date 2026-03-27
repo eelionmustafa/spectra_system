@@ -25,7 +25,7 @@ export default function RepaymentDonut({ data }: { data: RepaymentSummary }) {
               dataKey="value" strokeWidth={2} stroke="#fff">
               {slices.map((s, i) => <Cell key={i} fill={s.color} />)}
             </Pie>
-            <Tooltip formatter={(v: any) => [`${v}%`, '']} contentStyle={tipStyle} />
+            <Tooltip formatter={(v) => [`${v}%`, '']} contentStyle={tipStyle} />
           </PieChart>
         </ResponsiveContainer>
       </div>

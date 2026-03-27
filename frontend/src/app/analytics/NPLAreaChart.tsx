@@ -25,7 +25,7 @@ export default function NPLAreaChart({ data }: { data: NPLTrend[] }) {
         <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
         <XAxis dataKey="month" tick={axTick} tickLine={false} axisLine={false} />
         <YAxis tickFormatter={v => `${v}%`} tick={axTick} tickLine={false} axisLine={false} width={34} />
-        <Tooltip formatter={(v: any) => [`${v}%`, 'NPL ratio']} contentStyle={tipStyle} />
+        <Tooltip formatter={(v) => [`${v}%`, 'NPL ratio']} contentStyle={tipStyle} />
         <ReferenceLine y={5} stroke={C.red}   strokeDasharray="4 2" strokeWidth={1}
           label={{ value: '5%', position: 'insideTopRight', fontSize: 9, fill: C.red }} />
         <ReferenceLine y={3} stroke={C.amber} strokeDasharray="4 2" strokeWidth={1}

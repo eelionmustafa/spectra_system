@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import Topbar from '@/components/Topbar'
 import Link from 'next/link'
 import { getDashboardKPIs, getStageDistribution, getRecentTransactions, getMonthlyExposureTrend, getHighestRiskClient } from '@/lib/queries'
+
 import { KPI } from '@/lib/config'
 import { fmt, fmtDate } from '@/lib/formatters'
 import { stageBadge } from '@/lib/colors'
@@ -13,8 +14,10 @@ const ExposureTrendChart = lazy(
   { loading: () => <div style={{ height: 200, borderRadius: 8, background: '#F8FAFC', animation: 'pulse 1.5s ease-in-out infinite' }} /> }
 )
 
+
 /* ─── Deferred sections — don't block KPIs or stage distribution ──────────── */
 async function TrendSection() {
+
   const trend = await getMonthlyExposureTrend().catch(() => [])
   return (
     <div className="panel">
@@ -22,17 +25,22 @@ async function TrendSection() {
         <span className="pt">Monthly exposure trend</span>
         <span className="pa">12 months</span>
       </div>
+
       {trend.length > 0
         ? <ExposureTrendChart data={trend} />
         : <div style={{ height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: 11 }}>
             Trend data unavailable
           </div>
       }
+
     </div>
+
   )
 }
 
+
 async function TransactionsSection() {
+
   const transactions = await getRecentTransactions().catch(() => [])
   return (
     <div className="panel">
@@ -40,16 +48,19 @@ async function TransactionsSection() {
         <span className="pt">Recent transactions</span>
         <span className="pa">Last 30 days</span>
       </div>
+
       {transactions.length === 0 ? (
         <div style={{ padding: '32px', textAlign: 'center', color: 'var(--muted)', fontSize: 11 }}>
           Transaction data unavailable
         </div>
+
       ) : (
         <div className="tbl-wrap">
           <table className="tbl tbl-alt">
             <thead>
               <tr><th>Client</th><th>Type</th><th>Amount</th><th>Date</th><th>Stage</th></tr>
             </thead>
+
             <tbody>
               {transactions.map((t, i) => (
                 <tr key={i}>
@@ -78,13 +89,14 @@ async function TransactionsSection() {
   )
 }
 
+
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
 const MM: Record<string, string> = {
   '01':'Jan','02':'Feb','03':'Mar','04':'Apr','05':'May','06':'Jun',
   '07':'Jul','08':'Aug','09':'Sep','10':'Oct','11':'Nov','12':'Dec',
 }
-function fmtMonth(ym: string) { return MM[ym.slice(5, 7)] ?? ym }
+
 
 
 const STAGE_COLORS: Record<string, string> = {
@@ -134,13 +146,12 @@ export default async function Dashboard() {
   /* donut — r=46, circ≈289 */
   const r = 46, circ = 2 * Math.PI * r
   const total = stages.reduce((s, x) => s + x.count, 0)
-  let arcOffset = 0
-  const segments = stages.map(row => {
+  const segments = stages.reduce<Array<{ stage: string; count: number; exposure: number; dash: number; arcOffset: number; pct: string; color: string }>>((acc, row) => {
     const dash = total ? (row.count / total) * circ : 0
-    const seg = { ...row, dash, arcOffset, pct: total ? ((row.count / total) * 100).toFixed(1) : '0', color: STAGE_COLORS[row.stage] ?? '#EEF2F7' }
-    arcOffset += dash
-    return seg
-  })
+    const arcOffset= acc.length > 0 ? acc[acc.length - 1].arcOffset + acc[acc.length - 1].dash : 0
+    acc.push({ stage: row.stage, count: row.count, exposure: row.exposure ?? 0, dash, arcOffset, pct: total ? ((row.count / total) * 100).toFixed(1) : '0', color: STAGE_COLORS[row.stage] ?? '#EEF2F7' })
+    return acc
+  }, [])
 
 
   const stage3 = stages.find(s => s.stage === 'Stage 3')
@@ -189,6 +200,7 @@ export default async function Dashboard() {
             </div>
           </div>
 
+
           <div style={{ width: '1px', height: '54px', background: 'rgba(255,255,255,0.07)', flexShrink: 0 }} />
 
           {[
@@ -226,6 +238,7 @@ export default async function Dashboard() {
           </div>
         </div>
 
+
         {/* ── Priority Actions ────────────────────────────────────────── */}
         {priorityActions.length > 0 && (
           <div style={{
@@ -235,6 +248,7 @@ export default async function Dashboard() {
             <div style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1.5px', color: '#92400E', fontWeight: 700, marginBottom: '10px' }}>
               Today&apos;s Priorities — {priorityActions.length} action{priorityActions.length > 1 ? 's' : ''} required
             </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {priorityActions.map((a, i) => (
                 <div key={i} style={{
@@ -260,6 +274,7 @@ export default async function Dashboard() {
           </div>
         )}
 
+
         {/* ── KPI cards ─────────────────────────────────────────────── */}
         <div className="row4">
           <div className="kcard" style={{ background: 'var(--navy)', borderColor: 'rgba(201,168,76,0.2)', borderLeft: '3px solid var(--gold)' }}>
@@ -271,12 +286,14 @@ export default async function Dashboard() {
             <span className="badge" style={{ background: 'rgba(201,168,76,0.15)', color: 'var(--gold2)' }}>{kpis.total_clients} accounts</span>
           </div>
 
+
           <div className="kcard">
             <div className="kl">Total Clients</div>
             <div className="kv" style={{ color: 'var(--blue)', marginBottom: '4px' }}>{kpis.total_clients}</div>
             <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '6px' }}>In active portfolio</div>
             <span className="badge bb">Monitored</span>
           </div>
+
 
           <div className="kcard">
             <div className="kl">Delinquency Rate</div>
@@ -288,6 +305,7 @@ export default async function Dashboard() {
               {kpis.delinquency_rate_pct > KPI.DELINQUENCY_RED ? '⚠ High' : 'Moderate'}
             </span>
           </div>
+
 
           <div className="kcard">
             <div className="kl">NPL Ratio</div>
@@ -301,6 +319,7 @@ export default async function Dashboard() {
           </div>
         </div>
 
+
         {/* ── Charts ────────────────────────────────────────────────── */}
         <div className="row2">
 
@@ -313,6 +332,7 @@ export default async function Dashboard() {
           }>
             <TrendSection />
           </Suspense>
+
 
           {/* Stage distribution */}
           <div className="panel">
@@ -352,6 +372,7 @@ export default async function Dashboard() {
           </div>
         </div>
 
+
         {/* ── Transactions + nav cards ───────────────────────────── */}
         <div className="row2">
 
@@ -363,6 +384,7 @@ export default async function Dashboard() {
           }>
             <TransactionsSection />
           </Suspense>
+
 
           <div className="panel">
             <div className="ph"><span className="pt">Navigate to</span></div>
@@ -408,6 +430,7 @@ export default async function Dashboard() {
               ))}
             </div>
           </div>
+
 
         </div>
       </div>
