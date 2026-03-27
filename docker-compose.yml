@@ -1,0 +1,62 @@
+services:
+
+  # ── Next.js frontend ────────────────────────────────────────────────────────
+  app:
+    build:
+      context: ./spectra-app
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      # SQL Server Auth (Windows Auth is not available in Linux containers)
+      DB_SERVER: ${DB_SERVER}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_ODBC_DRIVER: "ODBC Driver 18 for SQL Server"
+      JWT_SECRET: ${JWT_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLIENT_PORTAL_PASSWORD: ${CLIENT_PORTAL_PASSWORD}
+      NODE_ENV: production
+    restart: unless-stopped
+    # Prevent runaway memory on large portfolios (predictions cached in-process)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/db/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ── Python ML pipeline (one-shot batch job) ─────────────────────────────────
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile.pipeline
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      DB_SERVER: ${DB_SERVER}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    # Pipeline is CPU/memory intensive during training
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    profiles:
+      # Run manually: docker compose --profile pipeline run pipeline
+      - pipeline
