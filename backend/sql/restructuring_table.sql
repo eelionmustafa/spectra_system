@@ -10,9 +10,6 @@
 -- want to pre-create the table before first app startup.
 -- ─────────────────────────────────────────────────────────────────────────────
 
-USE [SPECTRA];
-GO
-
 IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'RestructuringPlans' AND schema_id = SCHEMA_ID('dbo')

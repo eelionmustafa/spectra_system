@@ -8,9 +8,6 @@
 -- want to pre-create the tables before first app startup.
 -- ─────────────────────────────────────────────────────────────────────────────
 
-USE [SPECTRA];
-GO
-
 -- ─── ClientMonitoring ─────────────────────────────────────────────────────────
 -- One row per client. Stores the review cadence (auto-set from IFRS stage) and
 -- a credit-freeze flag set automatically when the client escalates to Stage 2 or 3.

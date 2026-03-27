@@ -13,9 +13,6 @@
 -- via DDL-on-first-use guard in committeeService.ts.
 -- ─────────────────────────────────────────────────────────────────────────────
 
-USE [SPECTRA];
-GO
-
 IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'CreditCommitteeLog' AND schema_id = SCHEMA_ID('dbo')

@@ -1,9 +1,6 @@
 -- SPECTRA Computed Metrics: Database-side pre-computation layer
 -- Run once against SPECTRA database. Safe to re-run (IF NOT EXISTS guards).
 
-USE [SPECTRA];
-GO
-
 IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = N'PortfolioKPISnapshot' AND schema_id = SCHEMA_ID(N'dbo')

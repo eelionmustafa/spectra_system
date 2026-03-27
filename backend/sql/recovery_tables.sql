@@ -11,9 +11,6 @@
 -- via DDL-on-first-use guards in recoveryService.ts / writtenOffService.ts.
 -- ─────────────────────────────────────────────────────────────────────────────
 
-USE [SPECTRA];
-GO
-
 -- ─── RecoveryCases ────────────────────────────────────────────────────────────
 
 IF NOT EXISTS (

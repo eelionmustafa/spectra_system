@@ -8,9 +8,6 @@
 -- want to pre-create the tables before first app startup.
 -- ─────────────────────────────────────────────────────────────────────────────
 
-USE [SPECTRA];
-GO
-
 -- ─── SystemActions ────────────────────────────────────────────────────────────
 -- Immutable audit log of every system-initiated event.
 -- One row per event; never updated after insert.

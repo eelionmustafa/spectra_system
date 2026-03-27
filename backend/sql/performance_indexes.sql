@@ -5,9 +5,6 @@
 -- check so it is safe to re-run.
 -- =============================================================================
 
-USE [SPECTRA];
-GO
-
 -- ---------------------------------------------------------------------------
 -- 1. Clients(Stage, RiskScore)
 --    Speeds up stage-distribution queries, watchlist filtering, and any

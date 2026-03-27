@@ -4,9 +4,6 @@
 -- Run once on the [SPECTRA] database to migrate alert acks off the file system.
 -- =============================================================================
 
-USE [SPECTRA];
-GO
-
 IF NOT EXISTS (
     SELECT 1 FROM sys.tables WHERE object_id = OBJECT_ID('[dbo].[AlertAcknowledgements]')
 )
