@@ -60,3 +60,5 @@
 {"id":"1ccb0e7e-28df-4794-8101-cdaf88810626","action":"Flag for Review","clientId":"193847562","timestamp":"2026-03-30T04:48:24.753Z","user":"risk_officer"}
 {"id":"79479911-7b41-484b-934b-b1889cbc4018","action":"Add to Watchlist","clientId":"193847562","timestamp":"2026-03-30T14:33:24.293Z","user":"admin"}
 {"id":"ccba6ac0-cfc3-479a-83f7-07d2af463703","action":"Monthly Monitor","clientId":"0034538822","timestamp":"2026-04-01T08:02:58.628Z","user":"elion"}
+{"id":"8225ae8c-4496-49c4-b7c6-bba0c9aec0c3","action":"Escalate → Recovery","clientId":"1958327254","timestamp":"2026-04-02T22:54:46.507Z","user":"elion"}
+{"id":"245d63fc-4191-4186-a451-d76767fda2d5","action":"Legal Review","clientId":"1958327254","timestamp":"2026-04-02T22:54:50.628Z","user":"elion"}
