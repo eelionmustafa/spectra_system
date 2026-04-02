@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { query } from '@/lib/db.server'
 import { ensureEWIPredictionsTable } from '@/lib/ewiPredictionsService'
+import { seedPredictions } from '@/app/warnings/actions'
 import PayButton from './PayButton'
 
 interface DemoClient {
@@ -15,6 +16,13 @@ interface DemoClient {
 async function getHighRiskClients(): Promise<DemoClient[]> {
   try {
     await ensureEWIPredictionsTable()
+
+    // Auto-seed if EWIPredictions is empty so the demo always has data
+    const countRows = await query<{ n: number }>(`SELECT COUNT(*) AS n FROM [dbo].[EWIPredictions] WITH (NOLOCK)`, {})
+    if ((countRows[0]?.n ?? 0) === 0) {
+      await seedPredictions()
+    }
+
     return await query<DemoClient>(
       `SELECT TOP 6
          e.client_id,
