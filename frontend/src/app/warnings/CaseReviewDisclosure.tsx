@@ -23,6 +23,7 @@ export default function CaseReviewDisclosure({
     <details
       ref={detailsRef}
       style={{ marginTop: '16px' }}
+      suppressHydrationWarning
     >
       <summary
         style={{

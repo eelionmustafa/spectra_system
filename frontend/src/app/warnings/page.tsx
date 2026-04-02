@@ -8,6 +8,7 @@ import {
   getActiveAlerts,
   getClientSignalsBatch,
   getAlertsPaginated,
+  getClientActiveActions,
 } from '@/lib/queries'
 import type { ClientSignalSnapshot } from '@/lib/queries'
 import { cookies } from 'next/headers'
@@ -26,6 +27,7 @@ import CaseReviewDisclosure from './CaseReviewDisclosure'
 import PredictionsTable from './PredictionsTable'
 import RecommendationsTable from './RecommendationsTable'
 import ReloadButton from './ReloadButton'
+import LiveRefreshBanner from './LiveRefreshBanner'
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -213,6 +215,7 @@ async function WarningsContent({
   const casePdPct  = caseRow ? Math.round(caseRow.windowPD * 100) : 0
   const caseShap   = caseRow ? allShap[caseRow.clientID] : null
   const caseSig    = caseRow ? signalsMap[caseRow.clientID] : null
+  const caseActiveActions = caseRow ? await getClientActiveActions(caseRow.clientID) : []
   const caseDrivers = caseShap ? [
     caseShap.top_factor_1 ? { label: driverBullet(caseShap.top_factor_1, caseShap.shap_1), shap: Math.abs(caseShap.shap_1), neg: caseShap.shap_1 < 0 } : null,
     caseShap.top_factor_2 ? { label: driverBullet(caseShap.top_factor_2, caseShap.shap_2), shap: Math.abs(caseShap.shap_2), neg: caseShap.shap_2 < 0 } : null,
@@ -227,7 +230,7 @@ async function WarningsContent({
     overdraft: caseSig?.overdraft ?? 'None', cardUsage: caseSig?.card_usage ?? 'Normal',
     consecLates: caseSig?.consec_lates ?? '0 months', productType: caseSig?.product_type ?? 'Consumer',
     stageMigrationProb: caseRow.stage_migration_prob, dpdEscalationProb: caseRow.dpd_escalation_prob,
-    exposure: caseRow.exposure, activeActions: [], topShapFactor: caseShap?.top_factor_1 ?? '',
+    exposure: caseRow.exposure, activeActions: caseActiveActions.map(a => a.action), topShapFactor: caseShap?.top_factor_1 ?? '',
   }).actions : []
   const caseSignalItems = caseRow ? [
     { label: 'Exposure',    value: caseRow.exposure > 0 ? fmt(caseRow.exposure) : 'N/A', bad: false },
@@ -611,6 +614,7 @@ export default async function Warnings({
   return (
     <>
       <Topbar title="Early Warnings" sub="EWI Monitor" />
+      <LiveRefreshBanner />
       <div className="content">
         <Suspense fallback={<WarningSkeleton />}>
           <WarningsContent

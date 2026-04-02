@@ -124,8 +124,10 @@ export default function ActionChips(props: Props) {
           timestamp: new Date().toISOString(),
         }),
       })
+      const payload = await response.json().catch(() => null) as { error?: string } | null
       if (!response.ok) {
-        setLogError(`Failed to log action: ${response.statusText}`)
+        const message = payload?.error || response.statusText || `HTTP ${response.status}`
+        setLogError(`Failed to log action: ${message}`)
         return false
       }
       setLogError(null)

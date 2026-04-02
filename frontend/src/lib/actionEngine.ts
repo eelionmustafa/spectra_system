@@ -406,10 +406,10 @@ export function assess(s: ClientSignals): ActionAssessment {
   // ── Urgency headline ────────────────────────────────────────────────────────
   const top = top5[0]
   const urgencyHeadline =
-    top.urgency === 'IMMEDIATE' ? `Immediate action required today — ${top.label}` :
-    top.urgency === 'URGENT'    ? `Urgent — action required within 24–48 hours` :
-    top.urgency === 'STANDARD'  ? `Action required within 7 days` :
-                                  'Routine monitoring — no acute risk'
+    top?.urgency === 'IMMEDIATE' ? `Immediate action required today — ${top.label}` :
+    top?.urgency === 'URGENT'    ? `Urgent — action required within 24–48 hours` :
+    top?.urgency === 'STANDARD'  ? `Action required within 7 days` :
+                                   'Routine monitoring — no acute risk'
 
   return {
     actions:         top5,

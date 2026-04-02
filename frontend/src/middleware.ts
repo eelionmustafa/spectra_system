@@ -6,7 +6,7 @@ const SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET ?? 'spectra-dev-secret-change-in-production'
 )
 
-const PUBLIC = ['/login', '/api/auth/login', '/api/auth/logout', '/api/db/ping']
+const PUBLIC = ['/login', '/api/auth/login', '/api/auth/logout', '/api/db/ping', '/demo', '/api/payment/demo-simulate']
 
 // Portal routes handle their own auth (spectra_client_session)
 const PORTAL = ['/portal', '/api/portal']

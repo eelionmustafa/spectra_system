@@ -7,73 +7,90 @@ import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 
 const LOG_FILE = path.join(process.cwd(), '..', 'data', 'action_log.jsonl')
 
-/** Actions that are written to the SQL database (not just the local log file) */
+// These actions should also persist into SQL so they remain visible across deployments.
 const DB_RECORD_ACTIONS = new Set([
-  'Freeze Account', 'Freeze account',
-  'Legal Review', 'Legal review', 'Legal referral',
-  'Escalate', 'Escalate case', 'Escalate → Recovery',
-  'Restructure',
-  'Add to Watchlist', 'Add to watchlist',
-  'Monthly Monitor',
-  'Flag for Review',
-  'Increase monitoring', 'Increase Monitoring',
+  'freeze account',
+  'legal review',
+  'legal referral',
+  'escalate',
+  'escalate case',
+  'escalate -> recovery',
+  'restructure',
+  'add to watchlist',
+  'monthly monitor',
+  'flag for review',
+  'increase monitoring',
 ])
 
-async function getSessionUser(req: NextRequest): Promise<string> {
-  const token = req.cookies.get(COOKIE_NAME)?.value
-  if (!token) return 'unknown'
+function normalizeActionLabel(action: string): string {
+  return action
+    .replace(/→/g, '->')
+    .replace(/â†’/g, '->')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+function appendLocalLog(entry: Record<string, unknown>) {
   try {
-    const session = await verifyToken(token)
-    return session.username
+    const dir = path.dirname(LOG_FILE)
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    fs.appendFileSync(LOG_FILE, JSON.stringify(entry) + '\n', 'utf-8')
   } catch {
-    return 'unknown'
+    // Non-fatal in serverless environments with a read-only filesystem.
+  }
+}
+
+async function requireSession(req: NextRequest) {
+  const token = req.cookies.get(COOKIE_NAME)?.value
+  if (!token) return null
+
+  try {
+    return await verifyToken(token)
+  } catch {
+    return null
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.cookies.get(COOKIE_NAME)?.value
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    try { await verifyToken(token) } catch { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+    const session = await requireSession(req)
+    if (!session) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
 
     const { action, clientId, timestamp } = await req.json()
-    if (!action) return NextResponse.json({ ok: false, error: 'action required' }, { status: 400 })
-
-    const user = await getSessionUser(req)
+    if (!action) {
+      return NextResponse.json({ ok: false, error: 'action required' }, { status: 400 })
+    }
 
     const entry = {
       id: crypto.randomUUID(),
       action,
       clientId: clientId ?? null,
       timestamp: timestamp ?? new Date().toISOString(),
-      user,
+      user: session.username,
     }
 
-    // Always append to local log file
-    const dir = path.dirname(LOG_FILE)
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-    fs.appendFileSync(LOG_FILE, JSON.stringify(entry) + '\n', 'utf-8')
+    appendLocalLog(entry)
 
-    // Also write to SQL database for significant actions
-    if (clientId && DB_RECORD_ACTIONS.has(action)) {
-      await recordClientAction(clientId, action, user)
+    if (clientId && DB_RECORD_ACTIONS.has(normalizeActionLabel(action))) {
+      await recordClientAction(clientId, action, session.username)
     }
 
     return NextResponse.json({ ok: true, id: entry.id })
   } catch (err) {
-    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 })
+    const message = (err as Error).message ?? String(err)
+    return NextResponse.json({ ok: false, error: message }, { status: 500 })
   }
 }
 
 export async function GET(req: NextRequest) {
-  const token = req.cookies.get(COOKIE_NAME)?.value
-  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  try { await verifyToken(token) } catch { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  const session = await requireSession(req)
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   try {
     if (!fs.existsSync(LOG_FILE)) return NextResponse.json({ actions: [] })
     const lines = fs.readFileSync(LOG_FILE, 'utf-8').trim().split('\n').filter(Boolean)
-    const actions = lines.map(l => JSON.parse(l)).reverse()   // newest first
+    const actions = lines.map(line => JSON.parse(line)).reverse()
     return NextResponse.json({ actions })
   } catch {
     return NextResponse.json({ actions: [] })
