@@ -14,7 +14,8 @@ export default function MigrationBarChart({ data }: { data: LabelMigration[] }) 
         <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
         <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} axisLine={false} />
         <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: C.muted }} tickLine={false} axisLine={false} width={40} />
-        <Tooltip formatter={(v: unknown, name: string) => [Number(v).toLocaleString(), name]} contentStyle={tipStyle} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <Tooltip formatter={(v: any, name: any) => [Number(v).toLocaleString(), name]} contentStyle={tipStyle} />
         <Legend wrapperStyle={{ fontSize: 10, paddingTop: 6 }}
           formatter={(value: string) => <span style={{ color: C.muted }}>{value}</span>} />
         <Bar dataKey="Base"    fill={C.blue}  radius={[3,3,0,0]} name="Base" />

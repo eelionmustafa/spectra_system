@@ -19,7 +19,8 @@ export default function StageBreakdownDonut({ data, total }: { data: StageSlice[
               {slices.map((s, i) => <Cell key={i} fill={s.color} />)}
             </Pie>
             <Tooltip
-              formatter={(v: unknown, _: string, props: { payload?: { label?: string } }) => [
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              formatter={(v: any, _: any, props: any) => [
                 `${v} (${total ? ((Number(v) / total) * 100).toFixed(1) : 0}%)`,
                 props.payload?.label,
               ]}

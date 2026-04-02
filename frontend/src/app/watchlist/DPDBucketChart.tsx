@@ -14,7 +14,8 @@ export default function DPDBucketChart({ data }: { data: DPDBucket[] }) {
         <CartesianGrid strokeDasharray="3 3" stroke={C.border} vertical={false} />
         <XAxis dataKey="label" tick={{ fontSize: 10, fill: C.muted }} tickLine={false} axisLine={false} />
         <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: C.muted }} tickLine={false} axisLine={false} width={28} />
-        <Tooltip formatter={(v: unknown) => [v, 'Clients']} contentStyle={tipStyle} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <Tooltip formatter={(v: any) => [v, 'Clients']} contentStyle={tipStyle} />
         <Bar dataKey="count" radius={[4, 4, 0, 0]}>
           {data.map((b, i) => <Cell key={i} fill={b.color} />)}
           <LabelList dataKey="count" position="top"
