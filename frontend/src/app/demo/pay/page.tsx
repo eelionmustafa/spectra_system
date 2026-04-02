@@ -44,7 +44,6 @@ async function getHighRiskClients(): Promise<DemoClient[]> {
          ORDER BY dateID DESC
        ) dd
        WHERE e.rn = 1
-         AND e.risk_score >= 0.35
        ORDER BY e.risk_score DESC`,
       {}
     )
