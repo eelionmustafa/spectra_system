@@ -5,7 +5,7 @@ import { useEffect } from 'react'
 import type { SessionPayload } from '@/lib/auth'
 import { ROLE_BADGE } from '@/lib/users'
 
-interface Props { session: SessionPayload | null; onClose: () => void }
+interface Props { session: SessionPayload | null; open: boolean; onClose: () => void }
 
 interface MobileNavItemProps {
   href: string
@@ -49,7 +49,7 @@ const NAV_ICON = {
   logout: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 2H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h3M9 10l3-3-3-3M12 7H5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>,
 }
 
-export default function MobileSidebar({ session, onClose }: Props) {
+export default function MobileSidebar({ session, open, onClose }: Props) {
   const path   = usePathname()
   const router = useRouter()
   const badge  = session ? (ROLE_BADGE[session.role] ?? { label: session.role, color: '#94A3B8' }) : null
@@ -60,9 +60,9 @@ export default function MobileSidebar({ session, onClose }: Props) {
 
   // Prevent body scroll while open
   useEffect(() => {
-    document.body.style.overflow = 'hidden'
+    document.body.style.overflow = open ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
-  }, [])
+  }, [open])
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -78,6 +78,9 @@ export default function MobileSidebar({ session, onClose }: Props) {
         style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
           zIndex: 200, backdropFilter: 'blur(2px)',
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? 'auto' : 'none',
+          transition: 'opacity 0.22s ease',
         }}
       />
 
@@ -88,6 +91,9 @@ export default function MobileSidebar({ session, onClose }: Props) {
         display: 'flex', flexDirection: 'column',
         borderRight: '1px solid rgba(201,168,76,0.15)',
         overflowY: 'auto',
+        transform: open ? 'translateX(0)' : 'translateX(-100%)',
+        transition: 'transform 0.22s cubic-bezier(0.4,0,0.2,1)',
+        willChange: 'transform',
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>

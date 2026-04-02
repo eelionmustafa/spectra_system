@@ -1,16 +1,20 @@
--- ─────────────────────────────────────────────────────────────────────────────
--- SPECTRA — EWI Tables DDL
--- EWIPredictions:    ML-driven deterioration predictions per client, generated
---                    by the pipeline or /api/ewi/fire endpoint.
--- EWIRecommendations: Actionable items generated from EWI signals / ML rules;
---                    tracked with is_actioned flag.
+-- ---------------------------------------------------------------------------
+-- SPECTRA - EWI Tables DDL
+-- EWIPredictions:    Latest deterioration predictions per client. Rows can be
+--                    published by the ML pipeline or by the heuristic seeding
+--                    action in the Next.js app.
+-- EWIRecommendations: Actionable items generated from EWI rules or analyst
+--                    workflows, tracked with is_actioned.
 --
--- Note: The Next.js application creates these tables automatically on first use
--- via DDL-on-first-use guards in ewiPredictionsService.ts /
+-- Note: The Next.js application also creates these tables automatically on
+-- first use via guards in ewiPredictionsService.ts and
 -- ewiRecommendationsService.ts.
--- ─────────────────────────────────────────────────────────────────────────────
+-- ---------------------------------------------------------------------------
 
--- ─── EWIPredictions ──────────────────────────────────────────────────────────
+USE [SPECTRA];
+GO
+
+-- --- EWIPredictions ---------------------------------------------------------
 
 IF NOT EXISTS (
   SELECT 1 FROM sys.tables
@@ -18,16 +22,31 @@ IF NOT EXISTS (
 )
 BEGIN
   CREATE TABLE [dbo].[EWIPredictions] (
-    id                 UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
-    client_id          NVARCHAR(50)     NOT NULL,
-    -- 0–1 ML deterioration probability (higher = worse)
-    risk_score         FLOAT            NOT NULL,
+    id                   UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
+    client_id            NVARCHAR(50)     NOT NULL,
+    -- 0-1 deterioration probability, typically pd_90d
+    risk_score           FLOAT            NOT NULL,
     -- 'Critical' | 'High' | 'Medium' | 'Low'
-    deterioration_risk NVARCHAR(20)     NOT NULL,
-    -- JSON array of signal strings, e.g. ["Salary stopped","DPD rising"]
-    key_signals        NVARCHAR(MAX)    NULL,
-    ai_reasoning       NVARCHAR(MAX)    NULL,
-    run_date           DATETIME         NOT NULL DEFAULT GETDATE()
+    deterioration_risk   NVARCHAR(20)     NOT NULL,
+    -- Full model label, e.g. 'Default imminent' | 'Critical' | 'High'
+    risk_label           NVARCHAR(32)     NULL,
+    -- JSON array of short driver strings for the UI
+    key_signals          NVARCHAR(MAX)    NULL,
+    ai_reasoning         NVARCHAR(MAX)    NULL,
+    exposure             FLOAT            NULL,
+    pd_30d               FLOAT            NULL,
+    pd_60d               FLOAT            NULL,
+    pd_90d               FLOAT            NULL,
+    stage_migration_prob FLOAT            NULL,
+    dpd_escalation_prob  FLOAT            NULL,
+    recommended_action   NVARCHAR(MAX)    NULL,
+    top_factor_1         NVARCHAR(255)    NULL,
+    top_factor_2         NVARCHAR(255)    NULL,
+    top_factor_3         NVARCHAR(255)    NULL,
+    shap_1               FLOAT            NULL,
+    shap_2               FLOAT            NULL,
+    shap_3               FLOAT            NULL,
+    run_date             DATETIME         NOT NULL DEFAULT GETDATE()
   );
   PRINT 'Created table: EWIPredictions';
 END
@@ -49,7 +68,7 @@ END
 GO
 
 
--- ─── EWIRecommendations ──────────────────────────────────────────────────────
+-- --- EWIRecommendations -----------------------------------------------------
 
 IF NOT EXISTS (
   SELECT 1 FROM sys.tables
@@ -90,17 +109,20 @@ END
 GO
 
 
--- ─── Sample verification queries ──────────────────────────────────────────────
+-- --- Sample verification queries -------------------------------------------
 
--- Latest prediction per client, ranked by risk_score
--- SELECT TOP 20 client_id, risk_score, deterioration_risk, run_date
+-- Latest prediction per client, ranked by pd_90d / risk_score
+-- SELECT TOP 20 client_id, risk_label, pd_90d, risk_score, run_date
 -- FROM (
 --   SELECT *, ROW_NUMBER() OVER (PARTITION BY client_id ORDER BY run_date DESC) AS rn
 --   FROM [dbo].[EWIPredictions]
--- ) t WHERE rn = 1 ORDER BY risk_score DESC;
+-- ) t
+-- WHERE rn = 1
+-- ORDER BY COALESCE(pd_90d, risk_score) DESC;
 
 -- Open recommendations by priority
 -- SELECT priority, COUNT(*) AS cnt
 -- FROM [dbo].[EWIRecommendations]
 -- WHERE is_actioned = 0
--- GROUP BY priority ORDER BY cnt DESC;
+-- GROUP BY priority
+-- ORDER BY cnt DESC;

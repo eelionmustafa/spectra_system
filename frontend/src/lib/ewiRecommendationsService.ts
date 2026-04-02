@@ -20,7 +20,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'EWIRecommendations' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[EWIRecommendations] (
+CREATE TABLE [dbo].[EWIRecommendations] (
   id                   UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id            NVARCHAR(50)     NOT NULL,
   credit_id            NVARCHAR(50)     NULL,
@@ -40,10 +40,10 @@ const ENSURE_IDX_EWI_REC = `
 IF NOT EXISTS (
   SELECT 1 FROM sys.indexes
   WHERE name = 'IX_EWIRecommendations_ClientID_IsActioned'
-    AND object_id = OBJECT_ID('SPECTRA.dbo.EWIRecommendations')
+    AND object_id = OBJECT_ID('dbo.EWIRecommendations')
 )
 CREATE NONCLUSTERED INDEX [IX_EWIRecommendations_ClientID_IsActioned]
-  ON [SPECTRA].[dbo].[EWIRecommendations] (client_id, is_actioned)
+  ON [dbo].[EWIRecommendations] (client_id, is_actioned)
   INCLUDE (recommendation_type, created_at)
 `
 
@@ -100,7 +100,7 @@ export async function createEWIRecommendation(rec: {
 }): Promise<string> {
   await ensureEWIRecommendationsTable()
   const rows = await query<{ id: string }>(
-    `INSERT INTO [SPECTRA].[dbo].[EWIRecommendations]
+    `INSERT INTO [dbo].[EWIRecommendations]
        (client_id, credit_id, priority, recommendation_type, description)
      OUTPUT CAST(inserted.id AS VARCHAR(36)) AS id
      VALUES (@clientId, @creditId, @priority, @recommendationType, @description)`,
@@ -121,7 +121,7 @@ export async function markRecommendationActioned(
 ): Promise<void> {
   await ensureEWIRecommendationsTable()
   await query(
-    `UPDATE [SPECTRA].[dbo].[EWIRecommendations]
+    `UPDATE [dbo].[EWIRecommendations]
      SET is_actioned = 1,
          actioned_by = @actionedBy,
          actioned_at = GETDATE()
@@ -148,7 +148,7 @@ export async function getOpenRecommendations(limit = 200): Promise<EWIRecommenda
        actioned_by,
        CONVERT(VARCHAR(30), actioned_at, 127) AS actioned_at,
        CONVERT(VARCHAR(30), created_at,  127) AS created_at
-     FROM [SPECTRA].[dbo].[EWIRecommendations] WITH (NOLOCK)
+     FROM [dbo].[EWIRecommendations] WITH (NOLOCK)
      WHERE is_actioned = 0
      ORDER BY
        CASE priority
@@ -172,7 +172,7 @@ export async function getClientRecommendations(clientId: string): Promise<EWIRec
        actioned_by,
        CONVERT(VARCHAR(30), actioned_at, 127) AS actioned_at,
        CONVERT(VARCHAR(30), created_at,  127) AS created_at
-     FROM [SPECTRA].[dbo].[EWIRecommendations] WITH (NOLOCK)
+     FROM [dbo].[EWIRecommendations] WITH (NOLOCK)
      WHERE client_id = @clientId
      ORDER BY
        CASE priority
@@ -202,7 +202,7 @@ export async function getRecommendationsPaginated(
        actioned_by,
        CONVERT(VARCHAR(30), actioned_at, 127) AS actioned_at,
        CONVERT(VARCHAR(30), created_at,  127) AS created_at
-     FROM [SPECTRA].[dbo].[EWIRecommendations] WITH (NOLOCK)
+     FROM [dbo].[EWIRecommendations] WITH (NOLOCK)
      WHERE (@showAll = 1 OR is_actioned = 0)
        AND (@priorityFilter = '' OR priority = @priorityFilter)
        AND (@pattern = '%%' OR client_id LIKE @pattern OR COALESCE(credit_id, '') LIKE @pattern)
@@ -215,7 +215,7 @@ export async function getRecommendationsPaginated(
 
   const cntQ = query<{ total: number }>(
     `SELECT COUNT(*) AS total
-     FROM [SPECTRA].[dbo].[EWIRecommendations] WITH (NOLOCK)
+     FROM [dbo].[EWIRecommendations] WITH (NOLOCK)
      WHERE (@showAll = 1 OR is_actioned = 0)
        AND (@priorityFilter = '' OR priority = @priorityFilter)
        AND (@pattern = '%%' OR client_id LIKE @pattern OR COALESCE(credit_id, '') LIKE @pattern)`,

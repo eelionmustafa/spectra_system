@@ -144,5 +144,41 @@ CREATE NONCLUSTERED INDEX [IX_CreditCommitteeLog_ClientID_EscalatedAt]
   INCLUDE (decision, escalated_by);
 GO
 
+-- ---------------------------------------------------------------------------
+-- 10. DueDaysDaily(PersonalID, CreditAccount, dateID)
+--     The existing IX_DueDaysDaily_PersonalID_dateID index (recommended_indexes.sql)
+--     lacks CreditAccount, which is used in every
+--     ROW_NUMBER() OVER (PARTITION BY CreditAccount) de-duplication query.
+--     Without this column the engine cannot satisfy the window function from
+--     the index alone and falls back to a sort + table scan.
+--     DueDays is INCLUDEd to cover the ORDER BY TRY_CAST(DueDays AS FLOAT) clause.
+-- ---------------------------------------------------------------------------
+IF NOT EXISTS (
+  SELECT 1 FROM sys.indexes
+  WHERE  object_id = OBJECT_ID(N'[dbo].[DueDaysDaily]')
+  AND    name      = N'IX_DueDaysDaily_PersonalID_CreditAccount_dateID'
+)
+CREATE NONCLUSTERED INDEX [IX_DueDaysDaily_PersonalID_CreditAccount_dateID]
+  ON [dbo].[DueDaysDaily] ([PersonalID], [CreditAccount], [dateID])
+  INCLUDE ([DueDays]);
+GO
+
+-- ---------------------------------------------------------------------------
+-- 11. TAccounts(Date, NoAccount)
+--     getEWISummary() scans TAccounts up to 5× per call (salary_stopped,
+--     overdraft_spike, card_high, consec_lates CTEs). Date is stored as a
+--     string but all WHERE clauses filter on it with >= comparisons.
+--     Adding this index turns those 5 full-table scans into index seeks.
+-- ---------------------------------------------------------------------------
+IF NOT EXISTS (
+  SELECT 1 FROM sys.indexes
+  WHERE  object_id = OBJECT_ID(N'[dbo].[TAccounts]')
+  AND    name      = N'IX_TAccounts_Date_NoAccount'
+)
+CREATE NONCLUSTERED INDEX [IX_TAccounts_Date_NoAccount]
+  ON [dbo].[TAccounts] ([Date], [NoAccount])
+  INCLUDE ([Amount]);
+GO
+
 PRINT 'SPECTRA performance indexes applied successfully.';
 GO

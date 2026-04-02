@@ -63,9 +63,11 @@ const URGENCY_BG: Record<Urgency, string> = {
 // ─── Role-aware tooltip helper ────────────────────────────────────────────
 
 const ROLE_DISPLAY: Partial<Record<Role, string>> = {
-  admin:        'Administrators',
-  risk_officer: 'Risk officers',
-  analyst:      'Analysts',
+  risk_underwriter:    'Risk underwriters',
+  credit_risk_manager: 'Credit risk managers',
+  collections_officer: 'Collections officers',
+  senior_risk_manager: 'Senior risk managers',
+  auditor:             'Auditors',
 }
 
 function blockedTooltip(userRole: Role | undefined): string {
@@ -104,39 +106,53 @@ export default function ActionChips(props: Props) {
   const isStructured = props.mode === 'structured'
 
   function canExecute(label: string, requiresRole?: 'any' | 'risk_officer'): boolean {
-    if (requiresRole === 'risk_officer')
-      return props.userRole === 'admin' || props.userRole === 'risk_officer'
-    return !RESTRICTED_ACTIONS.has(label) ||
-      props.userRole === 'admin' || props.userRole === 'risk_officer'
+    const elevated = props.userRole === 'credit_risk_manager' || props.userRole === 'senior_risk_manager'
+    if (requiresRole === 'risk_officer') return elevated
+    return !RESTRICTED_ACTIONS.has(label) || elevated
   }
 
-  function logAction(label: string) {
-    fetch('/api/actions/log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: label,
-        clientId: props.clientId ?? null,
-        timestamp: new Date().toISOString(),
-      }),
-    }).catch(() => {})
-  }
+  const [logError, setLogError] = useState<string | null>(null)
 
-  function executeStructured(action: RecommendedAction) {
-    setConfirmAction(null)
-    setDone(prev => new Set([...prev, action.label]))
-    logAction(action.label)
-    if (LEGACY_NAVIGATE.has(action.label) && props.clientId) {
-      setTimeout(() => router.push(`/client/${props.clientId}`), 500)
+  async function logAction(label: string): Promise<boolean> {
+    try {
+      const response = await fetch('/api/actions/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: label,
+          clientId: props.clientId ?? null,
+          timestamp: new Date().toISOString(),
+        }),
+      })
+      if (!response.ok) {
+        setLogError(`Failed to log action: ${response.statusText}`)
+        return false
+      }
+      setLogError(null)
+      return true
+    } catch {
+      setLogError('Action log request failed. Check your connection.')
+      return false
     }
   }
 
-  function executeLegacy(label: string) {
+  async function executeStructured(action: RecommendedAction) {
+    setConfirmAction(null)
+    const logged = await logAction(action.label)
+    if (!logged) return
+    setDone(prev => new Set([...prev, action.label]))
+    if (LEGACY_NAVIGATE.has(action.label) && props.clientId) {
+      setTimeout(() => router.push(`/clients/${props.clientId}`), 500)
+    }
+  }
+
+  async function executeLegacy(label: string) {
     setConfirming(null)
+    const logged = await logAction(label)
+    if (!logged) return
     setDone(prev => new Set([...prev, label]))
-    logAction(label)
     if (LEGACY_NAVIGATE.has(label) && props.clientId) {
-      setTimeout(() => router.push(`/client/${props.clientId}`), 500)
+      setTimeout(() => router.push(`/clients/${props.clientId}`), 500)
     }
   }
 
@@ -158,7 +174,7 @@ export default function ActionChips(props: Props) {
           <div style={{ fontSize: '10px', color: '#9B1C1C', marginBottom: '8px', lineHeight: 1.5 }}>
             {confirmAction.trigger}
           </div>
-          <div style={{ display: 'flex', gap: '6px' }}>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             <button onClick={() => executeStructured(confirmAction)} style={{
               fontSize: '9px', padding: '4px 12px', borderRadius: '5px',
               border: '1px solid #9B1C1C', background: '#9B1C1C', color: 'white',
@@ -175,7 +191,25 @@ export default function ActionChips(props: Props) {
     }
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '4px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginTop: '4px', minWidth: 0 }}>
+        {logError && (
+          <div style={{ fontSize: '10px', color: '#EF4444', padding: '4px 8px', background: '#2D1515', border: '1px solid #7F1D1D', borderRadius: '5px' }}>
+            {logError}
+          </div>
+        )}
+        {structuredActions.length === 0 && (
+          <div style={{
+            padding: '9px 10px',
+            borderRadius: '7px',
+            background: '#F8FAFC',
+            border: '1px dashed var(--border)',
+            fontSize: '10px',
+            color: 'var(--muted)',
+            lineHeight: 1.5,
+          }}>
+            No recommended actions are currently generated for this case.
+          </div>
+        )}
         {structuredActions.map((action, i) => {
           const isDone    = done.has(action.label)
           const blocked   = !canExecute(action.label, action.requiresRole)
@@ -183,13 +217,13 @@ export default function ActionChips(props: Props) {
           if (isDone) {
             return (
               <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
+                display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
                 padding: '6px 10px', borderRadius: '7px',
                 background: '#EAF9F2', border: '1px solid #A7F3D0',
               }}>
                 <span style={{ color: '#065F46', fontSize: '12px', fontWeight: 700 }}>✓</span>
-                <span style={{ fontSize: '11px', color: '#065F46', fontWeight: 500 }}>{action.label}</span>
-                <span style={{ fontSize: '9px', color: '#6EE7B7', marginLeft: 'auto' }}>Logged</span>
+                <span style={{ fontSize: '11px', color: '#065F46', fontWeight: 500, flex: '1 1 180px', minWidth: 0 }}>{action.label}</span>
+                <span style={{ fontSize: '9px', color: '#6EE7B7', marginLeft: 'auto', flexShrink: 0 }}>Logged</span>
                 {/* No undo for destructive actions */}
                 {!action.destructive && (
                   <button onClick={() => setDone(prev => { const n = new Set(prev); n.delete(action.label); return n })}
@@ -203,7 +237,7 @@ export default function ActionChips(props: Props) {
 
           return (
             <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: '8px',
+              display: 'flex', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap',
               padding: '7px 10px', borderRadius: '7px',
               background: blocked ? '#F8FAFC' : URGENCY_BG[action.urgency],
               border: `1px solid ${blocked ? 'var(--border)' : action.urgency === 'IMMEDIATE' ? '#FECACA' : 'var(--border)'}`,
@@ -220,12 +254,12 @@ export default function ActionChips(props: Props) {
               </span>
 
               {/* Action label + trigger */}
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ flex: '1 1 180px', minWidth: 0 }}>
                 <div style={{ fontSize: '11px', fontWeight: 600, color: blocked ? 'var(--muted)' : 'var(--text)' }}>
                   {action.label}
                   {blocked && <span style={{ marginLeft: '4px', fontSize: '9px' }}>🔒</span>}
                 </div>
-                <div style={{ fontSize: '9px', color: 'var(--muted)', marginTop: '1px', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={{ fontSize: '9px', color: 'var(--muted)', marginTop: '1px', lineHeight: 1.35, whiteSpace: 'normal', overflowWrap: 'anywhere' }}>
                   {action.trigger}
                 </div>
               </div>
@@ -245,7 +279,7 @@ export default function ActionChips(props: Props) {
                   background: blocked ? 'white' : URGENCY_COLOR[action.urgency],
                   color: blocked ? '#94A3B8' : 'white',
                   cursor: blocked ? 'not-allowed' : 'pointer',
-                  fontFamily: 'var(--font)', fontWeight: 600,
+                  fontFamily: 'var(--font)', fontWeight: 600, marginLeft: 'auto',
                 }}
               >
                 {action.destructive ? 'Confirm →' : 'Execute'}
@@ -270,7 +304,7 @@ export default function ActionChips(props: Props) {
         background: '#FEF2F2', borderRadius: '7px', border: '1px solid #FECACA',
       }}>
         <div style={{ fontSize: '10px', color: '#9B1C1C', marginBottom: '8px', lineHeight: 1.5 }}>{desc}</div>
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           <button onClick={() => executeLegacy(confirming)} style={{
             fontSize: '9px', padding: '4px 12px', borderRadius: '5px',
             border: '1px solid #9B1C1C', background: '#9B1C1C', color: 'white',

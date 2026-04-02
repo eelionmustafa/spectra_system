@@ -27,7 +27,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'RecoveryCases' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[RecoveryCases] (
+CREATE TABLE [dbo].[RecoveryCases] (
   id              UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id       NVARCHAR(50)     NOT NULL,
   credit_id       NVARCHAR(50)     NULL,
@@ -49,7 +49,7 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('SPECTRA.dbo.RecoveryCases')
 )
 CREATE INDEX IX_RecoveryCases_ClientID_OpenedAt
-  ON [SPECTRA].[dbo].[RecoveryCases] (client_id, opened_at DESC)
+  ON [dbo].[RecoveryCases] (client_id, opened_at DESC)
   INCLUDE (stage, status, assigned_to)
 `
 
@@ -91,6 +91,39 @@ export interface RecoveryCaseRow {
   updated_at:  string
 }
 
+export interface RecoveryCaseMutationResult {
+  case: RecoveryCaseRow
+  mode: 'created' | 'updated'
+}
+
+async function getRecoveryCaseById(caseId: string): Promise<RecoveryCaseRow | null> {
+  const rows = await query<RecoveryCaseRow>(
+    `SELECT TOP 1
+       CAST(id AS VARCHAR(36)) AS id,
+       client_id, credit_id, stage, assigned_to, status, notes,
+       CONVERT(VARCHAR(30), opened_at, 127)  AS opened_at,
+       CONVERT(VARCHAR(30), updated_at, 127) AS updated_at
+     FROM [dbo].[RecoveryCases] WITH (NOLOCK)
+     WHERE id = CAST(@caseId AS UNIQUEIDENTIFIER)`,
+    { caseId }
+  )
+  return rows[0] ?? null
+}
+
+async function getOpenRecoveryCases(clientId: string): Promise<RecoveryCaseRow[]> {
+  return query<RecoveryCaseRow>(
+    `SELECT
+       CAST(id AS VARCHAR(36)) AS id,
+       client_id, credit_id, stage, assigned_to, status, notes,
+       CONVERT(VARCHAR(30), opened_at, 127)  AS opened_at,
+       CONVERT(VARCHAR(30), updated_at, 127) AS updated_at
+     FROM [dbo].[RecoveryCases] WITH (NOLOCK)
+     WHERE client_id = @clientId AND status = 'Open'
+     ORDER BY opened_at DESC`,
+    { clientId }
+  )
+}
+
 // ─── Create ───────────────────────────────────────────────────────────────
 
 export async function createRecoveryCase(
@@ -102,29 +135,59 @@ export async function createRecoveryCase(
     assignedTo?: string | null
     notes?:      string | null
   }
-): Promise<string> {
+): Promise<RecoveryCaseMutationResult> {
   await ensureTables()
 
-  const rows = await query<{ id: string }>(
-    `INSERT INTO [SPECTRA].[dbo].[RecoveryCases]
-       (client_id, credit_id, stage, assigned_to, notes)
-     OUTPUT CAST(inserted.id AS VARCHAR(36)) AS id
-     VALUES (@clientId, @creditId, @stage, @assignedTo, @notes)`,
-    {
-      clientId,
-      creditId:   opts.creditId   ?? null,
-      stage:      opts.stage,
-      assignedTo: opts.assignedTo ?? null,
-      notes:      opts.notes      ?? null,
-    }
-  )
+  const openCases = await getOpenRecoveryCases(clientId)
+  let caseId: string
+  let mode: RecoveryCaseMutationResult['mode'] = 'updated'
 
-  const caseId = rows[0].id
+  if (openCases[0]) {
+    caseId = openCases[0].id
+    await query(
+      `UPDATE [dbo].[RecoveryCases]
+       SET
+         credit_id    = @creditId,
+         stage        = @stage,
+         assigned_to  = @assignedTo,
+         notes        = @notes,
+         updated_at   = GETDATE()
+       WHERE id = CAST(@caseId AS UNIQUEIDENTIFIER)`,
+      {
+        caseId,
+        creditId:   opts.creditId   ?? null,
+        stage:      opts.stage,
+        assignedTo: opts.assignedTo ?? null,
+        notes:      opts.notes      ?? null,
+      }
+    )
+  } else {
+    const rows = await query<{ id: string }>(
+      `INSERT INTO [dbo].[RecoveryCases]
+         (client_id, credit_id, stage, assigned_to, notes)
+       OUTPUT CAST(inserted.id AS VARCHAR(36)) AS id
+       VALUES (@clientId, @creditId, @stage, @assignedTo, @notes)`,
+      {
+        clientId,
+        creditId:   opts.creditId   ?? null,
+        stage:      opts.stage,
+        assignedTo: opts.assignedTo ?? null,
+        notes:      opts.notes      ?? null,
+      }
+    )
+    caseId = rows[0].id
+    mode = 'created'
+  }
+
+  const currentCase = await getRecoveryCaseById(caseId)
+  if (!currentCase) {
+    throw new Error(`Recovery case ${caseId} could not be loaded after mutation`)
+  }
 
   // Mirror to Actions Log
   await recordRichClientAction(
     clientId,
-    `Recovery Initiated: ${opts.stage.replace(/([A-Z])/g, ' $1').trim()}`,
+    `${mode === 'created' ? 'Recovery Initiated' : 'Recovery Updated'}: ${opts.stage.replace(/([A-Z])/g, ' $1').trim()}`,
     createdBy,
     opts.notes ?? undefined,
     { recovery_case_id: caseId, stage: opts.stage, assigned_to: opts.assignedTo ?? null }
@@ -152,10 +215,12 @@ export async function createRecoveryCase(
     })
   }
 
-  return caseId
+  return { case: currentCase, mode }
 }
 
 // ─── Update ───────────────────────────────────────────────────────────────
+
+const STAGE_ORDER: RecoveryStage[] = ['DebtCollection', 'CollateralEnforcement', 'LegalProceedings', 'DebtSale', 'WriteOff']
 
 export async function updateRecoveryCase(
   caseId:    string,
@@ -170,20 +235,32 @@ export async function updateRecoveryCase(
 ): Promise<void> {
   await ensureTables()
 
+  if (updates.stage) {
+    const currentCase = await getRecoveryCaseById(caseId)
+    if (currentCase) {
+      const currentIdx = STAGE_ORDER.indexOf(currentCase.stage)
+      const newIdx     = STAGE_ORDER.indexOf(updates.stage)
+      if (newIdx < currentIdx) {
+        throw new Error('Cannot regress recovery case to an earlier stage')
+      }
+    }
+  }
+
   await query(
-    `UPDATE [SPECTRA].[dbo].[RecoveryCases]
+    `UPDATE [dbo].[RecoveryCases]
      SET
        stage       = COALESCE(@stage,      stage),
        assigned_to = COALESCE(@assignedTo, assigned_to),
        status      = COALESCE(@status,     status),
-       notes       = COALESCE(@notes,      notes),
+       notes       = CASE WHEN @hasNotes = 1 THEN @notes ELSE notes END,
        updated_at  = GETDATE()
-     WHERE CAST(id AS VARCHAR(36)) = @caseId`,
+     WHERE id = CAST(@caseId AS UNIQUEIDENTIFIER)`,
     {
       caseId,
       stage:      updates.stage      ?? null,
       assignedTo: updates.assignedTo ?? null,
       status:     updates.status     ?? null,
+      hasNotes:   'notes' in updates ? 1 : 0,
       notes:      updates.notes      ?? null,
     }
   )
@@ -229,18 +306,8 @@ export async function getActiveRecoveryCase(
   clientId: string
 ): Promise<RecoveryCaseRow | null> {
   await ensureTables()
-  const rows = await query<RecoveryCaseRow>(
-    `SELECT TOP 1
-       CAST(id AS VARCHAR(36)) AS id,
-       client_id, credit_id, stage, assigned_to, status, notes,
-       CONVERT(VARCHAR(30), opened_at, 127)  AS opened_at,
-       CONVERT(VARCHAR(30), updated_at, 127) AS updated_at
-     FROM [SPECTRA].[dbo].[RecoveryCases] WITH (NOLOCK)
-     WHERE client_id = @clientId AND status = 'Open'
-     ORDER BY opened_at DESC`,
-    { clientId }
-  )
-  return rows[0] ?? null
+  const openCases = await getOpenRecoveryCases(clientId)
+  return openCases[0] ?? null
 }
 
 export async function getRecoveryCaseHistory(clientId: string): Promise<RecoveryCaseRow[]> {
@@ -251,7 +318,7 @@ export async function getRecoveryCaseHistory(clientId: string): Promise<Recovery
        client_id, credit_id, stage, assigned_to, status, notes,
        CONVERT(VARCHAR(30), opened_at, 127)  AS opened_at,
        CONVERT(VARCHAR(30), updated_at, 127) AS updated_at
-     FROM [SPECTRA].[dbo].[RecoveryCases] WITH (NOLOCK)
+     FROM [dbo].[RecoveryCases] WITH (NOLOCK)
      WHERE client_id = @clientId
      ORDER BY opened_at DESC`,
     { clientId }

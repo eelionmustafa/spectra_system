@@ -15,7 +15,7 @@ export async function POST(
     const token = jar.get(COOKIE_NAME)?.value
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const session = await verifyToken(token)
-    username = (session as { username?: string; role: string }).username ?? session.role ?? 'risk_officer'
+    username = session.username
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

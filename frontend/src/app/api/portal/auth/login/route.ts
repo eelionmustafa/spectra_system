@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
     if (!accountId || !password) {
       return NextResponse.json({ error: 'Account ID and password are required.' }, { status: 400 })
     }
-    if (!checkClientPassword(password)) {
+    const pwOk = checkClientPassword(password)
+    if (!pwOk) {
       recordFailedAttempt(ip)
       return NextResponse.json({ error: 'Invalid account number or password.' }, { status: 401 })
     }
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
       path: '/',
       maxAge: 60 * 60 * 8, // 8 hours
       sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
     })
     return res
   } catch (err) {

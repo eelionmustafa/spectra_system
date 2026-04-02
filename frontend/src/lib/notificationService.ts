@@ -23,7 +23,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'SystemActions' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[SystemActions] (
+CREATE TABLE [dbo].[SystemActions] (
   id              UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id       NVARCHAR(50)     NOT NULL,
   credit_id       NVARCHAR(50)     NULL,
@@ -45,7 +45,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'Notifications' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[Notifications] (
+CREATE TABLE [dbo].[Notifications] (
   id                UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id         NVARCHAR(50)     NOT NULL,
   credit_id         NVARCHAR(50)     NULL,
@@ -70,7 +70,7 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('SPECTRA.dbo.Notifications')
 )
 CREATE INDEX IX_Notifications_AssignedRM_CreatedAt
-  ON [SPECTRA].[dbo].[Notifications] (assigned_rm, created_at DESC)
+  ON [dbo].[Notifications] (assigned_rm, created_at DESC)
   INCLUDE (priority, notification_type, read_at)
 `
 
@@ -81,7 +81,7 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('SPECTRA.dbo.SystemActions')
 )
 CREATE INDEX IX_SystemActions_ClientID_CreatedAt
-  ON [SPECTRA].[dbo].[SystemActions] (client_id, created_at DESC)
+  ON [dbo].[SystemActions] (client_id, created_at DESC)
   INCLUDE (event_type, old_stage, new_stage, old_risk_score, new_risk_score)
 `
 
@@ -136,7 +136,7 @@ export interface SystemActionRow {
 export async function recordSystemAction(rec: SystemActionRecord): Promise<void> {
   await ensureTables()
   await query(
-    `INSERT INTO [SPECTRA].[dbo].[SystemActions]
+    `INSERT INTO [dbo].[SystemActions]
        (client_id, credit_id, event_type, old_stage, new_stage,
         old_risk_score, new_risk_score, trigger_reason, performed_by)
      VALUES
@@ -169,7 +169,7 @@ export async function getSystemActions(
        old_risk_score, new_risk_score,
        trigger_reason, performed_by,
        CONVERT(VARCHAR(30), created_at, 127)   AS created_at
-     FROM [SPECTRA].[dbo].[SystemActions] WITH (NOLOCK)
+     FROM [dbo].[SystemActions] WITH (NOLOCK)
      WHERE client_id = @clientId
      ORDER BY created_at DESC`,
     { clientId, limit }
@@ -187,7 +187,7 @@ export async function getRecentSystemActions(limit = 50): Promise<SystemActionRo
        old_risk_score, new_risk_score,
        trigger_reason, performed_by,
        CONVERT(VARCHAR(30), created_at, 127)   AS created_at
-     FROM [SPECTRA].[dbo].[SystemActions] WITH (NOLOCK)
+     FROM [dbo].[SystemActions] WITH (NOLOCK)
      ORDER BY created_at DESC`,
     { limit }
   )
@@ -221,7 +221,7 @@ export interface NotificationRow {
 export async function createNotification(rec: NotificationRecord): Promise<void> {
   await ensureTables()
   await query(
-    `INSERT INTO [SPECTRA].[dbo].[Notifications]
+    `INSERT INTO [dbo].[Notifications]
        (client_id, credit_id, notification_type, priority, title, message, assigned_rm)
      VALUES
        (@clientId, @creditId, @notificationType, @priority, @title, @message, @assignedRM)`,
@@ -254,7 +254,7 @@ export async function getNotificationsForUser(
        priority, title, message, assigned_rm,
        CONVERT(VARCHAR(30), created_at, 127)  AS created_at,
        CONVERT(VARCHAR(30), read_at,    127)  AS read_at
-     FROM [SPECTRA].[dbo].[Notifications] WITH (NOLOCK)
+     FROM [dbo].[Notifications] WITH (NOLOCK)
      WHERE assigned_rm = @username OR assigned_rm IS NULL
      ORDER BY created_at DESC`,
     { username, limit }
@@ -265,7 +265,7 @@ export async function getUnreadCountForUser(username: string): Promise<number> {
   await ensureTables()
   const rows = await query<{ cnt: number }>(
     `SELECT COUNT(*) AS cnt
-     FROM [SPECTRA].[dbo].[Notifications] WITH (NOLOCK)
+     FROM [dbo].[Notifications] WITH (NOLOCK)
      WHERE (assigned_rm = @username OR assigned_rm IS NULL)
        AND read_at IS NULL`,
     { username }
@@ -276,7 +276,7 @@ export async function getUnreadCountForUser(username: string): Promise<number> {
 export async function markNotificationRead(id: string, username: string): Promise<void> {
   await ensureTables()
   await query(
-    `UPDATE [SPECTRA].[dbo].[Notifications]
+    `UPDATE [dbo].[Notifications]
      SET read_at = GETDATE()
      WHERE CAST(id AS VARCHAR(36)) = @id
        AND (assigned_rm = @username OR assigned_rm IS NULL)
@@ -288,7 +288,7 @@ export async function markNotificationRead(id: string, username: string): Promis
 export async function markAllReadForUser(username: string): Promise<void> {
   await ensureTables()
   await query(
-    `UPDATE [SPECTRA].[dbo].[Notifications]
+    `UPDATE [dbo].[Notifications]
      SET read_at = GETDATE()
      WHERE (assigned_rm = @username OR assigned_rm IS NULL)
        AND read_at IS NULL`,

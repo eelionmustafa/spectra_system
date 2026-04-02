@@ -1,0 +1,164 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="softShadow" x="0" y="0" width="1920" height="1080" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="5"/>
+      <feGaussianBlur stdDeviation="8"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0509804 0 0 0 0 0.105882 0 0 0 0 0.164706 0 0 0 0.12 0"/>
+      <feBlend mode="normal" in2="SourceGraphic" result="shape"/>
+    </filter>
+    <marker id="arrowNavy" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#0D1B2A"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowRed" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#D94040"/>
+    </marker>
+    <style>
+      .title { font: 700 40px Inter, Arial, sans-serif; fill: #0D1B2A; }
+      .sub { font: 400 22px Inter, Arial, sans-serif; fill: #64748B; }
+      .zone { font: 700 18px Inter, Arial, sans-serif; fill: #0D1B2A; letter-spacing: .08em; }
+      .cardTitle { font: 700 22px Inter, Arial, sans-serif; fill: #0D1B2A; }
+      .cardText { font: 500 16px Inter, Arial, sans-serif; fill: #475569; }
+      .decision { font: 700 18px Inter, Arial, sans-serif; fill: #0D1B2A; text-anchor: middle; dominant-baseline: middle; }
+      .label { font: 700 15px Inter, Arial, sans-serif; fill: #0D1B2A; }
+      .small { font: 600 14px Inter, Arial, sans-serif; fill: #64748B; }
+      .footer { font: 500 16px Inter, Arial, sans-serif; fill: #64748B; }
+      .lineNavy { stroke: #0D1B2A; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrowNavy); }
+      .lineBlue { stroke: #2563EB; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrowBlue); }
+      .lineRed { stroke: #D94040; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrowRed); }
+      .divider { stroke: #CBD5E1; stroke-width: 3; stroke-dasharray: 12 10; }
+    </style>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#F8FAFC"/>
+
+  <text x="72" y="82" class="title">SPECTRA Login Activity Diagram</text>
+  <text x="72" y="118" class="sub">FigJam-style activity flow based on the current `Next.js` login route, rate limiting, and JWT session handling</text>
+
+  <g>
+    <rect x="96" y="166" width="500" height="44" rx="14" fill="#DBEAFE"/>
+    <text x="346" y="194" class="zone" text-anchor="middle">USER / BROWSER</text>
+
+    <rect x="710" y="166" width="500" height="44" rx="14" fill="#E2E8F0"/>
+    <text x="960" y="194" class="zone" text-anchor="middle">AUTH API (`/api/auth/login`)</text>
+
+    <rect x="1324" y="166" width="500" height="44" rx="14" fill="#DCFCE7"/>
+    <text x="1574" y="194" class="zone" text-anchor="middle">SESSION / SECURITY</text>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="96" y="226" width="500" height="706" rx="28" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="3"/>
+    <rect x="710" y="226" width="500" height="706" rx="28" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="3"/>
+    <rect x="1324" y="226" width="500" height="706" rx="28" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="3"/>
+  </g>
+
+  <line x1="596" y1="226" x2="596" y2="932" class="divider"/>
+  <line x1="1210" y1="226" x2="1210" y2="932" class="divider"/>
+
+  <g filter="url(#softShadow)">
+    <circle cx="346" cy="286" r="32" fill="#E2E8F0" stroke="#0D1B2A" stroke-width="3"/>
+    <text x="346" y="293" class="label" text-anchor="middle">Start</text>
+
+    <rect x="202" y="350" width="288" height="92" rx="24" fill="#EFF6FF" stroke="#93C5FD" stroke-width="2.5"/>
+    <text x="232" y="392" class="cardTitle">Open login page</text>
+    <text x="232" y="421" class="cardText">User enters username</text>
+    <text x="232" y="444" class="cardText">and password</text>
+
+    <rect x="202" y="508" width="288" height="92" rx="24" fill="#EFF6FF" stroke="#93C5FD" stroke-width="2.5"/>
+    <text x="232" y="550" class="cardTitle">Submit credentials</text>
+    <text x="232" y="579" class="cardText">POST request to login API</text>
+
+    <rect x="202" y="780" width="288" height="108" rx="24" fill="#ECFDF5" stroke="#86EFAC" stroke-width="2.5"/>
+    <text x="232" y="822" class="cardTitle">Redirect to dashboard</text>
+    <text x="232" y="851" class="cardText">Protected routes become</text>
+    <text x="232" y="874" class="cardText">available for the session</text>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="816" y="268" width="288" height="92" rx="24" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2.5"/>
+    <text x="846" y="310" class="cardTitle">Receive request</text>
+    <text x="846" y="339" class="cardText">Extract IP from headers</text>
+
+    <path d="M960 404 L1050 474 L960 544 L870 474 Z" fill="#FEF3C7" stroke="#F59E0B" stroke-width="2.5"/>
+    <text x="960" y="468" class="decision">Rate limit</text>
+    <text x="960" y="492" class="decision">exceeded?</text>
+
+    <rect x="816" y="590" width="288" height="92" rx="24" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2.5"/>
+    <text x="846" y="632" class="cardTitle">Validate credentials</text>
+    <text x="846" y="661" class="cardText">Find user and verify password</text>
+
+    <path d="M960 724 L1050 794 L960 864 L870 794 Z" fill="#FEF3C7" stroke="#F59E0B" stroke-width="2.5"/>
+    <text x="960" y="788" class="decision">Valid</text>
+    <text x="960" y="812" class="decision">credentials?</text>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="1394" y="268" width="360" height="92" rx="24" fill="#ECFDF5" stroke="#86EFAC" stroke-width="2.5"/>
+    <text x="1424" y="310" class="cardTitle">Check rate limit state</text>
+    <text x="1424" y="339" class="cardText">`checkRateLimit(ip)` before auth</text>
+
+    <rect x="1394" y="430" width="360" height="108" rx="24" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="2.5"/>
+    <text x="1424" y="472" class="cardTitle">Lockout response</text>
+    <text x="1424" y="501" class="cardText">Return `429` with retry-after</text>
+    <text x="1424" y="524" class="cardText">and lockout message</text>
+
+    <rect x="1394" y="590" width="360" height="108" rx="24" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="2.5"/>
+    <text x="1424" y="632" class="cardTitle">Failed login handling</text>
+    <text x="1424" y="661" class="cardText">Record failed attempt and</text>
+    <text x="1424" y="684" class="cardText">return `401 Unauthorized`</text>
+
+    <rect x="1394" y="760" width="360" height="140" rx="24" fill="#ECFDF5" stroke="#86EFAC" stroke-width="2.5"/>
+    <text x="1424" y="802" class="cardTitle">Create session</text>
+    <text x="1424" y="831" class="cardText">Record success, sign JWT,</text>
+    <text x="1424" y="854" class="cardText">set `HttpOnly` cookie, `8h` TTL,</text>
+    <text x="1424" y="877" class="cardText">then return `200 OK`</text>
+  </g>
+
+  <g>
+    <path d="M346 318 C346 330, 346 334, 346 350" class="lineBlue"/>
+    <path d="M346 442 C346 470, 346 482, 346 508" class="lineBlue"/>
+    <path d="M490 554 C620 554, 690 554, 816 314" class="lineBlue"/>
+
+    <path d="M960 360 C960 378, 960 388, 960 404" class="lineNavy"/>
+    <path d="M1050 474 C1178 474, 1268 474, 1394 484" class="lineRed"/>
+    <text x="1184" y="458" class="label">Yes</text>
+
+    <path d="M960 544 C960 560, 960 572, 960 590" class="lineNavy"/>
+    <text x="990" y="566" class="label">No</text>
+
+    <path d="M1104 636 C1230 636, 1296 636, 1394 644" class="lineRed"/>
+    <path d="M960 682 C960 700, 960 708, 960 724" class="lineNavy"/>
+
+    <path d="M1050 794 C1170 794, 1268 794, 1394 830" class="lineBlue"/>
+    <text x="1184" y="778" class="label">Yes</text>
+
+    <path d="M870 794 C760 794, 664 794, 490 834" class="lineRed"/>
+    <text x="748" y="778" class="label">No</text>
+
+    <path d="M1754 830 C1790 830, 1790 944, 346 944 C238 944, 238 906, 238 888" class="lineBlue"/>
+    <path d="M1574 538 C1574 944, 346 944, 346 968" class="lineRed"/>
+    <path d="M1574 698 C1574 944, 346 944, 346 968" class="lineRed"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <circle cx="346" cy="1000" r="32" fill="#E2E8F0" stroke="#0D1B2A" stroke-width="3"/>
+    <text x="346" y="1007" class="label" text-anchor="middle">End</text>
+  </g>
+
+  <g>
+    <rect x="1490" y="62" width="338" height="64" rx="18" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="1518" y="90" class="small">Implementation notes</text>
+    <text x="1518" y="114" class="small">- IP-based rate limit before password validation</text>
+  </g>
+
+  <g>
+    <rect x="1490" y="944" width="338" height="74" rx="18" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="1518" y="972" class="small">Success path outcome</text>
+    <text x="1518" y="996" class="small">- Signed JWT in `spectra_session` cookie</text>
+    <text x="1518" y="1020" class="small">- `secure` in production, `sameSite=lax`</text>
+  </g>
+
+  <text x="72" y="1036" class="footer">Import into FigJam as SVG. This version is simplified for slide readability while keeping the actual login logic: rate limit, credential validation, 401/429 failures, JWT cookie creation, and dashboard redirect.</text>
+</svg>

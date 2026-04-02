@@ -224,7 +224,7 @@ export default function PredictionsTable({ initialRows, initialTotal, initialQ, 
       setSeedMsg(null)
       const res = await seedPredictions()
       if (res.ok) {
-        setSeedMsg({ ok: true, text: `Generated ${res.count.toLocaleString()} predictions from database.` })
+        setSeedMsg({ ok: true, text: `Generated ${res.count.toLocaleString()} heuristic predictions from live database data.` })
         router.refresh()
       } else {
         setSeedMsg({ ok: false, text: res.error ?? 'Seed failed.' })
@@ -298,7 +298,7 @@ export default function PredictionsTable({ initialRows, initialTotal, initialQ, 
             background: seeding ? 'rgba(255,255,255,0.04)' : 'var(--card)', cursor: seeding ? 'not-allowed' : 'pointer',
             fontSize: '11px', fontWeight: 600, color: seeding ? 'var(--muted)' : 'var(--navy)', fontFamily: 'var(--font)' }}
         >
-          {seeding ? 'Generating…' : '↻ Generate from DB'}
+          {seeding ? 'Generating…' : '↻ Generate Heuristic Fallback'}
         </button>
       </div>
 

@@ -1,0 +1,156 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="softShadow" x="0" y="0" width="1920" height="1080" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="5"/>
+      <feGaussianBlur stdDeviation="8"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0509804 0 0 0 0 0.105882 0 0 0 0 0.164706 0 0 0 0.1 0"/>
+      <feBlend mode="normal" in2="SourceGraphic" result="shape"/>
+    </filter>
+    <marker id="arrowNavy" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#0D1B2A"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#1EA97C"/>
+    </marker>
+    <marker id="arrowAmber" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#D97706"/>
+    </marker>
+    <style>
+      .title { font: 700 40px Inter, Arial, sans-serif; fill: #0D1B2A; }
+      .sub { font: 400 22px Inter, Arial, sans-serif; fill: #64748B; }
+      .zone { font: 700 18px Inter, Arial, sans-serif; fill: #0D1B2A; letter-spacing: .08em; }
+      .cardTitle { font: 700 24px Inter, Arial, sans-serif; fill: #0D1B2A; }
+      .cardText { font: 500 16px Inter, Arial, sans-serif; fill: #475569; }
+      .small { font: 600 14px Inter, Arial, sans-serif; fill: #64748B; }
+      .footer { font: 500 16px Inter, Arial, sans-serif; fill: #64748B; }
+      .label { font: 700 14px Inter, Arial, sans-serif; fill: #334155; }
+      .lineNavy { stroke: #0D1B2A; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrowNavy); }
+      .lineBlue { stroke: #2563EB; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrowBlue); }
+      .lineGreen { stroke: #1EA97C; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrowGreen); }
+      .lineAmber { stroke: #D97706; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrowAmber); }
+      .dashed { stroke: #CBD5E1; stroke-width: 3; stroke-dasharray: 12 10; }
+    </style>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#F8FAFC"/>
+
+  <text x="72" y="82" class="title">SPECTRA Database Relationships</text>
+  <text x="72" y="118" class="sub">FigJam-style entity view of the core source tables and the shared identifiers that connect them</text>
+
+  <g>
+    <rect x="72" y="162" width="432" height="44" rx="14" fill="#DBEAFE"/>
+    <text x="288" y="190" class="zone" text-anchor="middle">CLIENT MASTER</text>
+
+    <rect x="620" y="162" width="620" height="44" rx="14" fill="#DCFCE7"/>
+    <text x="930" y="190" class="zone" text-anchor="middle">LOAN, RISK, AND REPAYMENT TABLES</text>
+
+    <rect x="1280" y="162" width="560" height="44" rx="14" fill="#FEF3C7"/>
+    <text x="1560" y="190" class="zone" text-anchor="middle">ACCOUNT AND CARD ACTIVITY TABLES</text>
+  </g>
+
+  <g>
+    <rect x="72" y="236" width="476" height="684" rx="30" fill="#FDFEFE" class="dashed"/>
+    <rect x="620" y="236" width="620" height="684" rx="30" fill="#FDFEFE" class="dashed"/>
+    <rect x="1280" y="236" width="560" height="684" rx="30" fill="#FDFEFE" class="dashed"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="160" y="452" width="300" height="156" rx="28" fill="#EFF6FF" stroke="#93C5FD" stroke-width="2.5"/>
+    <text x="196" y="506" class="cardTitle">Customer</text>
+    <text x="196" y="538" class="cardText">Client master record</text>
+    <text x="196" y="564" class="cardText">Central shared identifier:</text>
+    <text x="196" y="590" class="small">`PersonalID`</text>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="700" y="274" width="230" height="120" rx="24" fill="#ECFDF5" stroke="#86EFAC" stroke-width="2.5"/>
+    <text x="730" y="322" class="cardTitle">RiskPortfolio</text>
+    <text x="730" y="352" class="cardText">Risk stage, rating,</text>
+    <text x="730" y="376" class="cardText">exposure snapshot</text>
+
+    <rect x="700" y="446" width="230" height="120" rx="24" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2.5"/>
+    <text x="730" y="494" class="cardTitle">Credits</text>
+    <text x="730" y="524" class="cardText">Loan account details</text>
+    <text x="730" y="548" class="small">`PersonalID`, `CreditAccount`</text>
+
+    <rect x="1000" y="334" width="230" height="120" rx="24" fill="#ECFDF5" stroke="#86EFAC" stroke-width="2.5"/>
+    <text x="1030" y="382" class="cardTitle">DueDaysDaily</text>
+    <text x="1030" y="412" class="cardText">DPD and delinquency</text>
+    <text x="1030" y="436" class="cardText">history per credit</text>
+
+    <rect x="1000" y="506" width="230" height="120" rx="24" fill="#ECFDF5" stroke="#86EFAC" stroke-width="2.5"/>
+    <text x="1030" y="554" class="cardTitle">AmortizationPlan</text>
+    <text x="1030" y="584" class="cardText">Repayment schedule</text>
+    <text x="1030" y="608" class="cardText">and instalments</text>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="1360" y="334" width="230" height="120" rx="24" fill="#FFF7ED" stroke="#FDBA74" stroke-width="2.5"/>
+    <text x="1390" y="382" class="cardTitle">Accounts</text>
+    <text x="1390" y="412" class="cardText">Bank account master</text>
+    <text x="1390" y="436" class="small">`NoAccount`, `PersonalID`</text>
+
+    <rect x="1640" y="334" width="150" height="120" rx="24" fill="#FFFBEB" stroke="#FCD34D" stroke-width="2.5"/>
+    <text x="1668" y="382" class="cardTitle">TAccounts</text>
+    <text x="1668" y="412" class="cardText">Account</text>
+    <text x="1668" y="436" class="cardText">transactions</text>
+
+    <rect x="1360" y="614" width="230" height="120" rx="24" fill="#FFF7ED" stroke="#FDBA74" stroke-width="2.5"/>
+    <text x="1390" y="662" class="cardTitle">Cards</text>
+    <text x="1390" y="692" class="cardText">Card master data</text>
+    <text x="1390" y="716" class="small">`NoCards`, `PersonalID`</text>
+
+    <rect x="1640" y="614" width="150" height="120" rx="24" fill="#FFFBEB" stroke="#FCD34D" stroke-width="2.5"/>
+    <text x="1668" y="662" class="cardTitle">CC_Event_LOG</text>
+    <text x="1668" y="692" class="cardText">Card</text>
+    <text x="1668" y="716" class="cardText">transactions</text>
+  </g>
+
+  <path d="M460 504 C560 430, 610 334, 700 334" class="lineGreen"/>
+  <path d="M460 530 C560 520, 610 506, 700 506" class="lineBlue"/>
+  <path d="M460 560 C780 620, 1120 404, 1360 394" class="lineNavy"/>
+  <path d="M460 586 C760 734, 1130 674, 1360 674" class="lineAmber"/>
+
+  <path d="M930 470 C970 470, 970 394, 1000 394" class="lineGreen"/>
+  <path d="M930 518 C970 518, 970 566, 1000 566" class="lineGreen"/>
+
+  <path d="M1590 394 C1615 394, 1615 394, 1640 394" class="lineNavy"/>
+  <path d="M1590 674 C1615 674, 1615 674, 1640 674" class="lineAmber"/>
+
+  <g filter="url(#softShadow)">
+    <rect x="546" y="322" width="126" height="32" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="609" y="343" class="label" text-anchor="middle">`clientID`</text>
+
+    <rect x="560" y="474" width="126" height="32" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="623" y="495" class="label" text-anchor="middle">`PersonalID`</text>
+
+    <rect x="720" y="616" width="126" height="32" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="783" y="637" class="label" text-anchor="middle">`PersonalID`</text>
+
+    <rect x="728" y="760" width="126" height="32" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="791" y="781" class="label" text-anchor="middle">`PersonalID`</text>
+
+    <rect x="936" y="420" width="138" height="32" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="1005" y="441" class="label" text-anchor="middle">`CreditAccount`</text>
+
+    <rect x="900" y="584" width="210" height="32" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="1005" y="605" class="label" text-anchor="middle">`CreditAccount` / `PARTIJA`</text>
+
+    <rect x="1594" y="438" width="114" height="32" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="1651" y="459" class="label" text-anchor="middle">`NoAccount`</text>
+
+    <rect x="1570" y="718" width="166" height="32" rx="12" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="1653" y="739" class="label" text-anchor="middle">`NoCards` / `Account`</text>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="72" y="942" width="684" height="64" rx="18" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="102" y="982" class="footer">Core join logic: `Customer.PersonalID` anchors the client view, while credit, account, and card activity are linked through their own operational identifiers.</text>
+
+    <rect x="784" y="942" width="564" height="64" rx="18" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="814" y="982" class="footer">Read-only source schema view sized for direct import into FigJam or a 16:9 presentation slide.</text>
+  </g>
+</svg>

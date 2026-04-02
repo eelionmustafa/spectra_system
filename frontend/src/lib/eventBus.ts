@@ -26,6 +26,7 @@ export type SpectraEventType =
   | 'engagement' | 'document' | 'sweep'
   | 'notification'
   | 'resolve' | 'unresolve'
+  | 'client_message' | 'officer_message'
 
 export interface SpectraEvent {
   type:      SpectraEventType

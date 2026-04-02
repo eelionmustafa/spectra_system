@@ -10,10 +10,11 @@ import {
   getClientActiveActions, getClientProducts, getClientCaseHistory,
 } from '@/lib/queries'
 import type { ClientProfile, DPDHistory, ClientEWI, ClientProduct, CaseAction } from '@/lib/queries'
-import { readPredictions, readShapExplanations, readRiskFlags } from '@/lib/predictions'
+import { readRiskFlags } from '@/lib/predictions'
+import { getPredictionSnapshot } from '@/lib/ewiPredictionsService'
 import { getActiveRestructuringPlan } from '@/lib/restructuringService'
 import { getCommitteeLog } from '@/lib/committeeService'
-import { getActiveRecoveryCase } from '@/lib/recoveryService'
+import { getActiveRecoveryCase, getRecoveryCaseHistory } from '@/lib/recoveryService'
 import { isClientWrittenOff } from '@/lib/writtenOffService'
 import { isClientResolved } from '@/lib/resolutionService'
 import { cookies } from 'next/headers'
@@ -40,8 +41,10 @@ async function ClientProfileContent({
     restructuringPlan,
     committeeLog,
     recoveryCase,
+    recoveryHistory,
     writtenOff,
     resolved,
+    predictionSnapshot,
   ] = await Promise.all([
     getClientDPDHistory(id).catch((): DPDHistory[]                                 => []),
     getClientEWI(id).catch((): ClientEWI | null                                    => null),
@@ -51,12 +54,14 @@ async function ClientProfileContent({
     getActiveRestructuringPlan(id).catch(()                                        => null),
     getCommitteeLog(id).catch(()                                                   => []),
     getActiveRecoveryCase(id).catch(()                                             => null),
+    getRecoveryCaseHistory(id).catch(()                                            => []),
     isClientWrittenOff(id).catch(()                                                => false),
     isClientResolved(id).catch(()                                                  => false),
+    getPredictionSnapshot(id).catch(()                                             => null),
   ])
 
-  const prediction  = readPredictions().find(p => p.clientID === id) ?? null
-  const shap        = readShapExplanations()[id] ?? null
+  const prediction  = predictionSnapshot?.prediction ?? null
+  const shap        = predictionSnapshot?.shap ?? null
   const riskFlag    = readRiskFlags()[id] ?? null
 
   return (
@@ -75,6 +80,7 @@ async function ClientProfileContent({
       restructuringPlan={restructuringPlan}
       committeeLog={committeeLog}
       recoveryCase={recoveryCase}
+      recoveryHistory={recoveryHistory}
       isWrittenOff={writtenOff}
       isResolved={resolved}
     />

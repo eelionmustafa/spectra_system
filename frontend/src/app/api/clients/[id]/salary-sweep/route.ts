@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { executeSweep, detectSalaryCredit, getOverdueInstalments } from '@/lib/salarySweepService'
+import { sendSystemMessage } from '@/lib/messagingService'
 
 export async function GET(
   _req: NextRequest,
@@ -43,16 +44,33 @@ export async function POST(
     const token = jar.get(COOKIE_NAME)?.value
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const session = await verifyToken(token)
-    if (!['admin', 'risk_officer'].includes(session.role)) {
+    if (!['credit_risk_manager', 'senior_risk_manager', 'collections_officer'].includes(session.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const username = (session as { username?: string; role: string }).username ?? session.role ?? 'risk_officer'
+    const username = session.username
 
     const result = await executeSweep(id, username)
 
     if (!result.eligible && !result.alreadySwept) {
       return NextResponse.json({ ok: false, reason: result.reason, result }, { status: 200 })
     }
+
+    sendSystemMessage(
+      id,
+      username,
+      username,
+      result.sweepAmount
+        ? `💳 Salary Sweep Executed
+
+An automatic salary sweep has been applied to your account.
+
+Amount swept: €${result.sweepAmount.toFixed(2)}
+
+This has been applied towards your outstanding balance. Contact your advisor if you have questions.`
+        : `💳 Salary Sweep Executed
+
+A salary sweep has been applied to your account to cover your outstanding balance. Contact your advisor if you have questions.`
+    ).catch(() => {})
 
     return NextResponse.json({ ok: true, result }, { status: 201 })
   } catch (err) {

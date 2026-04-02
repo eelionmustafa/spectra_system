@@ -81,8 +81,8 @@ export async function POST(req: NextRequest) {
       }
 
       case 'unfreeze': {
-        if (session.role !== 'admin' && session.role !== 'risk_officer') {
-          return NextResponse.json({ error: 'Risk officer or admin required' }, { status: 403 })
+        if (!['credit_risk_manager', 'senior_risk_manager'].includes(session.role)) {
+          return NextResponse.json({ error: 'Credit risk manager or senior risk manager required' }, { status: 403 })
         }
         const { unfreezeReason } = body
         await resolveClientFreezeAction(clientId)
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       }
 
       case 'write_off': {
-        if (session.role !== 'admin') return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+        if (session.role !== 'senior_risk_manager') return NextResponse.json({ error: 'Senior risk manager only' }, { status: 403 })
         const { writeOffReason } = body
         action = 'Debt Write-off'
         notes  = `Debt written off. Reason: ${writeOffReason}. Authorised by: ${session.name}.`

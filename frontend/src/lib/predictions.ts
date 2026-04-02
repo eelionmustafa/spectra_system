@@ -1,6 +1,23 @@
 import fs from "fs"
 import path from "path"
 
+// ─── Multi-path file reader (Vercel-safe) ────────────────────────────────────
+function tryReadFile(filename: string): string | null {
+  const candidates = [
+    path.join(process.cwd(), '..', 'data', 'processed', filename),
+    path.join(process.cwd(), 'data', 'processed', filename),
+    path.join('/tmp', filename),
+  ]
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return fs.readFileSync(p, 'utf-8')
+    } catch { /* try next */ }
+  }
+  return null
+}
+
+
+
 export interface PredictionRow {
   clientID: string
   prediction_date: string
@@ -12,6 +29,10 @@ export interface PredictionRow {
   stage_migration_prob: number
   dpd_escalation_prob: number
   recommended_action: string
+  key_signals?: string
+  signals?: string
+  totalExposure?: number
+  exposure?: number
 }
 
 export interface ShapRow {
@@ -105,10 +126,9 @@ const FILE_CACHE_TTL = 15 * 60_000  // 15 minutes
 
 export function readPredictions(): PredictionRow[] {
   if (_predictionsCache && Date.now() < _predictionsExp) return _predictionsCache
-  const filePath = path.join(process.cwd(), "..", "data", "processed", "predictions.csv")
-  if (!fs.existsSync(filePath)) return []
+  const text = tryReadFile("predictions.csv")
+  if (!text) return []
   try {
-    const text = fs.readFileSync(filePath, "utf-8")
     const rows = parseCSV(text)
     _predictionsCache = rows.map(r => {
       const pd_90 = parseFloat(r.pd_90d ?? r.pd_score ?? "0") || 0
@@ -136,10 +156,9 @@ export function readPredictions(): PredictionRow[] {
 
 export function readShapExplanations(): Record<string, ShapRow> {
   if (_shapCache && Date.now() < _shapExp) return _shapCache
-  const filePath = path.join(process.cwd(), "..", "data", "processed", "shap_explanations.csv")
-  if (!fs.existsSync(filePath)) return {}
+  const text = tryReadFile("shap_explanations.csv")
+  if (!text) return {}
   try {
-    const text = fs.readFileSync(filePath, "utf-8")
     const rows = parseCSV(text)
     const result: Record<string, ShapRow> = {}
     for (const r of rows) {
@@ -186,10 +205,9 @@ export interface RiskFlagSummary {
 
 export function readRiskFlags(): Record<string, RiskFlagRow> {
   if (_riskFlagsCache && Date.now() < _riskFlagsExp) return _riskFlagsCache
-  const filePath = path.join(process.cwd(), "..", "data", "processed", "risk_flags.csv")
-  if (!fs.existsSync(filePath)) return {}
+  const text = tryReadFile("risk_flags.csv")
+  if (!text) return {}
   try {
-    const text = fs.readFileSync(filePath, "utf-8")
     const rows = parseCSV(text)
     const result: Record<string, RiskFlagRow> = {}
     for (const r of rows) {

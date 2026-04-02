@@ -28,9 +28,8 @@ export default function LoginPage() {
         return
       }
 
-      // refresh() flushes the cookie into server components before navigating
-      router.refresh()
-      router.push('/')
+      // Hard navigate so the server re-reads the session cookie fresh
+      window.location.href = '/'
     } catch {
       setError('Network error — please try again.')
     } finally {
@@ -50,15 +49,7 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '36px' }}>
-          <div style={{
-            width: '38px', height: '38px', background: '#C9A84C', borderRadius: '9px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-              <path d="M2 8h4l2-6 2 12 2-6h2" stroke="#0D1B2A" strokeWidth="2"
-                    strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
+          <img src="/logo.png" alt="SPECTRA" width={42} height={42} style={{ objectFit: 'contain', flexShrink: 0 }} />
           <div>
             <div style={{ color: 'white', fontWeight: 700, fontSize: '17px', letterSpacing: '0.12em' }}>SPECTRA</div>
             <div style={{ color: '#475569', fontSize: '10px', letterSpacing: '0.06em', marginTop: '1px' }}>Risk Intelligence Platform</div>
@@ -85,7 +76,7 @@ export default function LoginPage() {
               required
               autoFocus
               autoComplete="username"
-              placeholder="admin · risk_officer · analyst"
+              placeholder=""
               style={{
                 width: '100%', padding: '10px 13px', borderRadius: '7px',
                 border: '1px solid #1E3A5F', background: '#0D1B2A',

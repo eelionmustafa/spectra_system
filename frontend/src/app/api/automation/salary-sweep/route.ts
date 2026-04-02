@@ -19,9 +19,9 @@ export async function POST(_req: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const session = await verifyToken(token)
 
-    const allowedRoles = ['admin', 'risk_officer']
+    const allowedRoles = ['credit_risk_manager', 'senior_risk_manager', 'collections_officer']
     if (!allowedRoles.includes(session.role)) {
-      return NextResponse.json({ error: 'Insufficient role — admin or risk_officer required' }, { status: 403 })
+      return NextResponse.json({ error: 'Insufficient role — credit_risk_manager, senior_risk_manager or collections_officer required' }, { status: 403 })
     }
 
     const username = (session as { username?: string; role: string }).username ?? session.role

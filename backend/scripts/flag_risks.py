@@ -242,10 +242,12 @@ def flag_score_deterioration(
         if len(group) < 2:
             return False
         group_sorted = group.sort_values(date_col)
-        initial = group_sorted[rating_col].iloc[0]
-        current = group_sorted[rating_col].iloc[-1]
+        # Compare current vs previous period (not vs first-ever) to detect recent deterioration
+        current  = group_sorted[rating_col].iloc[-1]
+        previous = group_sorted[rating_col].iloc[-2]
         try:
-            return bool((float(current) - float(initial)) >= deterioration_threshold)
+            # Higher rating value = worse risk; flag if worsened vs prior month
+            return bool((float(current) - float(previous)) >= deterioration_threshold)
         except (TypeError, ValueError):
             return False
 

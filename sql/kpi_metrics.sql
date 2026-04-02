@@ -20,7 +20,7 @@ WITH latest_due AS (
         d.DueMax1Y,
         d.DueMax2Y,
         ROW_NUMBER() OVER (PARTITION BY d.CreditAccount ORDER BY d.dateID DESC) AS rn
-    FROM [SPECTRA].[dbo].[DueDaysDaily] d WITH (NOLOCK)
+    FROM [dbo].[DueDaysDaily] d WITH (NOLOCK)
 ),
 delinquency_flags AS (
     SELECT
@@ -44,7 +44,7 @@ risk_snapshot AS (
         r.onBalanceExposure,
         r.TotalOffBalance,
         ROW_NUMBER() OVER (PARTITION BY r.clientID ORDER BY r.CalculationDate DESC) AS rn
-    FROM [SPECTRA].[dbo].[RiskPortfolio] r WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] r WITH (NOLOCK)
 )
 SELECT
     COUNT(DISTINCT df.PersonalID)                                           AS total_clients,
@@ -53,9 +53,9 @@ SELECT
     SUM(df.is_delinquent)                                                   AS delinquent_count,
     CAST(SUM(df.is_delinquent) AS FLOAT) / NULLIF(COUNT(*), 0) * 100       AS delinquency_rate_pct,
     CAST(SUM(df.has_any_delay)  AS FLOAT) / NULLIF(COUNT(*), 0) * 100      AS late_payment_ratio_pct,
-    SUM(rs.totalExposure)                                                   AS total_exposure,
-    SUM(rs.onBalanceExposure)                                               AS on_balance_exposure,
-    SUM(rs.TotalOffBalance)                                                 AS off_balance_exposure
+    SUM(TRY_CAST(rs.totalExposure AS FLOAT))                                                   AS total_exposure,
+    SUM(TRY_CAST(rs.onBalanceExposure AS FLOAT))                                               AS on_balance_exposure,
+    SUM(TRY_CAST(rs.TotalOffBalance AS FLOAT))                                                 AS off_balance_exposure
 FROM delinquency_flags df
 LEFT JOIN risk_snapshot rs
     ON  df.PersonalID = rs.clientID
@@ -84,7 +84,7 @@ WITH bucketed AS (
             WHEN DueDays BETWEEN 60 AND 89 THEN '60-89 DPD'
             ELSE '90+ DPD'
         END) OVER (PARTITION BY CreditAccount ORDER BY dateID) AS prev_bucket
-    FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+    FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
 )
 SELECT
     prev_bucket  AS from_bucket,
@@ -108,8 +108,8 @@ SELECT
     AVG(CAST(d.DueDays AS FLOAT))           AS avg_due_days,
     SUM(CASE WHEN d.DueDays >= 30 THEN 1 ELSE 0 END) * 100.0
         / NULLIF(COUNT(*), 0)               AS delinquency_rate_pct
-FROM [SPECTRA].[dbo].[Credits] c WITH (NOLOCK)
-JOIN [SPECTRA].[dbo].[DueDaysDaily] d WITH (NOLOCK)
+FROM [dbo].[Credits] c WITH (NOLOCK)
+JOIN [dbo].[DueDaysDaily] d WITH (NOLOCK)
     ON c.CreditAccount = d.CreditAccount
 GROUP BY c.FromYear, d.dateID
 ORDER BY c.FromYear, d.dateID;
@@ -124,7 +124,7 @@ WITH latest_dpd AS (
     SELECT
         CreditAccount, DueDays,
         ROW_NUMBER() OVER (PARTITION BY CreditAccount ORDER BY dateID DESC) AS rn
-    FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+    FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
 )
 SELECT
     COUNT(*)                                                AS total_loans,
@@ -144,15 +144,15 @@ WHERE rn = 1;
 SELECT
     Stage, stageDescr,
     COUNT(*)                                            AS loan_count,
-    SUM(totalExposure)                                  AS total_exposure,
-    SUM(CalculatedProvision)                            AS bank_provision,
-    SUM(totalExposure *
+    SUM(TRY_CAST(totalExposure AS FLOAT))                                  AS total_exposure,
+    SUM(TRY_CAST(CalculatedProvision AS FLOAT))                            AS bank_provision,
+    SUM(TRY_CAST(totalExposure AS FLOAT) *
         CASE Stage WHEN 1 THEN 0.01 WHEN 2 THEN 0.05 ELSE 0.20 END
     )                                                   AS calculated_ecl,
-    SUM(CalculatedProvision) - SUM(totalExposure *
+    SUM(TRY_CAST(CalculatedProvision AS FLOAT)) - SUM(TRY_CAST(totalExposure AS FLOAT) *
         CASE Stage WHEN 1 THEN 0.01 WHEN 2 THEN 0.05 ELSE 0.20 END
     )                                                   AS provision_gap
-FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
 GROUP BY Stage, stageDescr
 ORDER BY Stage;
 
@@ -167,14 +167,14 @@ SELECT
     DATUMDOSPECA                                        AS due_date,
     OTPLATA                                             AS amount_paid,
     ANUITET                                             AS amount_due,
-    CAST(OTPLATA AS FLOAT) / NULLIF(ANUITET, 0)        AS repayment_rate,
+    TRY_CAST(OTPLATA AS FLOAT) / NULLIF(TRY_CAST(ANUITET AS FLOAT), 0)        AS repayment_rate,
     CASE
-        WHEN CAST(OTPLATA AS FLOAT) / NULLIF(ANUITET, 0) >= 1.0 THEN 'Full'
-        WHEN CAST(OTPLATA AS FLOAT) / NULLIF(ANUITET, 0) >= 0.5 THEN 'Partial'
+        WHEN TRY_CAST(OTPLATA AS FLOAT) / NULLIF(TRY_CAST(ANUITET AS FLOAT), 0) >= 1.0 THEN 'Full'
+        WHEN TRY_CAST(OTPLATA AS FLOAT) / NULLIF(TRY_CAST(ANUITET AS FLOAT), 0) >= 0.5 THEN 'Partial'
         ELSE 'Critical'
     END                                                 AS payment_status
-FROM [SPECTRA].[dbo].[AmortizationPlan] WITH (NOLOCK)
-WHERE ANUITET > 0
+FROM [dbo].[AmortizationPlan] WITH (NOLOCK)
+WHERE TRY_CAST(ANUITET AS FLOAT) > 0
 ORDER BY DATUMDOSPECA DESC;
 
 
@@ -186,10 +186,10 @@ ORDER BY DATUMDOSPECA DESC;
 SELECT
     Stage, stageDescr,
     COUNT(*)                                              AS client_count,
-    SUM(totalExposure)                                    AS at_risk_exposure,
-    AVG([Effective Interest Rate])                        AS avg_interest_rate,
-    SUM(totalExposure * [Effective Interest Rate] / 100)  AS interest_income_at_risk
-FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+    SUM(TRY_CAST(totalExposure AS FLOAT))                                    AS at_risk_exposure,
+    AVG(TRY_CAST([Effective Interest Rate] AS FLOAT))     AS avg_interest_rate,
+    SUM(TRY_CAST(totalExposure AS FLOAT) * TRY_CAST([Effective Interest Rate] AS FLOAT) / 100)  AS interest_income_at_risk
+FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
 WHERE Stage IN (2, 3)
 GROUP BY Stage, stageDescr
 ORDER BY Stage;
@@ -206,7 +206,7 @@ SELECT
     SUM(CASE WHEN Stage = 3 THEN 1 ELSE 0 END)         AS defaulted,
     SUM(CASE WHEN Stage = 3 THEN 1 ELSE 0 END) * 100.0
         / NULLIF(COUNT(*), 0)                           AS pd_pct
-FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
 WHERE BankPreviousMonthRating IS NOT NULL
 GROUP BY BankPreviousMonthRating
 ORDER BY pd_pct DESC;
@@ -220,11 +220,11 @@ ORDER BY pd_pct DESC;
 SELECT
     CalculationDate,
     Stage,
-    SUM(CalculatedProvision)                            AS total_provision,
-    SUM(totalExposure)                                  AS total_exposure,
-    SUM(CalculatedProvision) * 100.0
-        / NULLIF(SUM(totalExposure), 0)                 AS coverage_ratio_pct
-FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+    SUM(TRY_CAST(CalculatedProvision AS FLOAT))                            AS total_provision,
+    SUM(TRY_CAST(totalExposure AS FLOAT))                                  AS total_exposure,
+    SUM(TRY_CAST(CalculatedProvision AS FLOAT)) * 100.0
+        / NULLIF(SUM(TRY_CAST(totalExposure AS FLOAT)), 0)                 AS coverage_ratio_pct
+FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
 GROUP BY CalculationDate, Stage
 ORDER BY CalculationDate, Stage;
 
@@ -236,7 +236,7 @@ ORDER BY CalculationDate, Stage;
 
 WITH first_late AS (
     SELECT CreditAccount, MIN(dateID) AS first_late_date
-    FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+    FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
     WHERE DueDays > 0
     GROUP BY CreditAccount
 )
@@ -244,10 +244,10 @@ SELECT
     c.CreditAccount, c.PersonalID, c.FromYear, c.Amount,
     f.first_late_date,
     DATEDIFF(day,
-        CAST(CAST(c.FromYear AS VARCHAR) + '-01-01' AS DATE),
-        CAST(f.first_late_date AS DATE)
+        TRY_CAST(TRY_CAST(c.FromYear AS VARCHAR) + '-01-01' AS DATE),
+        TRY_CAST(f.first_late_date AS DATE)
     )                                                   AS days_to_first_delinquency
-FROM [SPECTRA].[dbo].[Credits] c WITH (NOLOCK)
+FROM [dbo].[Credits] c WITH (NOLOCK)
 JOIN first_late f ON c.CreditAccount = f.CreditAccount
 ORDER BY days_to_first_delinquency ASC;
 
@@ -260,10 +260,10 @@ ORDER BY days_to_first_delinquency ASC;
 WITH monthly AS (
     SELECT
         Account,
-        FORMAT(trans_date, 'yyyy-MM')   AS spend_month,
-        SUM(Ammount)                    AS monthly_spend
-    FROM [SPECTRA].[dbo].[CC_Event_LOG] WITH (NOLOCK)
-    GROUP BY Account, FORMAT(trans_date, 'yyyy-MM')
+        LEFT(CONVERT(NVARCHAR(10), TRY_CAST(trans_date AS DATE), 120), 7)   AS spend_month,
+        SUM(TRY_CAST(Ammount AS FLOAT))                    AS monthly_spend
+    FROM [dbo].[CC_Event_LOG] WITH (NOLOCK)
+    GROUP BY Account, LEFT(CONVERT(NVARCHAR(10), TRY_CAST(trans_date AS DATE), 120), 7)
 )
 SELECT
     Account, spend_month, monthly_spend,
@@ -283,13 +283,13 @@ ORDER BY Account, spend_month;
 WITH monthly_od AS (
     SELECT
         a.PersonalID, t.NoAccount,
-        FORMAT(t.Date, 'yyyy-MM')   AS usage_month,
-        SUM(t.Amount)               AS net_amount
-    FROM [SPECTRA].[dbo].[TAccounts] t WITH (NOLOCK)
-    JOIN [SPECTRA].[dbo].[Accounts] a WITH (NOLOCK)
+        LEFT(CONVERT(NVARCHAR(10), TRY_CAST(t.Date AS DATE), 120), 7)   AS usage_month,
+        SUM(TRY_CAST(t.Amount AS FLOAT))               AS net_amount
+    FROM [dbo].[TAccounts] t WITH (NOLOCK)
+    JOIN [dbo].[Accounts] a WITH (NOLOCK)
         ON t.NoAccount = a.NoAccount
     WHERE t.AccountType LIKE '%overdraft%' OR t.AccountType LIKE '%OD%'
-    GROUP BY a.PersonalID, t.NoAccount, FORMAT(t.Date, 'yyyy-MM')
+    GROUP BY a.PersonalID, t.NoAccount, LEFT(CONVERT(NVARCHAR(10), TRY_CAST(t.Date AS DATE), 120), 7)
 )
 SELECT
     PersonalID, NoAccount,

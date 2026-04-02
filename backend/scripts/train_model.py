@@ -126,11 +126,15 @@ def _train_target(df, target):
     if best["auc"] < 0.70:
         log.warning("  WARNING: AUC %.4f < 0.70 target for %s", best["auc"], target)
 
+    import hashlib as _hashlib
+    feature_dtypes = {c: str(df[c].dtype) for c in best["feature_cols"] if c in df.columns}
+    feature_hash   = _hashlib.md5(",".join(sorted(best["feature_cols"])).encode()).hexdigest()
     model_path = _MODELS_DIR / (MODEL_NAMES[target] + ".pkl")
     joblib.dump({"model": best["model"], "scaler": best["scaler"],
                  "feature_cols": best["feature_cols"], "model_name": best_name,
-                 "auc": best["auc"]}, model_path)
-    log.info("  Saved to %s", model_path)
+                 "auc": best["auc"], "feature_dtypes": feature_dtypes,
+                 "feature_hash": feature_hash}, model_path)
+    log.info("  Saved to %s (feature_hash=%s)", model_path, feature_hash)
 
     return {"target": target, "best_model": best_name, "auc": best["auc"],
             "cv_auc": best["cv_auc"], "feature_cols": best["feature_cols"],

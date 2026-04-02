@@ -15,20 +15,31 @@
  */
 
 import { query, getPool } from '@/lib/db.server'
+import { ECL } from '@/lib/config'
 
 // ─── ECL Rate constants ────────────────────────────────────────────────────
+// Full IFRS 9 formula: ECL = PD × LGD × EAD
+//
+// The flat rates below are derived from config.ts ECL parameters so the
+// PD and LGD components are always explicit and auditable.
+//   Stage 1: PD_12M      × LGD          = 0.0222 × 0.45 ≈ 1%
+//   Stage 2: PD_LIFETIME × LGD          = 0.1111 × 0.45 ≈ 5%
+//   Stage 3: PD_IMPAIRED × LGD_IMPAIRED = 1.00   × 0.20 = 20%
+//
+// To adjust rates: change ECL.PD_* / ECL.LGD in config.ts — do not
+// hard-code flat percentages here.
 
 export const ECL_RATES: Record<1 | 2 | 3, number> = {
-  1: 0.01,  // 12-month ECL
-  2: 0.05,  // Lifetime ECL
-  3: 0.20,  // Lifetime ECL + specific provision
+  1: ECL.PD_12M      * ECL.LGD,           // 12-month ECL
+  2: ECL.PD_LIFETIME * ECL.LGD,           // Lifetime ECL
+  3: ECL.PD_IMPAIRED * ECL.LGD_IMPAIRED,  // Lifetime ECL + specific provision (credit-impaired)
 }
 
 export function eclTypeForStage(stage: 1 | 2 | 3): '12Month' | 'Lifetime' {
   return stage === 1 ? '12Month' : 'Lifetime'
 }
 
-/** Returns the provision amount rounded to 2 decimal places. */
+/** Returns the provision amount (PD × LGD × EAD) rounded to 2 decimal places. */
 export function computeECLAmount(stage: 1 | 2 | 3, outstandingBalance: number): number {
   return Math.round(outstandingBalance * ECL_RATES[stage] * 100) / 100
 }
@@ -40,7 +51,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'ECLProvisions' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[ECLProvisions] (
+CREATE TABLE [dbo].[ECLProvisions] (
   id                   UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id            NVARCHAR(50)     NOT NULL,
   credit_id            NVARCHAR(50)     NULL,
@@ -50,9 +61,9 @@ CREATE TABLE [SPECTRA].[dbo].[ECLProvisions] (
   ecl_type             NVARCHAR(20)     NOT NULL,
   -- Outstanding loan balance at time of calculation
   outstanding_balance  FLOAT            NOT NULL,
-  -- Flat rate applied: 0.01 | 0.05 | 0.20
+  -- PD x LGD rate per stage: ~0.01 | ~0.05 | 0.20 (see config.ts ECL)
   provision_rate       FLOAT            NOT NULL,
-  -- outstanding_balance * provision_rate
+  -- PD x LGD x EAD = outstanding_balance * provision_rate
   provision_amount     FLOAT            NOT NULL,
   calculated_at        DATETIME         NOT NULL DEFAULT GETDATE()
 )
@@ -75,7 +86,7 @@ async function ensureCalculatedAt(): Promise<boolean> {
   // 1. Direct probe — same engine path as the real query
   try {
     await query(
-      `SELECT TOP 0 calculated_at FROM [SPECTRA].[dbo].[ECLProvisions] WITH (NOLOCK)`
+      `SELECT TOP 0 calculated_at FROM [dbo].[ECLProvisions] WITH (NOLOCK)`
     )
     _colVerified = true
     return true
@@ -85,7 +96,7 @@ async function ensureCalculatedAt(): Promise<boolean> {
   try {
     const p = await getPool()
     await p.request().query(
-      `ALTER TABLE [SPECTRA].[dbo].[ECLProvisions]
+      `ALTER TABLE [dbo].[ECLProvisions]
          ADD calculated_at DATETIME NOT NULL DEFAULT GETDATE()`
     )
   } catch { /* already exists or other DDL error */ }
@@ -93,7 +104,7 @@ async function ensureCalculatedAt(): Promise<boolean> {
   // 3. Re-probe after the ADD attempt
   try {
     await query(
-      `SELECT TOP 0 calculated_at FROM [SPECTRA].[dbo].[ECLProvisions] WITH (NOLOCK)`
+      `SELECT TOP 0 calculated_at FROM [dbo].[ECLProvisions] WITH (NOLOCK)`
     )
     _colVerified = true
     return true
@@ -184,7 +195,7 @@ export async function recordECLProvision(rec: ECLProvisionRecord): Promise<strin
   const provisionAmt   = computeECLAmount(stage, rec.outstandingBalance)
 
   const rows = await query<{ id: string }>(
-    `INSERT INTO [SPECTRA].[dbo].[ECLProvisions]
+    `INSERT INTO [dbo].[ECLProvisions]
        (client_id, credit_id, stage, ecl_type,
         outstanding_balance, provision_rate, provision_amount)
      OUTPUT CAST(inserted.id AS VARCHAR(36)) AS id
@@ -229,7 +240,7 @@ export async function getTotalECLProvisions(): Promise<ECLTotals> {
         SELECT
           client_id, stage, provision_amount, calculated_at,
           ROW_NUMBER() OVER (PARTITION BY client_id ORDER BY calculated_at DESC) AS rn
-        FROM [SPECTRA].[dbo].[ECLProvisions] WITH (NOLOCK)
+        FROM [dbo].[ECLProvisions] WITH (NOLOCK)
       )
       SELECT
         ISNULL(ROUND(SUM(provision_amount), 0), 0)                                      AS total_provision,
@@ -243,16 +254,21 @@ export async function getTotalECLProvisions(): Promise<ECLTotals> {
     return rows[0] ?? defaults
   }
 
-  // Fallback: calculated_at not yet available — sum all rows (no deduplication)
+  // Fallback: calculated_at not yet available — deduplicate by latest id per client
   const rows = await query<ECLTotals>(`
     SELECT
-      ISNULL(ROUND(SUM(provision_amount), 0), 0)                                      AS total_provision,
-      ISNULL(ROUND(SUM(CASE WHEN stage = 1 THEN provision_amount ELSE 0 END), 0), 0)  AS stage1_provision,
-      ISNULL(ROUND(SUM(CASE WHEN stage = 2 THEN provision_amount ELSE 0 END), 0), 0)  AS stage2_provision,
-      ISNULL(ROUND(SUM(CASE WHEN stage = 3 THEN provision_amount ELSE 0 END), 0), 0)  AS stage3_provision,
-      COUNT(*)                                                                          AS provision_count,
-      NULL                                                                              AS last_calculated
-    FROM [SPECTRA].[dbo].[ECLProvisions] WITH (NOLOCK)
+      ISNULL(ROUND(SUM(ep.provision_amount), 0), 0)                                                          AS total_provision,
+      ISNULL(ROUND(SUM(CASE WHEN ep.stage = 1 THEN ep.provision_amount ELSE 0 END), 0), 0)                   AS stage1_provision,
+      ISNULL(ROUND(SUM(CASE WHEN ep.stage = 2 THEN ep.provision_amount ELSE 0 END), 0), 0)                   AS stage2_provision,
+      ISNULL(ROUND(SUM(CASE WHEN ep.stage = 3 THEN ep.provision_amount ELSE 0 END), 0), 0)                   AS stage3_provision,
+      COUNT(*)                                                                                                 AS provision_count,
+      NULL                                                                                                     AS last_calculated
+    FROM (
+      SELECT client_id, MAX(id) AS latest_id
+      FROM [dbo].[ECLProvisions] WITH (NOLOCK)
+      GROUP BY client_id
+    ) AS latest
+    JOIN [dbo].[ECLProvisions] ep WITH (NOLOCK) ON ep.id = latest.latest_id
   `)
   return rows[0] ?? defaults
 }
@@ -270,7 +286,7 @@ export async function getLatestProvisionForClient(
            client_id, credit_id, stage, ecl_type,
            outstanding_balance, provision_rate, provision_amount,
            CONVERT(VARCHAR(30), calculated_at, 127) AS calculated_at
-         FROM [SPECTRA].[dbo].[ECLProvisions] WITH (NOLOCK)
+         FROM [dbo].[ECLProvisions] WITH (NOLOCK)
          WHERE client_id = @clientId
          ORDER BY calculated_at DESC`
       : `SELECT TOP 1
@@ -278,7 +294,7 @@ export async function getLatestProvisionForClient(
            client_id, credit_id, stage, ecl_type,
            outstanding_balance, provision_rate, provision_amount,
            NULL AS calculated_at
-         FROM [SPECTRA].[dbo].[ECLProvisions] WITH (NOLOCK)
+         FROM [dbo].[ECLProvisions] WITH (NOLOCK)
          WHERE client_id = @clientId`,
     { clientId }
   )

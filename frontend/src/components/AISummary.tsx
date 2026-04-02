@@ -30,7 +30,7 @@ export default function AISummary({ profile }: { profile: ClientProfile }) {
     <div className="panel ai-panel" style={{ marginTop: '12px' }}>
       <div className="ph">
         <span className="pt">AI Risk Assessment</span>
-        <span className="ai-badge">Claude</span>
+        <span className="ai-badge">AI</span>
       </div>
       {!summary && !loading && !error && (
         <button className="ai-btn" onClick={generate}>

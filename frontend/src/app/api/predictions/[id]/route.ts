@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { verifyToken, COOKIE_NAME } from "@/lib/auth"
-import { readPredictions, readShapExplanations } from "@/lib/predictions"
+import { getPredictionSnapshot } from "@/lib/ewiPredictionsService"
 
 export async function GET(
   _req: NextRequest,
@@ -17,15 +17,13 @@ export async function GET(
   }
 
   const { id } = await params
-  const predictions = readPredictions()
-  const shap       = readShapExplanations()
-
-  const pred = predictions.find(p => p.clientID === id)
-  if (!pred) {
+  const snapshot = await getPredictionSnapshot(id)
+  if (!snapshot) {
     return NextResponse.json({ error: "No prediction data" }, { status: 404 })
   }
 
-  const shapRow = shap[id]
+  const pred = snapshot.prediction
+  const shapRow = snapshot.shap
   return NextResponse.json({
     clientID:             pred.clientID,
     pd_score:             pred.pd_score,

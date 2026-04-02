@@ -184,11 +184,19 @@ def flag_low_repayment(
                 count = 0
         return flag
 
-    df["flag_low_repayment"] = (
+    row_flags = (
         df.groupby("credit_account", group_keys=False)
         .apply(_consec_flag, include_groups=False)
         .astype(bool)
     )
+    df["_consec_flag_row"] = row_flags
+    # Account-level flag: True if any row in the account was flagged (not just the final streak row)
+    account_flags = df.groupby("credit_account")["_consec_flag_row"].any().reset_index()
+    account_flags.columns = ["credit_account", "flag_low_repayment"]
+    df = df.drop(columns=["_consec_flag_row", "flag_low_repayment"], errors="ignore").merge(
+        account_flags, on="credit_account", how="left"
+    )
+    df["flag_low_repayment"] = df["flag_low_repayment"].fillna(False).astype(bool)
 
     n_flagged = df.loc[df["flag_low_repayment"], "credit_account"].nunique()
     log.info("flag_low_repayment: %d accounts with %d+ consecutive low payments", n_flagged, consecutive_n)

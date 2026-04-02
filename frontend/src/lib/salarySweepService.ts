@@ -55,14 +55,14 @@ export async function detectSalaryCredit(clientId: string): Promise<SalaryCredit
        COALESCE(TRY_CAST(ta.Amount AS FLOAT), 0)               AS amount,
        CONVERT(VARCHAR(10), TRY_CAST(ta.Date AS DATE), 23)     AS date,
        COALESCE(ta.TDescription1, '')               AS description
-     FROM [SPECTRA].[dbo].[TAccounts] ta WITH (NOLOCK)
-     JOIN [SPECTRA].[dbo].[Accounts] a WITH (NOLOCK) ON a.NoAccount = ta.NoAccount
+     FROM [dbo].[TAccounts] ta WITH (NOLOCK)
+     JOIN [dbo].[Accounts] a WITH (NOLOCK) ON a.NoAccount = ta.NoAccount
      WHERE a.NoAccount IN (
        SELECT DISTINCT cr.NoAccount
-       FROM [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK)
+       FROM [dbo].[Credits] cr WITH (NOLOCK)
        WHERE cr.NoCredit IN (
          SELECT contractNumber
-         FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+         FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
          WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT)
        )
        AND cr.NoAccount IS NOT NULL
@@ -90,8 +90,8 @@ export async function getOverdueInstalments(clientId: string): Promise<OverdueIn
        CONVERT(VARCHAR(10), ap.DATUMDOSPECA, 23)                 AS due_date,
        COALESCE(TRY_CAST(ap.RATA AS FLOAT), 0)
          - COALESCE(TRY_CAST(ap.OTPLATA AS FLOAT), 0)           AS overdue_amount
-     FROM [SPECTRA].[dbo].[AmortizationPlan] ap WITH (NOLOCK)
-     LEFT JOIN [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK)
+     FROM [dbo].[AmortizationPlan] ap WITH (NOLOCK)
+     LEFT JOIN [dbo].[Credits] cr WITH (NOLOCK)
        ON cr.NoCredit = ap.PARTIJA
      WHERE TRY_CAST(ap.PersonalID AS BIGINT) = TRY_CAST(@clientId AS BIGINT)
        AND COALESCE(TRY_CAST(ap.OTPLATA AS FLOAT), 0)
@@ -113,7 +113,7 @@ async function recentSweepExists(clientId: string): Promise<boolean> {
   try {
     const rows = await query<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt
-       FROM [SPECTRA].[dbo].[ClientActions] WITH (NOLOCK)
+       FROM [dbo].[ClientActions] WITH (NOLOCK)
        WHERE clientId = @clientId
          AND action = 'Payment Sweep'
          AND createdAt >= DATEADD(day, -@dedupDays, GETDATE())`,
@@ -212,8 +212,8 @@ export async function runPortfolioSweep(executor: string = 'SYSTEM'): Promise<Po
   const clients = await query<{ clientId: string }>(
     `SELECT DISTINCT TOP 500
        rp.clientID AS clientId
-     FROM [SPECTRA].[dbo].[RiskPortfolio] rp WITH (NOLOCK)
-     WHERE rp.CalculationDate = (SELECT MAX(CalculationDate) FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK))
+     FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
+     WHERE rp.CalculationDate = (SELECT MAX(CalculationDate) FROM [dbo].[RiskPortfolio] WITH (NOLOCK))
        AND rp.Stage >= 2
        AND TRY_CAST(rp.DueDays AS INT) > 0
      ORDER BY TRY_CAST(rp.DueDays AS INT) DESC`,

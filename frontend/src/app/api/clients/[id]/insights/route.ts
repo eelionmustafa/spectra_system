@@ -3,22 +3,7 @@ import OpenAI from 'openai'
 import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 
-// ── SSE helpers ─────────────────────────────────────────────────────────────
-const enc = new TextEncoder()
-function sseChunk(data: unknown): Uint8Array {
-  return enc.encode(`data: ${JSON.stringify(data)}\n\n`)
-}
-function sseError(msg: string): Uint8Array {
-  return enc.encode(`data: ${JSON.stringify({ error: msg })}\n\n`)
-}
-
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id } = await params
-
-  // ── Auth ──────────────────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
   try {
     const jar = await cookies()
     const token = jar.get(COOKIE_NAME)?.value
@@ -35,8 +20,16 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
+  const groqApiKey = process.env.GROQ_API_KEY?.trim()
+  if (!groqApiKey) {
+    return NextResponse.json(
+      { error: 'AI insights are not configured. Set GROQ_API_KEY and retry.' },
+      { status: 503 }
+    )
+  }
+
   const groq = new OpenAI({
-    apiKey: process.env.GROQ_API_KEY,
+    apiKey: groqApiKey,
     baseURL: 'https://api.groq.com/openai/v1',
   })
 
@@ -50,13 +43,13 @@ DPD Escalation Prob: ${(Number(prediction.dpd_escalation_prob) * 100).toFixed(1)
 ML Recommended Action: ${prediction.recommended_action}`
     : 'No ML predictions available.'
 
-  const prompt = `You are a senior credit risk officer at a European bank. Analyse this client's risk profile and return ONLY valid JSON — no markdown, no explanation, no code fences.
+  const prompt = `You are a senior credit risk officer at a European bank. Analyse this client's risk profile and return ONLY valid JSON - no markdown, no explanation, no code fences.
 
 Client: ${profile.full_name || profile.personal_id}
 ID: ${profile.personal_id} | Age: ${profile.age} | Region: ${profile.region}
 Employment: ${profile.employment_type} | Tenure: ${profile.tenure_years}y
 Stage: ${profile.stage} | Risk Score: ${profile.risk_score}/10 | SICR Flagged: ${profile.sicr_flagged}
-Exposure: €${Number(profile.total_exposure).toLocaleString()} (on-balance: €${Number(profile.on_balance).toLocaleString()})
+Exposure: EUR${Number(profile.total_exposure).toLocaleString()} (on-balance: EUR${Number(profile.on_balance).toLocaleString()})
 Current DPD: ${profile.current_due_days}d | Max DPD 12M: ${profile.max_due_days_12m}d
 Missed Payments: ${profile.missed_payments} of ${profile.total_payments} | Repayment Rate: ${profile.repayment_rate_pct}%
 DTI Ratio: ${profile.dti_ratio}% | Exposure Growth: ${profile.exposure_growth_pct ?? 'N/A'}%
@@ -95,57 +88,36 @@ Return this exact JSON structure:
   }
 }`
 
-  // ── Streaming SSE response ─────────────────────────────────────────────────
-  const stream = new ReadableStream({
-    async start(controller) {
-      try {
-        const messageStream = await groq.chat.completions.create({
-          model: 'llama-3.3-70b-versatile',
-          max_tokens: 1800,
-          stream: true,
-          messages: [{ role: 'user', content: prompt }],
-        })
+  try {
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 1800,
+      messages: [{ role: 'user', content: prompt }],
+    })
 
-        let accumulated = ''
+    const content = completion.choices[0]?.message?.content
+    const accumulated = Array.isArray(content)
+      ? content.map(part => ('text' in part ? part.text : '')).join('')
+      : content ?? ''
+    const jsonMatch = accumulated.match(/\{[\s\S]*\}/)
 
-        for await (const chunk of messageStream) {
-          const text = chunk.choices[0]?.delta?.content ?? ''
-          if (text) {
-            accumulated += text
-            controller.enqueue(sseChunk({ chunk: text }))
-          }
-        }
+    if (!jsonMatch) {
+      return NextResponse.json({ error: 'Model did not return valid JSON' }, { status: 502 })
+    }
 
-        // Parse and emit final result
-        const jsonMatch = accumulated.match(/\{[\s\S]*\}/)
-        if (!jsonMatch) {
-          controller.enqueue(sseError('Model did not return valid JSON'))
-          controller.close()
-          return
-        }
+    const insights = JSON.parse(jsonMatch[0])
+    return NextResponse.json({
+      insights: {
+        ...insights,
+        generated_at: new Date().toISOString(),
+      },
+    })
+  } catch (err) {
+    const raw = (err as Error).message ?? String(err)
+    const msg = raw.includes('429') || raw.toLowerCase().includes('quota')
+      ? 'AI Insights quota exceeded. Check your Groq plan at console.groq.com, then retry.'
+      : raw
 
-        const insights = JSON.parse(jsonMatch[0])
-        controller.enqueue(
-          sseChunk({ done: true, insights: { ...insights, generated_at: new Date().toISOString() } })
-        )
-      } catch (err) {
-        const raw = (err as Error).message ?? String(err)
-        const msg = raw.includes('429') || raw.toLowerCase().includes('quota')
-          ? 'AI Insights quota exceeded. Check your Groq plan at console.groq.com, then retry.'
-          : raw
-        controller.enqueue(sseError(msg))
-      } finally {
-        controller.close()
-      }
-    },
-  })
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type':      'text/event-stream; charset=utf-8',
-      'Cache-Control':     'no-cache, no-transform',
-      'Connection':        'keep-alive',
-      'X-Accel-Buffering': 'no',
-    },
-  })
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }

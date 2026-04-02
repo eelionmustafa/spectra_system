@@ -10,22 +10,22 @@ import {
   getAlertsPaginated,
 } from '@/lib/queries'
 import type { ClientSignalSnapshot } from '@/lib/queries'
-import { readPredictions, readShapExplanations } from '@/lib/predictions'
-import fs from 'fs'
-import path from 'path'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import type { Role } from '@/lib/users'
 import { deriveTier, TIER_META, assess } from '@/lib/actionEngine'
 import type { Tier } from '@/lib/actionEngine'
 import { EWI } from '@/lib/config'
-import { getPredictionsPaginated } from '@/lib/ewiPredictionsService'
+import { getLatestPredictionSnapshots, getPredictionsPaginated } from '@/lib/ewiPredictionsService'
 import { getRecommendationsPaginated } from '@/lib/ewiRecommendationsService'
 import { fmt } from '@/lib/formatters'
+import type { PredictionRow } from '@/lib/predictions'
 import SectionHeader from '@/components/SectionHeader'
 import AlertsTable from './AlertsTable'
+import CaseReviewDisclosure from './CaseReviewDisclosure'
 import PredictionsTable from './PredictionsTable'
 import RecommendationsTable from './RecommendationsTable'
+import ReloadButton from './ReloadButton'
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -74,28 +74,31 @@ const VALID_SEV      = new Set(['critical', 'high'])
 const VALID_STAGE    = new Set(['1', '2', '3', 'NA'])
 const VALID_RISK     = new Set(['Critical', 'High', 'Medium', 'Low'])
 const VALID_PRIORITY = new Set(['Urgent', 'High', 'Medium', 'Low'])
+const VALID_TIER     = new Set(['all', ...TIER_ORDER])
+const VALID_WINDOW   = new Set(['30', '60', '90'])
+const VALID_VIEW     = new Set(['monitor', 'predictions', 'recommended'])
 
 /* ─── skeleton ────────────────────────────────────────────────────────────── */
 
 function WarningSkeleton() {
   return (
-    <div className="content">
+    <>
       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
         {[80, 140, 150].map((w, i) => (
-          <div key={i} style={{ height: 32, width: w, borderRadius: 4, background: '#F1F5F9', animation: `pulse 1.4s ease-in-out ${i * 0.08}s infinite` }} />
+          <div key={i} style={{ height: 32, width: w, borderRadius: 4, background: 'rgba(255,255,255,0.06)', animation: `pulse 1.4s ease-in-out ${i * 0.08}s infinite` }} />
         ))}
       </div>
-      <div style={{ height: 36, borderRadius: 6, background: '#F1F5F9', marginBottom: 10, animation: 'pulse 1.4s ease-in-out infinite' }} />
-      <div style={{ height: 14, width: '28%', borderRadius: 4, background: '#F1F5F9', marginBottom: 8, animation: 'pulse 1.4s ease-in-out 0.1s infinite' }} />
+      <div style={{ height: 36, borderRadius: 6, background: 'rgba(255,255,255,0.06)', marginBottom: 10, animation: 'pulse 1.4s ease-in-out infinite' }} />
+      <div style={{ height: 14, width: '28%', borderRadius: 4, background: 'rgba(255,255,255,0.06)', marginBottom: 8, animation: 'pulse 1.4s ease-in-out 0.1s infinite' }} />
       <div style={{ borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 12 }}>
         <div style={{ height: 52, background: 'rgba(13,27,42,0.12)', animation: 'pulse 1.4s ease-in-out 0.12s infinite' }} />
-        <div style={{ height: 160, background: '#F8FAFC', animation: 'pulse 1.4s ease-in-out 0.15s infinite' }} />
+        <div style={{ height: 160, background: 'rgba(255,255,255,0.04)', animation: 'pulse 1.4s ease-in-out 0.15s infinite' }} />
       </div>
-      <div style={{ height: 14, width: '22%', borderRadius: 4, background: '#F1F5F9', marginBottom: 8, animation: 'pulse 1.4s ease-in-out 0.2s infinite' }} />
+      <div style={{ height: 14, width: '22%', borderRadius: 4, background: 'rgba(255,255,255,0.06)', marginBottom: 8, animation: 'pulse 1.4s ease-in-out 0.2s infinite' }} />
       {[0, 1, 2].map(i => (
-        <div key={i} style={{ height: 48, background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 6, marginBottom: 4, animation: `pulse 1.4s ease-in-out ${0.08 * i}s infinite` }} />
+        <div key={i} style={{ height: 48, background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: 6, marginBottom: 4, animation: `pulse 1.4s ease-in-out ${0.08 * i}s infinite` }} />
       ))}
-    </div>
+    </>
   )
 }
 
@@ -114,26 +117,24 @@ async function WarningsContent({
   rq: string; recPage: number; recPri: string; recShowAll: boolean
   userRole: Role
 }) {
-  let alerts:    Awaited<ReturnType<typeof getActiveAlerts>>,
-      signalsMap: Record<string, ClientSignalSnapshot>
-
-  try {
-    ;[alerts, signalsMap] = await Promise.all([
-      getActiveAlerts(),
-      getClientSignalsBatch(),
-    ])
-  } catch {
-    return (
-      <div className="content">
-        <div className="panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)' }}>
-          Database not connected &mdash; fill in <code>.env</code> with SSMS credentials.
-        </div>
-      </div>
-    )
-  }
-
-  const allPredictions = readPredictions()
-  const allShap = readShapExplanations()
+  const [alertsResult, signalsResult, predictionsResult] = await Promise.allSettled([
+    getActiveAlerts(),
+    getClientSignalsBatch(),
+    getLatestPredictionSnapshots(),
+  ])
+  const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : []
+  const signalsMap: Record<string, ClientSignalSnapshot> =
+    signalsResult.status === 'fulfilled' ? signalsResult.value : {}
+  const alertsUnavailable = alertsResult.status === 'rejected'
+  const signalsUnavailable = signalsResult.status === 'rejected'
+  const predictionSnapshots = predictionsResult.status === 'fulfilled' ? predictionsResult.value : []
+  const predictionsUnavailable = predictionsResult.status === 'rejected'
+  const allPredictions = predictionSnapshots.map(s => s.prediction)
+  const allShap = Object.fromEntries(
+    predictionSnapshots
+      .filter(s => s.shap)
+      .map(s => [s.prediction.clientID, s.shap!])
+  )
 
   // ── Paginated table data + tab counts — all parallel ──
   let alertRows:  Awaited<ReturnType<typeof getAlertsPaginated>>['rows']          = []
@@ -185,7 +186,7 @@ async function WarningsContent({
     exposureMap[a.personal_id] = (exposureMap[a.personal_id] ?? 0) + (a.exposure ?? 0)
   }
 
-  type AnnotatedRow = ReturnType<typeof readPredictions>[number] & {
+  type AnnotatedRow = PredictionRow & {
     tier: Tier; exposure: number; windowPD: number
   }
   const deduped = Array.from(
@@ -196,22 +197,14 @@ async function WarningsContent({
     .map(p => ({
       ...p,
       windowPD: p[pdField],
-      tier: deriveTier('', p[pdField]),
-      exposure: exposureMap[p.clientID] ?? 0,
+      tier: deriveTier(p.risk_label, p[pdField]),
+      exposure: p.totalExposure ?? p.exposure ?? exposureMap[p.clientID] ?? 0,
     }))
     .sort((a, b) => b.windowPD - a.windowPD)
 
   const visible = filterTier === 'all' ? annotated : annotated.filter(p => p.tier === filterTier)
 
-  const acksFile = path.join(process.cwd(), '..', 'data', 'processed', 'alert_acks.json')
-  type AckEntry = { credit_id: string; action: string; acknowledged_by: string; acknowledged_at: string }
-  let acksMap: Record<string, AckEntry> = {}
-  try {
-    if (fs.existsSync(acksFile)) {
-      const raw: AckEntry[] = JSON.parse(fs.readFileSync(acksFile, 'utf-8'))
-      acksMap = Object.fromEntries(raw.map(a => [a.credit_id, a]))
-    }
-  } catch { /* ignore */ }
+
 
   // ── Case Review ──
   const safeIndex  = Math.min(caseIndex, visible.length - 1)
@@ -225,7 +218,7 @@ async function WarningsContent({
     caseShap.top_factor_2 ? { label: driverBullet(caseShap.top_factor_2, caseShap.shap_2), shap: Math.abs(caseShap.shap_2), neg: caseShap.shap_2 < 0 } : null,
   ].filter(Boolean) as { label: string; shap: number; neg: boolean }[] : []
   const caseMaxShap   = Math.max(...caseDrivers.map(d => d.shap), 0.01)
-  const caseActions   = caseRow ? assess({
+  const caseActions   = caseRow && !signalsUnavailable ? assess({
     pdScore: caseRow.windowPD, riskLabel: caseRow.risk_label,
     ifrsStage: caseSig?.ifrs_stage ?? 1, currentDPD: caseSig?.current_dpd ?? 0,
     maxDPD12m: caseSig?.max_dpd_12m ?? 0, missedPayments: caseSig?.missed_payments ?? 0,
@@ -236,17 +229,25 @@ async function WarningsContent({
     stageMigrationProb: caseRow.stage_migration_prob, dpdEscalationProb: caseRow.dpd_escalation_prob,
     exposure: caseRow.exposure, activeActions: [], topShapFactor: caseShap?.top_factor_1 ?? '',
   }).actions : []
-  const casePrevHref  = safeIndex > 0 ? `?tier=${filterTier}&window=${filterWindow}&case=${safeIndex - 1}#case-review` : null
-  const caseNextHref  = caseRow && safeIndex < visible.length - 1 ? `?tier=${filterTier}&window=${filterWindow}&case=${safeIndex + 1}#case-review` : null
+  const caseSignalItems = caseRow ? [
+    { label: 'Exposure',    value: caseRow.exposure > 0 ? fmt(caseRow.exposure) : 'N/A', bad: false },
+    { label: 'Current DPD', value: caseSig?.current_dpd != null ? `${caseSig.current_dpd}d` : 'N/A', bad: (caseSig?.current_dpd ?? 0) > 30 },
+    { label: 'Max DPD 12M', value: caseSig?.max_dpd_12m != null ? `${caseSig.max_dpd_12m}d` : 'N/A', bad: (caseSig?.max_dpd_12m ?? 0) > 60 },
+    { label: 'Missed pmts', value: caseSig?.missed_payments != null ? String(caseSig.missed_payments) : 'N/A', bad: (caseSig?.missed_payments ?? 0) >= 3 },
+    { label: 'Salary',      value: caseSig?.salary_inflow ?? 'N/A', bad: caseSig?.salary_inflow === 'Stopped' },
+    { label: 'Repayment',   value: caseSig?.repayment_rate != null ? `${caseSig.repayment_rate}%` : 'N/A', bad: (caseSig?.repayment_rate ?? 100) < 60 },
+  ] : []
+  const caseSignalSummary = caseSignalItems.map(item => `${item.label}: ${item.value}`).join(' · ')
+  const casePrevHref  = safeIndex > 0 ? `?view=monitor&tier=${filterTier}&window=${filterWindow}&case=${safeIndex - 1}#case-review` : null
+  const caseNextHref  = caseRow && safeIndex < visible.length - 1 ? `?view=monitor&tier=${filterTier}&window=${filterWindow}&case=${safeIndex + 1}#case-review` : null
   const caseBorderColor  = caseRow?.tier === 'default-imminent' ? '#DC2626' : caseRow?.tier === 'deteriorating' ? '#D97706' : '#1D4ED8'
-  const caseAccentBg     = caseRow?.tier === 'default-imminent' ? '#FEF2F2' : caseRow?.tier === 'deteriorating' ? '#FFFBEB' : '#EFF6FF'
   const caseAccentBorder = caseRow?.tier === 'default-imminent' ? '#FECACA' : caseRow?.tier === 'deteriorating' ? '#FCD34D' : '#BFDBFE'
   const caseProgressPct  = visible.length > 1 ? (safeIndex / (visible.length - 1)) * 100 : 100
+  const shouldOpenCaseReview = alertsUnavailable || alertTotal === 0
 
-  void acksMap // used in future ack UI
 
   return (
-    <div className="content">
+    <>
 
       {/* ── View tab bar ──────────────────────────────────────────────────── */}
       <div className="tabs" style={{ marginBottom: '10px' }}>
@@ -257,7 +258,24 @@ async function WarningsContent({
         ] as { id: string; label: string; count?: number }[]).map(t => (
           <a
             key={t.id}
-            href={`?view=${t.id}&tier=${filterTier}&window=${filterWindow}`}
+            href={(() => {
+              const p = new URLSearchParams()
+              p.set('view', t.id)
+              p.set('tier', filterTier)
+              p.set('window', filterWindow)
+              if (aq)         { p.set('aq',   aq) }
+              if (alertPage > 1)  { p.set('ap',   String(alertPage)) }
+              if (alertSev)   { p.set('asev', alertSev) }
+              if (alertStage) { p.set('ast',  alertStage) }
+              if (pq)         { p.set('pq',   pq) }
+              if (predPage > 1)   { p.set('pp',   String(predPage)) }
+              if (predRisk)   { p.set('prisk',predRisk) }
+              if (rq)         { p.set('rq',   rq) }
+              if (recPage > 1)    { p.set('rp',   String(recPage)) }
+              if (recPri)     { p.set('rpri', recPri) }
+              if (recShowAll) { p.set('ract', 'all') }
+              return `?${p.toString()}`
+            })()}
             className={`tab${activeView === t.id ? ' active' : ''}`}
             style={{ textDecoration: 'none' }}
           >
@@ -293,7 +311,56 @@ async function WarningsContent({
       {/* ── EWI Monitor (existing content) ───────────────────────────────── */}
       {activeView === 'monitor' && <>
 
-      {/* Filter bar — at top so Case Review is immediately below */}
+      <SectionHeader title="Active Alerts" sub="real-time delinquency tracking" />
+      <div className="panel" style={{ padding: '10px 14px', marginBottom: '10px', background: 'linear-gradient(180deg, #FBFCFE 0%, #F4F7FB 100%)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>
+              Active Queue
+            </div>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)' }}>
+              {alertsUnavailable ? 'Live alerts are temporarily unavailable.' : `${alertTotal.toLocaleString()} clients currently require active follow-up.`}
+            </div>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--muted)', lineHeight: 1.5 }}>
+            Client details stay visible while you scroll. Click any row to open the action drawer.
+          </div>
+        </div>
+      </div>
+      {alertsUnavailable ? (
+        <div className="panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>
+          Active alerts are unavailable because the live database connection failed.
+        </div>
+      ) : (
+        <AlertsTable
+          initialRows={alertRows}
+          initialTotal={alertTotal}
+          initialQ={aq}
+          initialPage={alertPage}
+          initialSev={alertSev}
+          initialStage={alertStage}
+        />
+      )}
+
+      <CaseReviewDisclosure
+        autoOpen={shouldOpenCaseReview}
+        summary={(
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+          <div>
+            <div style={{ fontSize: '10px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '4px' }}>
+              Case Review
+            </div>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)' }}>
+              {visible.length} clients in review queue · {filterWindow}d window
+            </div>
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--muted)' }}>
+            {shouldOpenCaseReview ? 'Case review is expanded.' : 'Expand only when you need a detailed review.'}
+          </div>
+        </div>
+        )}
+      >
+      {/* Filter bar — kept with Case Review controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '4px' }}>
         <span style={{ fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Tier:</span>
         {(['all', ...TIER_ORDER] as const).map(t => {
@@ -301,10 +368,10 @@ async function WarningsContent({
           const active = filterTier === t
           const tm2 = !isAll ? TIER_META[t] : null
           return (
-            <a key={t} href={`?tier=${t}&window=${filterWindow}#case-review-top`} style={{
+            <a key={t} href={`?view=monitor&tier=${t}&window=${filterWindow}#case-review-top`} style={{
               fontSize: '10px', padding: '4px 10px', borderRadius: '4px', textDecoration: 'none',
               border: `1px solid ${active ? (tm2 ? tm2.border : 'var(--navy)') : 'var(--border)'}`,
-              background: active ? (tm2 ? tm2.color : 'var(--navy)') : 'white',
+              background: active ? (tm2 ? tm2.color : 'var(--navy)') : 'rgba(255,255,255,0.05)',
               color: active ? 'white' : 'var(--muted)',
               fontWeight: active ? 600 : 400,
             }}>
@@ -317,10 +384,10 @@ async function WarningsContent({
           {['30', '60', '90'].map(w => {
             const active = filterWindow === w
             return (
-              <a key={w} href={`?tier=${filterTier}&window=${w}#case-review-top`} style={{
+              <a key={w} href={`?view=monitor&tier=${filterTier}&window=${w}#case-review-top`} style={{
                 fontSize: '10px', padding: '4px 10px', borderRadius: '4px', textDecoration: 'none',
                 border: `1px solid ${active ? 'var(--navy)' : 'var(--border)'}`,
-                background: active ? 'var(--navy)' : 'white',
+                background: active ? 'var(--navy)' : 'rgba(255,255,255,0.05)',
                 color: active ? 'white' : 'var(--muted)',
                 fontWeight: active ? 600 : 400, fontFamily: 'var(--mono)',
               }}>
@@ -334,22 +401,38 @@ async function WarningsContent({
       <div id="case-review-top" />
       <SectionHeader title="Case Review" sub={`${visible.length} clients · ${filterWindow}d window · reviewing one at a time`} />
 
+      {signalsUnavailable && (
+        <div className="panel" style={{ padding: '12px 14px', marginBottom: '10px', color: 'var(--muted)', fontSize: '11px', lineHeight: 1.5 }}>
+          Live client signals are temporarily unavailable. Case Review is still available using the latest published prediction snapshot from SQL.
+        </div>
+      )}
+
       {allPredictions.length === 0 ? (
-        <div className="panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--muted)', fontSize: '12px' }}>
-          No prediction data &mdash; run <code>python scripts/predict.py</code> first.
+        <div className="panel" style={{ padding: '32px 24px', textAlign: 'center' }}>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)', marginBottom: '8px' }}>
+            {predictionsUnavailable ? 'Predictions Unavailable' : 'No Published Predictions'}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '16px', lineHeight: 1.6 }}>
+            {predictionsUnavailable
+              ? 'The application could not read the latest prediction snapshot from the database.'
+              : 'Case Review needs published prediction rows in the EWIPredictions table.'}
+            <br />
+            Publish ML output into SQL or use the <strong>Predicted Deterioration</strong> tab to generate a heuristic fallback from live portfolio data.
+          </div>
+          <ReloadButton />
         </div>
       ) : visible.length === 0 ? (
         <div className="panel" style={{ padding: '24px', textAlign: 'center', color: 'var(--green)', fontSize: '12px' }}>
           No clients above threshold in selected window
         </div>
       ) : caseRow && (
-        <div id="case-review" style={{ borderRadius: '6px', border: `1px solid ${caseAccentBorder}`, overflow: 'hidden', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
+        <div id="case-review" style={{ borderRadius: '6px', border: `1px solid ${caseAccentBorder}`, overflowX: 'auto', overflowY: 'auto', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
 
           {/* ── single header row: nav + identity + PD ── */}
-          <div style={{ background: 'var(--navy)', padding: '0 16px', display: 'flex', alignItems: 'stretch', gap: '0', minHeight: '52px' }}>
+          <div style={{ background: 'var(--navy)', padding: '10px 16px', display: 'flex', alignItems: 'stretch', flexWrap: 'wrap', rowGap: '8px', gap: '0', minHeight: 'unset' }}>
 
             {/* prev */}
-            <div style={{ display: 'flex', alignItems: 'center', paddingRight: '12px', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', paddingRight: '12px', borderRight: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
               {casePrevHref
                 ? <a href={casePrevHref} style={{ fontSize: '10px', padding: '5px 10px', borderRadius: '3px', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.85)', textDecoration: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}>← Prev</a>
                 : <span style={{ fontSize: '10px', padding: '5px 10px', color: 'rgba(255,255,255,0.2)', whiteSpace: 'nowrap' }}>← Prev</span>
@@ -357,7 +440,7 @@ async function WarningsContent({
             </div>
 
             {/* progress + case label */}
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 14px', minWidth: '120px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 14px', minWidth: '120px', flexShrink: 0 }}>
               <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '5px' }}>
                 Case {safeIndex + 1} / {visible.length}
               </span>
@@ -367,7 +450,7 @@ async function WarningsContent({
             </div>
 
             {/* rank bubble + client id + badges */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '10px', padding: '0 8px', borderLeft: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ flex: 1, minWidth: '220px', display: 'flex', alignItems: 'center', gap: '10px', padding: '0 8px', borderLeft: '1px solid rgba(255,255,255,0.1)' }}>
               <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: caseBorderColor, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <span style={{ fontSize: '9px', fontWeight: 800, color: 'white', fontFamily: 'var(--mono)' }}>#{safeIndex + 1}</span>
               </div>
@@ -384,7 +467,7 @@ async function WarningsContent({
             </div>
 
             {/* PD score */}
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-end', padding: '0 14px', borderLeft: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-end', padding: '0 14px', borderLeft: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
               <div style={{ fontSize: '7px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '1px' }}>PD Score</div>
               <div className="mono" style={{ fontSize: '28px', fontWeight: 900, color: caseBorderColor, lineHeight: 1 }}>{casePdPct}<span style={{ fontSize: '13px' }}>%</span></div>
               <div style={{ width: '70px', height: '3px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '4px' }}>
@@ -393,7 +476,7 @@ async function WarningsContent({
             </div>
 
             {/* next */}
-            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', paddingLeft: '12px', borderLeft: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
               {caseNextHref
                 ? <a href={caseNextHref} style={{ fontSize: '10px', padding: '5px 10px', borderRadius: '3px', background: caseBorderColor, color: 'white', textDecoration: 'none', fontWeight: 700, whiteSpace: 'nowrap' }}>Next →</a>
                 : <span style={{ fontSize: '10px', padding: '5px 10px', borderRadius: '3px', background: '#16A34A', color: 'white', fontWeight: 700, whiteSpace: 'nowrap' }}>Done ✓</span>
@@ -403,15 +486,18 @@ async function WarningsContent({
           </div>
 
           {/* ── body: two columns ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', background: 'white' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', background: 'var(--card)' }}>
 
             {/* left — signals + drivers */}
-            <div style={{ padding: '14px 16px', borderRight: `1px solid var(--border)`, display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ flex: '999 1 420px', padding: '14px 16px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: '14px' }}>
 
               {/* signals 3×2 */}
               <div>
                 <div style={{ fontSize: '8px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '6px', fontWeight: 600 }}>Client Signals</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '5px' }}>
+                <div style={{ marginBottom: '8px', padding: '8px 10px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', fontSize: '10px', color: 'var(--text)', lineHeight: 1.5 }}>
+                  {caseSignalSummary}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '6px' }}>
                   {([
                     { label: 'Exposure',    value: caseRow.exposure > 0 ? fmt(caseRow.exposure) : '—', bad: false },
                     { label: 'Current DPD', value: caseSig?.current_dpd != null ? `${caseSig.current_dpd}d` : '—', bad: (caseSig?.current_dpd ?? 0) > 30 },
@@ -420,7 +506,7 @@ async function WarningsContent({
                     { label: 'Salary',      value: caseSig?.salary_inflow ?? '—', bad: caseSig?.salary_inflow === 'Stopped' },
                     { label: 'Repayment',   value: caseSig?.repayment_rate != null ? `${caseSig.repayment_rate}%` : '—', bad: (caseSig?.repayment_rate ?? 100) < 60 },
                   ]).map(({ label, value, bad }) => (
-                    <div key={label} style={{ padding: '6px 8px', background: bad ? '#FFF8F8' : '#F8FAFC', border: `1px solid ${bad ? '#FECACA' : 'var(--border)'}`, borderRadius: '4px' }}>
+                    <div key={label} style={{ padding: '6px 8px', background: bad ? 'rgba(127,29,29,0.25)' : 'rgba(255,255,255,0.04)', border: `1px solid ${bad ? '#FECACA' : 'var(--border)'}`, borderRadius: '4px' }}>
                       <div style={{ fontSize: '7px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>{label}</div>
                       <div className="mono" style={{ fontSize: '12px', fontWeight: 700, color: bad ? 'var(--red)' : 'var(--text)' }}>{value}</div>
                     </div>
@@ -435,7 +521,7 @@ async function WarningsContent({
                 </div>
                 {caseDrivers.length > 0 ? caseDrivers.map((d, di) => (
                   <div key={di} style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '6px' }}>
-                    <div style={{ width: '18px', height: '18px', borderRadius: '3px', flexShrink: 0, background: d.neg ? '#DCFCE7' : '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ width: '18px', height: '18px', borderRadius: '3px', flexShrink: 0, background: d.neg ? 'rgba(20,83,45,0.35)' : 'rgba(127,29,29,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <span style={{ fontSize: '10px', fontWeight: 800, color: d.neg ? '#16A34A' : '#DC2626' }}>{d.neg ? '↓' : '↑'}</span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -446,7 +532,9 @@ async function WarningsContent({
                     </div>
                   </div>
                 )) : (
-                  <span style={{ fontSize: '10px', color: 'var(--muted)', fontStyle: 'italic' }}>No SHAP data available</span>
+                  <div style={{ padding: '8px 10px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', border: '1px dashed var(--border)', fontSize: '10px', color: 'var(--muted)', fontStyle: 'italic', lineHeight: 1.5 }}>
+                    No SHAP driver data is available for this case yet.
+                  </div>
                 )}
               </div>
 
@@ -457,28 +545,26 @@ async function WarningsContent({
             </div>
 
             {/* right — actions */}
-            <div style={{ padding: '14px 14px', background: '#FAFBFD' }}>
+            <div style={{ flex: '1 1 320px', padding: '14px 14px', minWidth: 280, background: 'rgba(255,255,255,0.03)', borderLeft: '1px solid var(--border)' }}>
               <div style={{ fontSize: '8px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '10px', fontWeight: 600 }}>Recommended Actions</div>
-              <ActionChips mode="structured" actions={caseActions} clientId={caseRow.clientID} userRole={userRole} />
+              {signalsUnavailable ? (
+                <div style={{ padding: '9px 10px', borderRadius: '7px', background: 'rgba(255,255,255,0.04)', border: '1px dashed var(--border)', fontSize: '10px', color: 'var(--muted)', lineHeight: 1.5 }}>
+                  Recommended actions are hidden until live client signals are available again.
+                </div>
+              ) : (
+                <ActionChips mode="structured" actions={caseActions} clientId={caseRow.clientID} userRole={userRole} />
+              )}
             </div>
 
           </div>
         </div>
       )}
 
-      <SectionHeader title="Active Alerts" sub="real-time delinquency tracking" />
-      <AlertsTable
-        initialRows={alertRows}
-        initialTotal={alertTotal}
-        initialQ={aq}
-        initialPage={alertPage}
-        initialSev={alertSev}
-        initialStage={alertStage}
-      />
+      </CaseReviewDisclosure>
 
       </>} {/* end EWI Monitor */}
 
-    </div>
+    </>
   )
 }
 
@@ -508,11 +594,14 @@ export default async function Warnings({
   const predRisk   = VALID_RISK.has(prisk)     ? prisk : ''
   const recPri     = VALID_PRIORITY.has(rpri)  ? rpri  : ''
   const recShowAll = ract === 'all'
+  const safeTier   = VALID_TIER.has(filterTier)   ? filterTier   : 'all'
+  const safeWindow = VALID_WINDOW.has(filterWindow) ? filterWindow : '90'
+  const safeView   = VALID_VIEW.has(activeView)   ? activeView   : 'monitor'
   const alertPage  = Math.max(1, parseInt(ap, 10) || 1)
   const predPage   = Math.max(1, parseInt(pp, 10) || 1)
   const recPage    = Math.max(1, parseInt(rp, 10) || 1)
 
-  let userRole: Role = 'analyst'
+  let userRole: Role = 'risk_underwriter'
   try {
     const cookieStore = await cookies()
     const token = cookieStore.get('spectra_session')?.value
@@ -522,16 +611,18 @@ export default async function Warnings({
   return (
     <>
       <Topbar title="Early Warnings" sub="EWI Monitor" />
-      <Suspense fallback={<WarningSkeleton />}>
-        <WarningsContent
-          filterTier={filterTier} filterWindow={filterWindow}
-          caseIndex={caseIndex} activeView={activeView}
-          aq={aq.trim()} alertPage={alertPage} alertSev={alertSev} alertStage={alertStage}
-          pq={pq.trim()} predPage={predPage} predRisk={predRisk}
-          rq={rq.trim()} recPage={recPage} recPri={recPri} recShowAll={recShowAll}
-          userRole={userRole}
-        />
-      </Suspense>
+      <div className="content">
+        <Suspense fallback={<WarningSkeleton />}>
+          <WarningsContent
+            filterTier={safeTier} filterWindow={safeWindow}
+            caseIndex={caseIndex} activeView={safeView}
+            aq={aq.trim()} alertPage={alertPage} alertSev={alertSev} alertStage={alertStage}
+            pq={pq.trim()} predPage={predPage} predRisk={predRisk}
+            rq={rq.trim()} recPage={recPage} recPri={recPri} recShowAll={recShowAll}
+            userRole={userRole}
+          />
+        </Suspense>
+      </div>
     </>
   )
 }

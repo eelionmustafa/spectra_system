@@ -106,7 +106,7 @@ def _dpd(conn):
         x=np.arange(len(g),dtype=float); y=g["DueDays"].astype(float).values
         if np.std(y)==0: return 0.0
         s,*_=stats.linregress(x,y); return round(float(s),4)
-    _tr=dt.groupby("clientID")[["DueDays","dateID"]].apply(_sl)
+    _tr=dt.groupby("clientID").apply(lambda g: _sl(g[["DueDays","dateID"]]), include_groups=False)
     tr=_tr.reset_index(); tr.columns=["clientID","dpd_trend"]
     df=df.merge(tr,on="clientID",how="left"); df["dpd_trend"]=df["dpd_trend"].fillna(0.0)
     return df.set_index("clientID")
@@ -116,7 +116,9 @@ def _amort(conn):
     df=_sql(_SQL_AMORT,conn); _nullcheck(df,"Amort")
     df["OTPLATA"]=pd.to_numeric(df["OTPLATA"],errors="coerce").fillna(0)
     df["ANUITET"]=pd.to_numeric(df["ANUITET"],errors="coerce").fillna(0)
-    df["is_missed"]=(df["OTPLATA"]==0).astype(int)
+    df["is_missed"] = (
+        df["OTPLATA"].fillna(0) < df["ANUITET"].fillna(0)
+    ).where(df["ANUITET"].fillna(0) > 0, df["OTPLATA"].fillna(1) == 0).astype(int)
     df["rr"]=np.where(df["ANUITET"]>0,df["OTPLATA"]/df["ANUITET"],np.nan)
     def _cl(g):
         flags=(g["OTPLATA"]==0).astype(int).values; mx=cur=0
@@ -125,7 +127,7 @@ def _amort(conn):
     agg=df.groupby("clientID").agg(repayment_rate_avg=("rr","mean"),repayment_rate_min=("rr","min"),
         missed_payment_count=("is_missed","sum"),total_installments=("OTPLATA","count")).reset_index()
     agg["missed_payment_ratio"]=(agg["missed_payment_count"]/agg["total_installments"].replace(0,np.nan)).fillna(0).round(4)
-    _consec=df.sort_values(["clientID","DATUM_VALUTE"]).groupby("clientID")[["OTPLATA"]].apply(_cl)
+    _consec=df.sort_values(["clientID","DATUM_VALUTE"]).groupby("clientID").apply(lambda g: _cl(g[["OTPLATA"]]), include_groups=False)
     consec=_consec.reset_index(); consec.columns=["clientID","consecutive_lates"]
     r=agg.merge(consec,on="clientID",how="left")
     r["consecutive_lates"]=r["consecutive_lates"].fillna(0).astype(int)
@@ -144,8 +146,9 @@ def _ta(conn):
         mn=g.groupby("month")["net_amount"].sum(); rec=g[g["txn_date"]>=cut60]
         return pd.Series({"salary_months_active":int((mn>0).sum()),
             "salary_stopped_flag":int(len(rec)==0 or rec["net_amount"].sum()<=0),
+            # approximation: net-outflow month treated as overdraft indicator
             "overdraft_months":int((mn<0).sum()),"overdraft_dependency":int((mn<0).sum()>=3)})
-    result=df.groupby("clientID")[["txn_date","net_amount","month"]].apply(_ag).reset_index().set_index("clientID")
+    result=df.groupby("clientID").apply(lambda g: _ag(g[["txn_date","net_amount","month"]]), include_groups=False).reset_index().set_index("clientID")
     return result[["salary_months_active","salary_stopped_flag","overdraft_months","overdraft_dependency"]]
 
 def _cc(conn):
@@ -160,7 +163,7 @@ def _cc(conn):
         mom=((s30-sp)/sp*100.0) if sp>0 else 0.0
         return pd.Series({"card_spend_last30d":round(float(s30),2),
             "card_spend_mom_growth":round(float(mom),2),"card_acceleration_flag":int(mom>30.0)})
-    result=df.groupby("clientID")[["event_date","card_amount"]].apply(_ag).reset_index().set_index("clientID")
+    result=df.groupby("clientID").apply(lambda g: _ag(g[["event_date","card_amount"]]), include_groups=False).reset_index().set_index("clientID")
     return result[["card_spend_last30d","card_spend_mom_growth","card_acceleration_flag"]]
 
 def build_features():

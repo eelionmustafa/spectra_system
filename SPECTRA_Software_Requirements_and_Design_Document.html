@@ -1,0 +1,1245 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SPECTRA Software Requirements and Design Document</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #162130;
+      --muted: #5c6b7a;
+      --line: #d7e0ea;
+      --accent: #12324a;
+      --accent-2: #c9a84c;
+      --code-bg: #0f1720;
+      --code-text: #e6edf3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(180deg, #eef3f8 0%, var(--bg) 100%);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .shell {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+    .doc {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 40px 44px;
+      box-shadow: 0 12px 40px rgba(16, 32, 48, 0.08);
+    }
+    h1, h2, h3, h4 {
+      color: var(--accent);
+      line-height: 1.25;
+      margin-top: 1.5em;
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 2rem;
+      border-bottom: 3px solid var(--accent-2);
+      padding-bottom: 10px;
+    }
+    h2 {
+      font-size: 1.45rem;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 6px;
+    }
+    h3 {
+      font-size: 1.15rem;
+    }
+    p, li {
+      color: var(--text);
+    }
+    ul, ol {
+      padding-left: 1.4rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 0.96rem;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th {
+      background: #eef4f8;
+      color: var(--accent);
+    }
+    code {
+      background: #eef4f8;
+      color: var(--accent);
+      padding: 0.15rem 0.35rem;
+      border-radius: 6px;
+      font-size: 0.92em;
+    }
+    pre {
+      background: var(--code-bg);
+      color: var(--code-text);
+      padding: 16px;
+      border-radius: 12px;
+      overflow: auto;
+    }
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid var(--line);
+      margin: 28px 0;
+    }
+    .mermaid-wrap {
+      margin: 18px 0 28px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fbfcfe;
+      overflow: auto;
+    }
+    .meta {
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    @media print {
+      body {
+        background: #fff;
+      }
+      .shell {
+        max-width: none;
+        padding: 0;
+      }
+      .doc {
+        box-shadow: none;
+        border: none;
+        border-radius: 0;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="doc">
+      <p>﻿# SPECTRA Credit Risk Intelligence Platform</p>
+      <h2 id="software-requirements-and-design-document">Software Requirements and Design Document</h2>
+      <p>Version: 1.0
+      Date: 2026-03-30
+      Basis: Current SPECTRA codebase, deployment shape, and target operating scope.</p>
+      <hr />
+      <h2 id="table-of-contents">Table of Contents</h2>
+      <ol>
+      <li>Business Need</li>
+      <li>Key Functionalities</li>
+      <li>System Requirements Analysis</li>
+      <li>User Stories</li>
+      <li>Use Case Diagram</li>
+      <li>Use Case Descriptions</li>
+      <li>Activity Diagrams</li>
+      <li>Class Diagram</li>
+      <li>Rough High-Level Design</li>
+      </ol>
+      <hr />
+      <h2 id="1-business-need">1. Business Need</h2>
+      <p>Financial institutions need a dedicated credit risk intelligence platform because credit risk management is both an analytics problem and an operational control problem. In a typical bank, portfolio signals, client records, monitoring actions, committee notes, and reporting outputs are fragmented across core banking systems, spreadsheets, email, and static reports. That fragmentation slows intervention and weakens governance.</p>
+      <p>SPECTRA addresses the following core pain points:</p>
+      <ul>
+      <li>Late detection of deteriorating clients.</li>
+      <li>Manual and inconsistent IFRS 9 stage review.</li>
+      <li>No single operational view of client risk.</li>
+      <li>Weak orchestration from alert to action.</li>
+      <li>Heavy audit and reporting effort.</li>
+      <li>Limited visibility into concentration and stress exposure.</li>
+      </ul>
+      <p>The platform delivers value by role.</p>
+      <p><strong>Risk Officers</strong>
+      - Get a prioritized work queue instead of manually reviewing the whole book.
+      - See why a client is risky and what action is recommended.
+      - Can freeze, monitor, request documents, escalate, restructure, and open recovery cases in one system.</p>
+      <p><strong>Analysts</strong>
+      - Can inspect client-level and portfolio-level trends without switching tools.
+      - Can prepare committee and management materials faster.
+      - Can analyze model outputs, risk drivers, and stress results in one place.</p>
+      <p><strong>Bank Administrators / Control Functions</strong>
+      - Gain role-based control, system visibility, and auditability.
+      - Can review operational evidence and governance events centrally.
+      - Reduce effort for internal audit, senior management, and regulator review.</p>
+      <p>At a strategic level, SPECTRA enables earlier intervention, more consistent stage governance, better portfolio decisions, stronger concentration oversight, and better evidence of control execution.</p>
+      <hr />
+      <h2 id="2-key-functionalities">2. Key Functionalities</h2>
+      <h3 id="21-dashboard">2.1 Dashboard</h3>
+      <p>Provides a real-time portfolio snapshot with KPI cards, stage distribution, alert summaries, and recent high-risk movement.</p>
+      <h3 id="22-portfolio-monitoring">2.2 Portfolio Monitoring</h3>
+      <p>Tracks monitoring cadence, freeze status, collateral reviews, document requests, and operational follow-up.</p>
+      <h3 id="23-client-management">2.3 Client Management</h3>
+      <p>Supports client search and a consolidated client profile with exposures, stage, DPD, PD, actions, documents, engagements, restructuring, and recovery history.</p>
+      <h3 id="24-early-warning-alerts">2.4 Early Warning Alerts</h3>
+      <p>Evaluates deterioration signals such as PD movement, DPD trend, missed payments, salary interruption, overdraft dependency, and collateral risk. Produces alerts and recommended actions.</p>
+      <h3 id="25-watchlist">2.5 Watchlist</h3>
+      <p>Maintains a list of clients under heightened scrutiny, manually or automatically triggered.</p>
+      <h3 id="26-risk-analytics">2.6 Risk Analytics</h3>
+      <p>Shows NPL, ECL, PD distribution, vintage behavior, repayment indicators, and key risk driver trends.</p>
+      <h3 id="27-concentration-analysis">2.7 Concentration Analysis</h3>
+      <p>Calculates top obligor exposure, product and segment concentration, and HHI.</p>
+      <h3 id="28-stress-testing">2.8 Stress Testing</h3>
+      <p>Applies adverse scenarios using PD multipliers and LGD assumptions to estimate stressed provisions and risk movement.</p>
+      <h3 id="29-audit-log">2.9 Audit Log</h3>
+      <p>Stores immutable system and user actions, including stage changes, workflow actions, notifications, and exports.</p>
+      <h3 id="210-user-role-management">2.10 User Role Management</h3>
+      <p>Enforces access rules for <code>admin</code>, <code>risk_officer</code>, and <code>analyst</code>.</p>
+      <h3 id="211-notification-inbox">2.11 Notification Inbox</h3>
+      <p>Provides a prioritized inbox for alerts, escalations, and system events.</p>
+      <h3 id="212-client-portal">2.12 Client Portal</h3>
+      <p>Provides a separate client-facing route for notices and messaging, isolated from internal sessions.</p>
+      <h3 id="213-report-export">2.13 Report Export</h3>
+      <p>Allows operational and analytical views to be exported for management, committee, and audit use.</p>
+      <hr />
+      <h2 id="3-system-requirements-analysis">3. System Requirements Analysis</h2>
+      <h3 id="31-functional-requirements">3.1 Functional Requirements</h3>
+      <h4 id="authentication-and-session-management">Authentication and Session Management</h4>
+      <table>
+      <thead>
+      <tr>
+      <th>ID</th>
+      <th>Requirement</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>FR-AUTH-01</td>
+      <td>The system shall authenticate internal users with username and password.</td>
+      </tr>
+      <tr>
+      <td>FR-AUTH-02</td>
+      <td>The system shall issue a signed JWT in an HttpOnly cookie after successful login.</td>
+      </tr>
+      <tr>
+      <td>FR-AUTH-03</td>
+      <td>The system shall maintain a separate authentication context for client portal users.</td>
+      </tr>
+      <tr>
+      <td>FR-AUTH-04</td>
+      <td>Protected routes and API endpoints shall require a valid session except public auth and health endpoints.</td>
+      </tr>
+      <tr>
+      <td>FR-AUTH-05</td>
+      <td>The system shall enforce rate limiting for repeated failed login attempts.</td>
+      </tr>
+      </tbody>
+      </table>
+      <h4 id="role-based-access-control">Role-Based Access Control</h4>
+      <table>
+      <thead>
+      <tr>
+      <th>ID</th>
+      <th>Requirement</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>FR-RBAC-01</td>
+      <td>The system shall support <code>admin</code>, <code>risk_officer</code>, and <code>analyst</code> roles.</td>
+      </tr>
+      <tr>
+      <td>FR-RBAC-02</td>
+      <td>Restricted actions shall be enforced server-side.</td>
+      </tr>
+      <tr>
+      <td>FR-RBAC-03</td>
+      <td>Admin shall have governance and full operational privileges.</td>
+      </tr>
+      <tr>
+      <td>FR-RBAC-04</td>
+      <td>Risk officers shall be able to execute workflow actions.</td>
+      </tr>
+      <tr>
+      <td>FR-RBAC-05</td>
+      <td>Analysts shall have read-heavy access with limited operational actions such as engagement logging and alert acknowledgement.</td>
+      </tr>
+      </tbody>
+      </table>
+      <h4 id="dashboard-and-client-management">Dashboard and Client Management</h4>
+      <table>
+      <thead>
+      <tr>
+      <th>ID</th>
+      <th>Requirement</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>FR-OPS-01</td>
+      <td>The system shall display portfolio KPIs such as total exposure, NPL ratio, Stage 2 rate, and delinquency indicators.</td>
+      </tr>
+      <tr>
+      <td>FR-OPS-02</td>
+      <td>The system shall display active alerts and stage distribution.</td>
+      </tr>
+      <tr>
+      <td>FR-OPS-03</td>
+      <td>The system shall allow users to search clients by name, customer identifier, or account reference.</td>
+      </tr>
+      <tr>
+      <td>FR-OPS-04</td>
+      <td>The system shall display a consolidated client profile with exposures, products, risk signals, and workflow history.</td>
+      </tr>
+      <tr>
+      <td>FR-OPS-05</td>
+      <td>The system shall support client-level actions from the profile subject to role permissions.</td>
+      </tr>
+      </tbody>
+      </table>
+      <h4 id="risk-scoring-and-ewi">Risk Scoring and EWI</h4>
+      <table>
+      <thead>
+      <tr>
+      <th>ID</th>
+      <th>Requirement</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>FR-RISK-01</td>
+      <td>The system shall compute a composite risk score using PD, DPD severity, and EWI breadth.</td>
+      </tr>
+      <tr>
+      <td>FR-RISK-02</td>
+      <td>The system shall derive an implied IFRS 9 stage from configurable quantitative and qualitative triggers.</td>
+      </tr>
+      <tr>
+      <td>FR-RISK-03</td>
+      <td>The system shall support escalation to Stage 3 when NPL conditions are met.</td>
+      </tr>
+      <tr>
+      <td>FR-RISK-04</td>
+      <td>The system shall persist stage changes and material risk score changes in the audit log.</td>
+      </tr>
+      <tr>
+      <td>FR-RISK-05</td>
+      <td>The system shall evaluate EWI signals including PD, DPD, missed payments, salary behavior, overdraft dependency, and modeled migration risk.</td>
+      </tr>
+      <tr>
+      <td>FR-RISK-06</td>
+      <td>The system shall generate recommendations and notifications when a material alert is created.</td>
+      </tr>
+      <tr>
+      <td>FR-RISK-07</td>
+      <td>The system shall persist model outputs and explanations for later review.</td>
+      </tr>
+      <tr>
+      <td>#### Workflow, Monitoring, Analytics, and Reporting</td>
+      <td></td>
+      </tr>
+      </tbody>
+      </table>
+      <table>
+      <thead>
+      <tr>
+      <th>ID</th>
+      <th>Requirement</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>FR-WF-01</td>
+      <td>The system shall allow authorized users to freeze and unfreeze credit activity with a reason.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-02</td>
+      <td>The system shall support restructuring plans with defined plan types and statuses.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-03</td>
+      <td>The system shall support committee escalation and decision tracking.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-04</td>
+      <td>The system shall support recovery case creation and progression across recovery stages.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-05</td>
+      <td>The system shall assign monitoring frequency based on stage and monitoring state.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-06</td>
+      <td>The system shall allow collateral revaluation to be recorded with recalculated LTV.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-07</td>
+      <td>The system shall allow document requests to be created and fulfilled.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-08</td>
+      <td>The system shall support engagement and communication logging.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-09</td>
+      <td>The system shall provide portfolio analytics for exposure, delinquency, NPL, ECL, and PD behavior.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-10</td>
+      <td>The system shall calculate concentration metrics including top obligors and HHI.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-11</td>
+      <td>The system shall support scenario-based stress testing using configurable multipliers.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-12</td>
+      <td>The system shall create notifications for stage changes, alerts, and workflow events.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-13</td>
+      <td>The system shall write immutable audit records for material system and user actions.</td>
+      </tr>
+      <tr>
+      <td>FR-WF-14</td>
+      <td>The system shall allow export of selected views and datasets.</td>
+      </tr>
+      </tbody>
+      </table>
+      <h3 id="32-non-functional-requirements">3.2 Non-Functional Requirements</h3>
+      <table>
+      <thead>
+      <tr>
+      <th>Category</th>
+      <th>Requirement</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Security</td>
+      <td>Passwords shall be stored as strong one-way hashes and never in plaintext.</td>
+      </tr>
+      <tr>
+      <td>Security</td>
+      <td>Database access shall use parameterized queries.</td>
+      </tr>
+      <tr>
+      <td>Security</td>
+      <td>Secrets and credentials shall be stored in environment variables or secret management, not source code.</td>
+      </tr>
+      <tr>
+      <td>Security</td>
+      <td>Session cookies shall be HttpOnly and Secure in production.</td>
+      </tr>
+      <tr>
+      <td>Security</td>
+      <td>Internal and portal sessions shall remain isolated.</td>
+      </tr>
+      <tr>
+      <td>Performance</td>
+      <td>The system shall use SQL connection pooling and cache expensive reads where data freshness allows it.</td>
+      </tr>
+      <tr>
+      <td>Performance</td>
+      <td>Alert and notification refresh shall rely on lightweight endpoints.</td>
+      </tr>
+      <tr>
+      <td>Scalability</td>
+      <td>The web layer shall remain stateless at the session level so it can scale horizontally.</td>
+      </tr>
+      <tr>
+      <td>Scalability</td>
+      <td>The architecture shall support growth in clients, exposures, and alerts without redesigning the product.</td>
+      </tr>
+      <tr>
+      <td>Availability</td>
+      <td>The platform shall expose a health endpoint for database connectivity.</td>
+      </tr>
+      <tr>
+      <td>Availability</td>
+      <td>The UI shall fail visibly when the database or critical dependencies are unavailable.</td>
+      </tr>
+      <tr>
+      <td>Resilience</td>
+      <td>Optional model or AI services shall have graceful fallback behavior where possible.</td>
+      </tr>
+      <tr>
+      <td>Usability</td>
+      <td>The application shall be responsive for desktop and tablet usage.</td>
+      </tr>
+      <tr>
+      <td>Usability</td>
+      <td>Risk-critical information shall use consistent labels and visual severity conventions.</td>
+      </tr>
+      <tr>
+      <td>Data Integrity</td>
+      <td>SPECTRA shall not modify read-only source tables from the core banking domain.</td>
+      </tr>
+      <tr>
+      <td>Data Integrity</td>
+      <td>Workflow tables shall be attributable, timestamped, and auditable.</td>
+      </tr>
+      <tr>
+      <td>Compliance</td>
+      <td>The platform shall support IFRS 9-oriented stage governance, auditability, and large-exposure monitoring.</td>
+      </tr>
+      <tr>
+      <td>Maintainability</td>
+      <td>The design shall separate UI, API, service, and data-access concerns.</td>
+      </tr>
+      <tr>
+      <td>Maintainability</td>
+      <td>Thresholds and operational settings shall be configurable.</td>
+      </tr>
+      <tr>
+      <td>Maintainability</td>
+      <td>The ML pipeline shall be able to evolve independently from the web application.</td>
+      </tr>
+      </tbody>
+      </table>
+      <hr />
+      <h2 id="4-user-stories">4. User Stories</h2>
+      <h3 id="admin">Admin</h3>
+      <ul>
+      <li>As an <strong>admin</strong>, I want to authenticate securely, so that only authorized staff can access risk data.</li>
+      <li>As an <strong>admin</strong>, I want to review the audit trail by user, client, and event type, so that I can support control reviews and regulator requests.</li>
+      <li>As an <strong>admin</strong>, I want to verify system health and connectivity, so that I can identify operational issues early.</li>
+      <li>As an <strong>admin</strong>, I want to manage roles and access policy, so that privileged actions remain restricted.</li>
+      </ul>
+      <h3 id="risk-officer">Risk Officer</h3>
+      <ul>
+      <li>As a <strong>risk_officer</strong>, I want to see portfolio KPIs and high-priority alerts immediately after login, so that I can prioritize my workday.</li>
+      <li>As a <strong>risk_officer</strong>, I want to open a client profile with exposures, signals, and history in one place, so that I can act faster.</li>
+      <li>As a <strong>risk_officer</strong>, I want the system to raise early warning alerts when deterioration signals appear, so that I can intervene before risk worsens.</li>
+      <li>As a <strong>risk_officer</strong>, I want to freeze a facility with a documented reason, so that I can prevent further utilization while a case is reviewed.</li>
+      <li>As a <strong>risk_officer</strong>, I want to request documents and track receipt, so that follow-up is controlled inside the platform.</li>
+      <li>As a <strong>risk_officer</strong>, I want to escalate a case to committee or recovery and keep the decision trail in one system, so that governance is preserved.</li>
+      <li>As a <strong>risk_officer</strong>, I want to run stress scenarios, so that I can understand provision and NPL impact under adverse conditions.</li>
+      <li>As a <strong>risk_officer</strong>, I want concentration risk and watchlist entries surfaced automatically, so that material single-name exposures do not go unnoticed.</li>
+      </ul>
+      <h3 id="analyst">Analyst</h3>
+      <ul>
+      <li>As an <strong>analyst</strong>, I want to view trend analytics across the portfolio, so that I can identify emerging patterns and prepare management analysis.</li>
+      <li>As an <strong>analyst</strong>, I want to inspect model predictions and drivers for a client, so that I can support committee and investigation work with evidence.</li>
+      <li>As an <strong>analyst</strong>, I want to log engagements and supporting notes, so that client operating history is preserved.</li>
+      <li>As an <strong>analyst</strong>, I want to export selected data, so that I can prepare working papers and presentations.</li>
+      </ul>
+      <h3 id="client-portal-user">Client Portal User</h3>
+      <ul>
+      <li>As a <strong>client portal user</strong>, I want to log in separately from internal staff, so that my access is restricted to my own case and notices.</li>
+      <li>As a <strong>client portal user</strong>, I want to receive notices and exchange messages with the bank through the portal, so that I can respond securely.</li>
+      </ul>
+      <hr />
+      <h2 id="5-use-case-diagram">5. Use Case Diagram</h2>
+      <pre><code class="language-mermaid">flowchart LR
+          Admin[Admin]
+          Risk[Risk Officer]
+          Analyst[Analyst]
+          Client[Client Portal User]
+          Scheduler[EWI Scheduler]
+
+          subgraph SPECTRA[&quot;SPECTRA Credit Risk Intelligence Platform&quot;]
+              UC1((Login))
+              UC2((View Dashboard))
+              UC3((Manage Client))
+              UC4((Generate Early Warning Alert))
+              UC5((Add to Watchlist))
+              UC6((Run Stress Test))
+              UC7((Export Report))
+              UC8((View Audit Log))
+              UC9((Manage Roles))
+              UC10((Acknowledge Notification))
+              UC11((Client Portal Login))
+              UC12((View Notices and Messages))
+          end
+
+          Admin --&gt; UC1
+          Admin --&gt; UC2
+          Admin --&gt; UC3
+          Admin --&gt; UC6
+          Admin --&gt; UC7
+          Admin --&gt; UC8
+          Admin --&gt; UC9
+
+          Risk --&gt; UC1
+          Risk --&gt; UC2
+          Risk --&gt; UC3
+          Risk --&gt; UC4
+          Risk --&gt; UC5
+          Risk --&gt; UC6
+          Risk --&gt; UC7
+          Risk --&gt; UC10
+
+          Analyst --&gt; UC1
+          Analyst --&gt; UC2
+          Analyst --&gt; UC3
+          Analyst --&gt; UC6
+          Analyst --&gt; UC7
+          Analyst --&gt; UC10
+
+          Client --&gt; UC11
+          Client --&gt; UC12
+          Scheduler --&gt; UC4
+      </code></pre>
+      <hr />
+      <h2 id="6-use-case-descriptions">6. Use Case Descriptions</h2>
+      <h3 id="uc-01-login">UC-01: Login</h3>
+      <table>
+      <thead>
+      <tr>
+      <th>Field</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Use Case Name</td>
+      <td>Login</td>
+      </tr>
+      <tr>
+      <td>Actor</td>
+      <td>Admin, Risk Officer, Analyst</td>
+      </tr>
+      <tr>
+      <td>Preconditions</td>
+      <td>User has valid credentials and the public login endpoint is reachable.</td>
+      </tr>
+      <tr>
+      <td>Main Flow</td>
+      <td>1. User opens the login page. 2. User submits username and password. 3. System checks rate-limit status. 4. System validates credentials. 5. System signs a session token. 6. System stores the token in an HttpOnly cookie. 7. System redirects the user to the dashboard.</td>
+      </tr>
+      <tr>
+      <td>Alternative Flows</td>
+      <td>Invalid credentials, lockout due to repeated failures, or server-side configuration error.</td>
+      </tr>
+      <tr>
+      <td>Postconditions</td>
+      <td>Valid session exists and protected routes are accessible.</td>
+      </tr>
+      </tbody>
+      </table>
+      <h3 id="uc-02-view-dashboard">UC-02: View Dashboard</h3>
+      <table>
+      <thead>
+      <tr>
+      <th>Field</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Use Case Name</td>
+      <td>View Dashboard</td>
+      </tr>
+      <tr>
+      <td>Actor</td>
+      <td>Admin, Risk Officer, Analyst</td>
+      </tr>
+      <tr>
+      <td>Preconditions</td>
+      <td>User is authenticated and portfolio data sources are reachable.</td>
+      </tr>
+      <tr>
+      <td>Main Flow</td>
+      <td>1. User navigates to the dashboard. 2. System validates the session. 3. System loads KPIs, stage distribution, and alerts. 4. System renders charts and indicators. 5. System refreshes notification counters periodically.</td>
+      </tr>
+      <tr>
+      <td>Alternative Flows</td>
+      <td>Empty alert state or operational error state when data cannot be loaded.</td>
+      </tr>
+      <tr>
+      <td>Postconditions</td>
+      <td>User sees a current portfolio summary and no data is modified.</td>
+      </tr>
+      </tbody>
+      </table>
+      <h3 id="uc-03-manage-client">UC-03: Manage Client</h3>
+      <table>
+      <thead>
+      <tr>
+      <th>Field</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Use Case Name</td>
+      <td>Manage Client</td>
+      </tr>
+      <tr>
+      <td>Actor</td>
+      <td>Risk Officer, Admin, Analyst (read-only for restricted actions)</td>
+      </tr>
+      <tr>
+      <td>Preconditions</td>
+      <td>User is authenticated and the client exists.</td>
+      </tr>
+      <tr>
+      <td>Main Flow</td>
+      <td>1. User searches for a client. 2. System returns matches. 3. User opens a client profile. 4. System loads the consolidated profile. 5. User reviews overview, signals, actions, documents, engagements, restructuring, and recovery. 6. If authorized, user executes an action. 7. System persists the action and writes an audit event.</td>
+      </tr>
+      <tr>
+      <td>Alternative Flows</td>
+      <td>Client not found or user not authorized for the requested action.</td>
+      </tr>
+      <tr>
+      <td>Postconditions</td>
+      <td>Client view is displayed and any valid action is recorded.</td>
+      </tr>
+      </tbody>
+      </table>
+      <h3 id="uc-04-generate-early-warning-alert">UC-04: Generate Early Warning Alert</h3>
+      <table>
+      <thead>
+      <tr>
+      <th>Field</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Use Case Name</td>
+      <td>Generate Early Warning Alert</td>
+      </tr>
+      <tr>
+      <td>Actor</td>
+      <td>Risk Officer, EWI Scheduler</td>
+      </tr>
+      <tr>
+      <td>Preconditions</td>
+      <td>Client exists and required signals or model outputs are available.</td>
+      </tr>
+      <tr>
+      <td>Main Flow</td>
+      <td>1. System gathers client signals. 2. System computes or retrieves model outputs. 3. System derives risk score and implied stage. 4. System identifies triggered signals and recommendations. 5. System persists prediction output. 6. System writes audit and notification records.</td>
+      </tr>
+      <tr>
+      <td>Alternative Flows</td>
+      <td>Model output unavailable and rule-based fallback is used, or thresholds are not crossed and no material alert is generated.</td>
+      </tr>
+      <tr>
+      <td>Postconditions</td>
+      <td>Alert state is available for operational review.</td>
+      </tr>
+      </tbody>
+      </table>
+      <h3 id="uc-05-add-to-watchlist">UC-05: Add to Watchlist</h3>
+      <table>
+      <thead>
+      <tr>
+      <th>Field</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Use Case Name</td>
+      <td>Add to Watchlist</td>
+      </tr>
+      <tr>
+      <td>Actor</td>
+      <td>Risk Officer, Admin</td>
+      </tr>
+      <tr>
+      <td>Preconditions</td>
+      <td>User is authenticated, authorized, and the client exists.</td>
+      </tr>
+      <tr>
+      <td>Main Flow</td>
+      <td>1. User selects Add to Watchlist or the system triggers auto-watchlist logic. 2. System checks whether the client already exists on the watchlist. 3. System stores the watchlist entry. 4. System generates notification if required. 5. System writes an audit event.</td>
+      </tr>
+      <tr>
+      <td>Alternative Flows</td>
+      <td>Duplicate entry is rejected.</td>
+      </tr>
+      <tr>
+      <td>Postconditions</td>
+      <td>Client appears on the watchlist with recorded reason and timestamp.</td>
+      </tr>
+      </tbody>
+      </table>
+      <h3 id="uc-06-run-stress-test">UC-06: Run Stress Test</h3>
+      <table>
+      <thead>
+      <tr>
+      <th>Field</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Use Case Name</td>
+      <td>Run Stress Test</td>
+      </tr>
+      <tr>
+      <td>Actor</td>
+      <td>Risk Officer, Analyst, Admin</td>
+      </tr>
+      <tr>
+      <td>Preconditions</td>
+      <td>User is authenticated and portfolio exposure and risk data are available.</td>
+      </tr>
+      <tr>
+      <td>Main Flow</td>
+      <td>1. User opens the stress module. 2. User selects a scenario. 3. System applies scenario assumptions to the portfolio. 4. System recalculates stressed provisions and related indicators. 5. System displays scenario comparison results.</td>
+      </tr>
+      <tr>
+      <td>Alternative Flows</td>
+      <td>Missing or stale data causes an error or warning state.</td>
+      </tr>
+      <tr>
+      <td>Postconditions</td>
+      <td>Stress results are visible and optionally exportable.</td>
+      </tr>
+      </tbody>
+      </table>
+      <h3 id="uc-07-export-report">UC-07: Export Report</h3>
+      <table>
+      <thead>
+      <tr>
+      <th>Field</th>
+      <th>Description</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr>
+      <td>Use Case Name</td>
+      <td>Export Report</td>
+      </tr>
+      <tr>
+      <td>Actor</td>
+      <td>Risk Officer, Analyst, Admin</td>
+      </tr>
+      <tr>
+      <td>Preconditions</td>
+      <td>User is authenticated and the target dataset is available.</td>
+      </tr>
+      <tr>
+      <td>Main Flow</td>
+      <td>1. User clicks Export. 2. User selects scope or format. 3. System serializes the selected data. 4. System returns the downloadable file. 5. System writes an audit event.</td>
+      </tr>
+      <tr>
+      <td>Alternative Flows</td>
+      <td>Dataset too large or generation failure causes an error and retry path.</td>
+      </tr>
+      <tr>
+      <td>Postconditions</td>
+      <td>Export file is generated or the failure is reported.</td>
+      </tr>
+      </tbody>
+      </table>
+      <hr />
+      <h2 id="7-activity-diagrams">7. Activity Diagrams</h2>
+      <h3 id="ad-01-login">AD-01: Login</h3>
+      <pre><code class="language-mermaid">flowchart TD
+          A([Start]) --&gt; B[Open login page]
+          B --&gt; C[Enter username and password]
+          C --&gt; D[Submit credentials]
+          D --&gt; E{Rate limit exceeded?}
+          E -- Yes --&gt; F[Return lockout error]
+          F --&gt; Z([End])
+          E -- No --&gt; G[Validate username and password]
+          G --&gt; H{Valid credentials?}
+          H -- No --&gt; I[Record failed attempt and return 401]
+          I --&gt; Z
+          H -- Yes --&gt; J[Sign JWT session token]
+          J --&gt; K[Set HttpOnly cookie]
+          K --&gt; L[Redirect to dashboard]
+          L --&gt; Z
+      </code></pre>
+      <h3 id="ad-02-view-dashboard">AD-02: View Dashboard</h3>
+      <pre><code class="language-mermaid">flowchart TD
+          A([Start]) --&gt; B[User navigates to dashboard]
+          B --&gt; C[Validate session]
+          C --&gt; D{Session valid?}
+          D -- No --&gt; E[Redirect to login]
+          E --&gt; Z([End])
+          D -- Yes --&gt; F[Load KPIs, alerts, stage distribution]
+          F --&gt; G{Data available?}
+          G -- No --&gt; H[Show operational error state]
+          H --&gt; Z
+          G -- Yes --&gt; I[Render dashboard cards and charts]
+          I --&gt; J[Poll notification and alert counters]
+          J --&gt; Z
+      </code></pre>
+      <h3 id="ad-03-manage-client">AD-03: Manage Client</h3>
+      <pre><code class="language-mermaid">flowchart TD
+          A([Start]) --&gt; B[Search for client]
+          B --&gt; C[Return candidate matches]
+          C --&gt; D{Client selected?}
+          D -- No --&gt; Z([End])
+          D -- Yes --&gt; E[Load consolidated client profile]
+          E --&gt; F[Display overview, actions, documents, engagements, recovery]
+          F --&gt; G{User initiates restricted action?}
+          G -- No --&gt; Z
+          G -- Yes --&gt; H[Check role authorization]
+          H --&gt; I{Authorized?}
+          I -- No --&gt; J[Return forbidden response]
+          J --&gt; Z
+          I -- Yes --&gt; K[Persist action]
+          K --&gt; L[Write audit log and notification]
+          L --&gt; M[Refresh client state]
+          M --&gt; Z
+      </code></pre>
+      <h3 id="ad-04-generate-early-warning-alert">AD-04: Generate Early Warning Alert</h3>
+      <pre><code class="language-mermaid">flowchart TD
+          A([Start]) --&gt; B[Receive manual or scheduled trigger]
+          B --&gt; C[Load client signals and model features]
+          C --&gt; D[Compute risk score and implied stage]
+          D --&gt; E{Threshold crossed or material change?}
+          E -- No --&gt; F[Persist low-severity result or no-op]
+          F --&gt; Z([End])
+          E -- Yes --&gt; G[Generate alert and recommendations]
+          G --&gt; H[Persist prediction and recommendation state]
+          H --&gt; I[Write audit event]
+          I --&gt; J[Create notification]
+          J --&gt; Z
+      </code></pre>
+      <h3 id="ad-05-add-to-watchlist">AD-05: Add to Watchlist</h3>
+      <pre><code class="language-mermaid">flowchart TD
+          A([Start]) --&gt; B[User clicks Add to Watchlist or auto-trigger fires]
+          B --&gt; C[Check existing watchlist status]
+          C --&gt; D{Already on watchlist?}
+          D -- Yes --&gt; E[Return duplicate message]
+          E --&gt; Z([End])
+          D -- No --&gt; F[Store watchlist entry with reason]
+          F --&gt; G[Write audit event]
+          G --&gt; H{Notification needed?}
+          H -- Yes --&gt; I[Create notification]
+          H -- No --&gt; J[Finish]
+          I --&gt; J
+          J --&gt; Z
+      </code></pre>
+      <h3 id="ad-06-run-stress-test">AD-06: Run Stress Test</h3>
+      <pre><code class="language-mermaid">flowchart TD
+          A([Start]) --&gt; B[Open stress testing module]
+          B --&gt; C[Select scenario]
+          C --&gt; D[Load current portfolio exposures and scores]
+          D --&gt; E{Data available?}
+          E -- No --&gt; F[Show error state]
+          F --&gt; Z([End])
+          E -- Yes --&gt; G[Apply PD multiplier and scenario assumptions]
+          G --&gt; H[Recalculate stressed provisions and NPL indicators]
+          H --&gt; I[Aggregate results]
+          I --&gt; J[Render scenario comparison]
+          J --&gt; Z
+      </code></pre>
+      <h3 id="ad-07-export-report">AD-07: Export Report</h3>
+      <pre><code class="language-mermaid">flowchart TD
+          A([Start]) --&gt; B[User selects export]
+          B --&gt; C[Choose dataset or format]
+          C --&gt; D[Build export payload]
+          D --&gt; E{Generation successful?}
+          E -- No --&gt; F[Return export failure]
+          F --&gt; Z([End])
+          E -- Yes --&gt; G[Deliver file download]
+          G --&gt; H[Write audit event]
+          H --&gt; Z
+      </code></pre>
+      <hr />
+      <h2 id="8-class-diagram">8. Class Diagram</h2>
+      <pre><code class="language-mermaid">classDiagram
+          class User {
+              +id: string
+              +username: string
+              +name: string
+              +role: string
+              +department: string
+              +authenticate(password)
+              +canPerform(action)
+          }
+
+          class Client {
+              +clientId: string
+              +fullName: string
+              +segment: string
+              +region: string
+              +getProfile()
+          }
+
+          class CreditFacility {
+              +creditId: string
+              +productType: string
+              +outstandingBalance: decimal
+              +interestRate: decimal
+              +dpd: int
+              +pd: decimal
+              +computeECL()
+              +isNPL()
+          }
+
+          class RiskScore {
+              +clientId: string
+              +stage: int
+              +score: decimal
+              +pdScore: decimal
+              +ewiFlagCount: int
+              +computeScore()
+              +deriveStage()
+          }
+
+          class Alert {
+              +id: string
+              +clientId: string
+              +alertType: string
+              +severity: string
+              +message: string
+              +createdAt: datetime
+              +acknowledge(userId)
+          }
+
+          class WatchlistEntry {
+              +id: string
+              +clientId: string
+              +triggerReason: string
+              +addedBy: string
+              +addedAt: datetime
+          }
+
+          class Notification {
+              +id: string
+              +clientId: string
+              +priority: string
+              +title: string
+              +message: string
+              +markRead()
+          }
+
+          class AuditLog {
+              +id: string
+              +actor: string
+              +eventType: string
+              +clientId: string
+              +details: string
+              +createdAt: datetime
+          }
+
+          class Portfolio {
+              +totalExposure: decimal
+              +nplRatio: decimal
+              +stage2Rate: decimal
+              +hhi: decimal
+              +getKPIs()
+              +runStressScenario()
+          }
+
+          class StressScenario {
+              +name: string
+              +pdMultiplier: decimal
+              +lgd: decimal
+              +apply(portfolio)
+          }
+
+          class Engagement {
+              +id: string
+              +clientId: string
+              +author: string
+              +note: string
+              +createdAt: datetime
+          }
+
+          class DocumentRequest {
+              +id: string
+              +clientId: string
+              +requestedBy: string
+              +status: string
+              +dueDate: date
+              +markReceived()
+          }
+
+          class RestructuringPlan {
+              +id: string
+              +clientId: string
+              +type: string
+              +status: string
+              +approve()
+              +reject()
+              +activate()
+          }
+
+          class RecoveryCase {
+              +id: string
+              +clientId: string
+              +stage: string
+              +status: string
+              +advanceStage()
+              +close()
+          }
+
+          Client &quot;1&quot; --&gt; &quot;0..*&quot; CreditFacility : owns
+          Client &quot;1&quot; --&gt; &quot;0..1&quot; RiskScore : has
+          Client &quot;1&quot; --&gt; &quot;0..*&quot; Alert : triggers
+          Client &quot;1&quot; --&gt; &quot;0..1&quot; WatchlistEntry : may_have
+          Client &quot;1&quot; --&gt; &quot;0..*&quot; Engagement : has
+          Client &quot;1&quot; --&gt; &quot;0..*&quot; DocumentRequest : has
+          Client &quot;1&quot; --&gt; &quot;0..*&quot; RestructuringPlan : has
+          Client &quot;1&quot; --&gt; &quot;0..*&quot; RecoveryCase : has
+          Client &quot;1&quot; --&gt; &quot;0..*&quot; Notification : receives
+          Client &quot;1&quot; --&gt; &quot;0..*&quot; AuditLog : referenced_by
+          Portfolio &quot;1&quot; --&gt; &quot;0..*&quot; Client : aggregates
+          Portfolio --&gt; StressScenario : evaluated_by
+          RiskScore --&gt; CreditFacility : informed_by
+          User --&gt; AuditLog : creates
+          User --&gt; Engagement : writes
+          User --&gt; DocumentRequest : creates
+      </code></pre>
+      <hr />
+      <h2 id="9-rough-high-level-design">9. Rough High-Level Design</h2>
+      <h3 id="91-architecture-overview">9.1 Architecture Overview</h3>
+      <p>SPECTRA uses a layered modular monolith architecture for the web application and a separate batch ML pipeline for model training and artifact generation.</p>
+      <p>At a high level:
+      - the frontend and backend API live in the same Next.js application,
+      - authentication, authorization, and business rules run server-side,
+      - SQL Server is the system of record for core banking data and SPECTRA-managed workflow tables,
+      - a separate Python pipeline trains models, scores clients, creates explanations, and exports analytical datasets,
+      - and the deployed web application runs on Vercel.</p>
+      <h3 id="92-frontend-nextjs">9.2 Frontend (Next.js)</h3>
+      <p>The presentation layer is implemented with Next.js App Router pages and React components.</p>
+      <p>Primary responsibilities:
+      - render dashboard, monitoring, client, analytics, audit, and portal views,
+      - initiate workflow actions,
+      - show charts, alerts, notifications, and detail panels,
+      - support responsive internal and portal experiences.</p>
+      <h3 id="93-backend-api-layer">9.3 Backend API Layer</h3>
+      <p>The backend is implemented as Next.js route handlers and service modules.</p>
+      <p>Primary layers:
+      - Route handlers for validation, auth checks, and request-response orchestration.
+      - Service layer for classification, monitoring, notifications, restructuring, committee, recovery, and messaging logic.
+      - Data access layer for SQL Server connectivity and parameterized query execution.</p>
+      <p>This keeps domain logic out of the UI and allows operational workflows to be reused consistently.</p>
+      <h3 id="94-authentication-service">9.4 Authentication Service</h3>
+      <p>Authentication is embedded in the web application rather than deployed as a separate external service.</p>
+      <p>Internal authentication:
+      - username/password login,
+      - JWT stored in an HttpOnly cookie,
+      - middleware-protected internal routes.</p>
+      <p>Client portal authentication:
+      - separate cookie and session validation path,
+      - restricted data scope to the authenticated client.</p>
+      <h3 id="95-database-schema-overview">9.5 Database Schema Overview</h3>
+      <p>The data model has two logical zones.</p>
+      <p><strong>Core banking / source tables (read-only to SPECTRA)</strong>
+      - <code>Customer</code>
+      - <code>Credits</code>
+      - <code>RiskPortfolio</code>
+      - <code>DueDaysDaily</code>
+      - <code>Accounts</code>
+      - <code>TAccounts</code>
+      - <code>AmortizationPlan</code>
+      - <code>CC_Event_LOG</code></p>
+      <p><strong>SPECTRA-managed workflow and control tables</strong>
+      - <code>SystemActions</code>
+      - <code>Notifications</code>
+      - <code>ClientMonitoring</code>
+      - <code>CollateralReview</code>
+      - <code>DocumentRequests</code>
+      - <code>ECLProvisions</code>
+      - <code>RecoveryCases</code>
+      - <code>RestructuringPlans</code>
+      - <code>CreditCommitteeLog</code>
+      - <code>AlertAcknowledgements</code>
+      - <code>ClientMessages</code></p>
+      <p>Schema notes:
+      - source data remains read-only,
+      - workflow tables hold operational state and audit evidence,
+      - some application-managed tables can be created lazily on first use in the current implementation.</p>
+      <h3 id="96-external-integrations">9.6 External Integrations</h3>
+      <p>The main integrations are:
+      - SQL Server for source and workflow persistence,
+      - Python / scikit-learn batch ML pipeline for features, labels, training, prediction, and explanation,
+      - Power BI export datasets,
+      - optional AI provider integration for narrative summaries when configured.</p>
+      <h3 id="97-deployment-infrastructure-vercel">9.7 Deployment Infrastructure (Vercel)</h3>
+      <p>Current deployment model:
+      - web application deployed from <code>frontend/</code> to Vercel,
+      - environment variables managed in the deployment platform,
+      - API routes run in the Vercel-hosted Next.js runtime,
+      - SQL Server accessed over a secure database connection,
+      - health check available through <code>/api/db/ping</code>.</p>
+      <p>Supporting deployment path:
+      - local or containerized setup uses <code>docker-compose</code> with <code>app</code> and <code>pipeline</code> services.</p>
+      <p>Operational note:
+      - the current in-process event bus is suitable for single-process or limited-node deployment and should move to distributed pub/sub such as Redis for full multi-instance realtime behavior.</p>
+      <h3 id="98-system-architecture-diagram">9.8 System Architecture Diagram</h3>
+      <pre><code class="language-mermaid">flowchart LR
+          Staff[&quot;Staff Browser&quot;] --&gt; Edge[&quot;Vercel Edge / CDN&quot;]
+          Client[&quot;Client Portal Browser&quot;] --&gt; Edge
+
+          subgraph App[&quot;Next.js Full-Stack Application&quot;]
+              UI[&quot;UI Layer\nDashboard, Monitoring, Clients, Analytics, Portal&quot;]
+              API[&quot;API Layer\nAuth, Clients, Alerts, Monitoring, Analytics, Portal&quot;]
+              Auth[&quot;Auth and Session Layer\nJWT Cookie Auth\nSeparate Portal Session&quot;]
+              Service[&quot;Service Layer\nClassification\nMonitoring\nNotifications\nCommittee\nRecovery\nRestructuring&quot;]
+              EventBus[&quot;Realtime/Event Layer\nPolling + In-process Event Bus&quot;]
+          end
+
+          Edge --&gt; UI
+          UI --&gt; API
+          API --&gt; Auth
+          API --&gt; Service
+          EventBus --&gt; Staff
+
+          Service --&gt; SQL[&quot;SQL Server\nCore Banking Tables\n+ SPECTRA Workflow Tables&quot;]
+
+          subgraph Pipeline[&quot;Python ML Pipeline&quot;]
+              FE[&quot;feature_engineering.py&quot;] --&gt; LB[&quot;build_labels.py&quot;]
+              LB --&gt; TR[&quot;train_model.py&quot;]
+              TR --&gt; PR[&quot;predict.py&quot;]
+              PR --&gt; EX[&quot;explain.py&quot;]
+              EX --&gt; PB[&quot;export_for_powerbi.py&quot;]
+          end
+
+          SQL --&gt; FE
+          Pipeline --&gt; Artifacts[&quot;Artifacts\ndata/processed/*.csv\nmodels/*.pkl\ntraining_meta.json&quot;]
+          Artifacts --&gt; Service
+          PB --&gt; BI[&quot;Power BI / Reporting Datasets&quot;]
+      </code></pre>
+      <h3 id="99-high-level-design-summary">9.9 High-Level Design Summary</h3>
+      <p>SPECTRA is best described as:</p>
+      <p><code>Next.js modular monolith + SQL Server + separate Python batch ML pipeline</code></p>
+      <p>This design is appropriate because it centralizes sensitive risk logic on the server, keeps operational complexity lower than a microservices split, allows analytics and workflow to share one domain model, and lets the ML lifecycle evolve independently from the transactional web layer.</p>
+      <hr />
+      <h2 id="appendix-recommended-future-enhancements">Appendix: Recommended Future Enhancements</h2>
+      <ul>
+      <li>replace the in-memory user store with enterprise identity or database-backed user administration,</li>
+      <li>replace the in-process event bus with Redis or equivalent distributed pub/sub,</li>
+      <li>add formal schema migrations for all application-managed tables,</li>
+      <li>add scheduled pipeline orchestration and model-run observability,</li>
+      <li>add stronger report packaging and committee case generation workflows.</li>
+      </ul>
+    </div>
+  </div>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'loose',
+      fontFamily: 'Segoe UI, Arial, sans-serif',
+      flowchart: { useMaxWidth: false, htmlLabels: true },
+      sequence: { useMaxWidth: false },
+    });
+
+    const blocks = [...document.querySelectorAll('pre code.language-mermaid')];
+    for (const block of blocks) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'mermaid-wrap';
+      const mermaidNode = document.createElement('div');
+      mermaidNode.className = 'mermaid';
+      mermaidNode.textContent = block.textContent;
+      wrapper.appendChild(mermaidNode);
+      const pre = block.closest('pre');
+      pre.replaceWith(wrapper);
+    }
+
+    await mermaid.run({
+      nodes: document.querySelectorAll('.mermaid')
+    });
+  </script>
+</body>
+</html>

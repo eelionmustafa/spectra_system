@@ -12,7 +12,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'FrozenLimits' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[FrozenLimits] (
+CREATE TABLE [dbo].[FrozenLimits] (
   id           UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id    NVARCHAR(50)     NOT NULL,
   frozen_by    NVARCHAR(100)    NOT NULL,
@@ -32,7 +32,7 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('SPECTRA.dbo.FrozenLimits')
 )
 CREATE INDEX IX_FrozenLimits_ClientID_Active
-  ON [SPECTRA].[dbo].[FrozenLimits] (client_id, active)
+  ON [dbo].[FrozenLimits] (client_id, active)
   INCLUDE (frozen_by, frozen_at)
 `
 
@@ -68,7 +68,7 @@ export async function freezeClientLimit(
 ): Promise<string> {
   await ensureTable()
   const rows = await query<{ id: string }>(
-    `INSERT INTO [SPECTRA].[dbo].[FrozenLimits] (client_id, frozen_by, reason)
+    `INSERT INTO [dbo].[FrozenLimits] (client_id, frozen_by, reason)
      OUTPUT CAST(inserted.id AS VARCHAR(36)) AS id
      VALUES (@clientId, @frozenBy, @reason)`,
     { clientId, frozenBy, reason: reason ?? null }
@@ -82,7 +82,7 @@ export async function unfreezeClientLimit(
 ): Promise<void> {
   await ensureTable()
   await query(
-    `UPDATE [SPECTRA].[dbo].[FrozenLimits]
+    `UPDATE [dbo].[FrozenLimits]
      SET active = 0, unfrozen_at = GETDATE(), unfrozen_by = @unfrozenBy
      WHERE client_id = @clientId AND active = 1`,
     { clientId, unfrozenBy }
@@ -99,7 +99,7 @@ export async function getActiveFreezeLimit(clientId: string): Promise<FreezeRow 
        CONVERT(VARCHAR(30), unfrozen_at, 127)   AS unfrozen_at,
        unfrozen_by,
        CAST(active AS BIT)                      AS active
-     FROM [SPECTRA].[dbo].[FrozenLimits] WITH (NOLOCK)
+     FROM [dbo].[FrozenLimits] WITH (NOLOCK)
      WHERE client_id = @clientId AND active = 1
      ORDER BY frozen_at DESC`,
     { clientId }

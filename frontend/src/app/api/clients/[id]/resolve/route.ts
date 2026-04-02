@@ -4,6 +4,7 @@ import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { resolveClient, unresolveClient } from '@/lib/resolutionService'
 import { recordRichClientAction } from '@/lib/queries'
 import { emitSpectraEvent } from '@/lib/eventBus'
+import { sendSystemMessage } from '@/lib/messagingService'
 
 async function getSession(req: NextRequest) {
   void req
@@ -26,6 +27,9 @@ export async function POST(
   }
 
   try {
+    if (!['credit_risk_manager', 'senior_risk_manager'].includes(session.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
     const { notes } = await req.json().catch(() => ({})) as { notes?: string }
     const username  = session.username
 
@@ -37,6 +41,8 @@ export async function POST(
       actor:   username,
       message: `Client marked as resolved by ${username}${notes ? ` — ${notes}` : ''}`,
     })
+
+    sendSystemMessage(id, username, username, `✅ Case Resolved\n\nYour account is now in good standing. All concerns have been reviewed and resolved by our risk team.\n\nNo further action is required on your end.${notes ? `\n\nNote: ${notes}` : ''}`).catch(() => {})
 
     return NextResponse.json({ ok: true }, { status: 201 })
   } catch (err) {

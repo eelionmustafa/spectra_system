@@ -46,7 +46,7 @@ let _prevDateIDInFlight:   Promise<string> | null = null
 async function maxCalcDate(): Promise<string> {
   if (_maxCalcDate && Date.now() < _maxCalcExp) return _maxCalcDate
   if (_maxCalcDateInFlight) return _maxCalcDateInFlight
-  _maxCalcDateInFlight = query<{ d: string }>(`SELECT CAST(MAX(CalculationDate) AS VARCHAR(30)) AS d FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)`)
+  _maxCalcDateInFlight = query<{ d: string }>(`SELECT CAST(MAX(CalculationDate) AS VARCHAR(30)) AS d FROM [dbo].[RiskPortfolio] WITH (NOLOCK)`)
     .then(r => { _maxCalcDate = r[0]?.d ?? ''; _maxCalcExp = Date.now() + TTL; return _maxCalcDate })
     .finally(() => { _maxCalcDateInFlight = null })
   return _maxCalcDateInFlight
@@ -56,7 +56,7 @@ async function prevCalcDate(): Promise<string> {
   if (_prevCalcDate && Date.now() < _prevCalcExp) return _prevCalcDate
   if (_prevCalcDateInFlight) return _prevCalcDateInFlight
   _prevCalcDateInFlight = maxCalcDate()
-    .then(cur => query<{ d: string }>(`SELECT CAST(MAX(CalculationDate) AS VARCHAR(30)) AS d FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate < @cur`, { cur }))
+    .then(cur => query<{ d: string }>(`SELECT CAST(MAX(CalculationDate) AS VARCHAR(30)) AS d FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate < @cur`, { cur }))
     .then(r => { _prevCalcDate = r[0]?.d ?? _maxCalcDate; _prevCalcExp = Date.now() + TTL; return _prevCalcDate })
     .finally(() => { _prevCalcDateInFlight = null })
   return _prevCalcDateInFlight
@@ -65,7 +65,7 @@ async function prevCalcDate(): Promise<string> {
 async function maxDateID(): Promise<string> {
   if (_maxDateID && Date.now() < _maxDateExp) return _maxDateID
   if (_maxDateIDInFlight) return _maxDateIDInFlight
-  _maxDateIDInFlight = query<{ d: string }>(`SELECT CAST(MAX(dateID) AS VARCHAR(30)) AS d FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)`)
+  _maxDateIDInFlight = query<{ d: string }>(`SELECT CAST(MAX(dateID) AS VARCHAR(30)) AS d FROM [dbo].[DueDaysDaily] WITH (NOLOCK)`)
     .then(r => { _maxDateID = r[0]?.d ?? ''; _maxDateExp = Date.now() + TTL; return _maxDateID })
     .finally(() => { _maxDateIDInFlight = null })
   return _maxDateIDInFlight
@@ -75,7 +75,7 @@ async function prevDateID(): Promise<string> {
   if (_prevDateID && Date.now() < _prevDateExp) return _prevDateID
   if (_prevDateIDInFlight) return _prevDateIDInFlight
   _prevDateIDInFlight = maxDateID()
-    .then(cur => query<{ d: string }>(`SELECT CAST(MAX(dateID) AS VARCHAR(30)) AS d FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID < @cur`, { cur }))
+    .then(cur => query<{ d: string }>(`SELECT CAST(MAX(dateID) AS VARCHAR(30)) AS d FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID < @cur`, { cur }))
     .then(r => { _prevDateID = r[0]?.d ?? _maxDateID; _prevDateExp = Date.now() + TTL; return _prevDateID })
     .finally(() => { _prevDateIDInFlight = null })
   return _prevDateIDInFlight
@@ -359,6 +359,7 @@ export interface ECLGapRow {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
+/** Returns top-level portfolio KPIs (total clients, delinquency rate, NPL ratio, health score). */
 export async function getDashboardKPIs(): Promise<DashboardKPIs> {
   const cached = rc<DashboardKPIs>('dashboardKPIs'); if (cached) return cached
   const [mcd, mdid] = await Promise.all([maxCalcDate(), maxDateID()])
@@ -368,7 +369,7 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
         ROUND(100.0 * COUNT(DISTINCT CASE WHEN TRY_CAST(DueDays AS FLOAT) >= 30 THEN PersonalID END)
               / NULLIF(COUNT(DISTINCT PersonalID), 0), 1)                            AS delinquency_rate_pct,
         ROUND(AVG(TRY_CAST(DueDays AS FLOAT)), 1)                                   AS avg_due_days
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID = @mdid
     ),
     rp_base AS (
@@ -382,7 +383,7 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
               / NULLIF(COUNT(*), 0), 1)                                              AS stage3_pct,
         ROUND(100.0 * SUM(CASE WHEN Stage = 3 THEN TRY_CAST(totalExposure AS FLOAT) ELSE 0 END)
               / NULLIF(SUM(TRY_CAST(totalExposure AS FLOAT)), 0), 1)                AS npl_ratio_pct
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
     )
     SELECT
@@ -412,7 +413,7 @@ export async function getStageDistribution(): Promise<StageDistribution[]> {
   const mcd = await maxCalcDate()
   const result = await query<StageDistribution>(`
     SELECT 'Stage ' + CAST(Stage AS VARCHAR) AS stage, COUNT(*) AS count, SUM(TRY_CAST(totalExposure AS FLOAT)) AS exposure
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     WHERE CalculationDate = @mcd
     GROUP BY Stage ORDER BY Stage
   `, { mcd })
@@ -428,13 +429,13 @@ export async function getRecentTransactions(): Promise<RecentTransaction[]> {
   const result = await query<RecentTransaction>(`
     WITH recent_tc AS (
       SELECT TOP 50 CreditAccount, Kind, Amount, Date
-      FROM [SPECTRA].[dbo].[TCredits] WITH (NOLOCK)
+      FROM [dbo].[TCredits] WITH (NOLOCK)
       WHERE Date >= @d30
       ORDER BY Date DESC
     ),
     latest_rp AS (
       SELECT clientID, Stage, contractNumber
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
     )
     SELECT TOP 10
@@ -446,7 +447,7 @@ export async function getRecentTransactions(): Promise<RecentTransaction[]> {
       COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A') AS stage,
       LEFT(CAST(tc.Date AS VARCHAR(30)), 10)                AS date
     FROM recent_tc tc
-    LEFT JOIN [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK) ON cr.CreditAccount = tc.CreditAccount
+    LEFT JOIN [dbo].[Credits] cr WITH (NOLOCK) ON cr.CreditAccount = tc.CreditAccount
     LEFT JOIN latest_rp rp ON rp.contractNumber = cr.NoCredit
     ORDER BY tc.Date DESC
   `, { mcd, d30: d30Str }, 15000)
@@ -462,7 +463,7 @@ export async function getMonthlyExposureTrend(): Promise<MonthlyExposure[]> {
     SELECT TOP 12
       LEFT(CalculationDate, 7)              AS month,
       SUM(TRY_CAST(totalExposure AS FLOAT)) AS exposure
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     WHERE LEFT(CalculationDate, 7) >= @ym12m
     GROUP BY LEFT(CalculationDate, 7)
     ORDER BY LEFT(CalculationDate, 7)
@@ -478,7 +479,7 @@ export async function getNPLRatio(): Promise<NPLRatio> {
     SELECT COUNT(*) AS total_loans,
       SUM(CASE WHEN TRY_CAST(DueDays AS FLOAT) >= 90 THEN 1 ELSE 0 END) AS npl_count,
       ROUND(SUM(CASE WHEN TRY_CAST(DueDays AS FLOAT) >= 90 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 1) AS npl_ratio_pct
-    FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid
+    FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid
   `, { mdid })
   const result = rows[0] ?? { total_loans: 0, npl_count: 0, npl_ratio_pct: 0 }
   sc('nplRatio', result, TTL); return result
@@ -499,9 +500,9 @@ export async function getPortfolioKPIs(): Promise<PortfolioKPIs> {
         ROUND(100.0 * SUM(CASE WHEN rp.Stage = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS stage1_pct,
         ROUND(100.0 * SUM(CASE WHEN rp.Stage = 2 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS stage2_pct,
         ROUND(100.0 * SUM(CASE WHEN rp.Stage = 3 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS stage3_pct
-      FROM [SPECTRA].[dbo].[RiskPortfolio] rp WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
       -- Exclude written-off clients from all active portfolio KPIs
-      LEFT JOIN [SPECTRA].[dbo].[WrittenOffClients] wo WITH (NOLOCK)
+      LEFT JOIN [dbo].[WrittenOffClients] wo WITH (NOLOCK)
         ON wo.client_id = rp.clientID
       WHERE rp.CalculationDate = @mcd
         AND wo.client_id IS NULL
@@ -534,8 +535,8 @@ export async function getExposureByProduct(): Promise<ProductExposure[]> {
     WITH totals AS (
       -- Exclude written-off clients so grand_total matches the portfolio banner total
       SELECT SUM(TRY_CAST(rp.totalExposure AS FLOAT)) AS grand_total
-      FROM [SPECTRA].[dbo].[RiskPortfolio] rp WITH (NOLOCK)
-      LEFT JOIN [SPECTRA].[dbo].[WrittenOffClients] wo WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
+      LEFT JOIN [dbo].[WrittenOffClients] wo WITH (NOLOCK)
         ON wo.client_id = rp.clientID
       WHERE rp.CalculationDate = @mcd
         AND wo.client_id IS NULL
@@ -543,8 +544,8 @@ export async function getExposureByProduct(): Promise<ProductExposure[]> {
     SELECT rp.TypeOfProduct AS product_type,
       SUM(TRY_CAST(rp.totalExposure AS FLOAT)) AS exposure,
       ROUND(100.0 * SUM(TRY_CAST(rp.totalExposure AS FLOAT)) / NULLIF(t.grand_total, 0), 1) AS pct
-    FROM [SPECTRA].[dbo].[RiskPortfolio] rp WITH (NOLOCK)
-    LEFT JOIN [SPECTRA].[dbo].[WrittenOffClients] wo WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
+    LEFT JOIN [dbo].[WrittenOffClients] wo WITH (NOLOCK)
       ON wo.client_id = rp.clientID
     CROSS JOIN totals t
     WHERE rp.CalculationDate = @mcd
@@ -560,19 +561,19 @@ export async function getExposureByRegion(): Promise<RegionRow[]> {
   const result = await query<RegionRow>(`
     WITH rp_filtered AS (
       SELECT clientID, arrangementID, TRY_CAST(totalExposure AS FLOAT) AS exposure
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
     ),
     latest_dpd AS (
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS due_days
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
     )
     SELECT COALESCE(cu.City, cu.Branch, 'Unknown') AS region,
       COUNT(DISTINCT rp.arrangementID) AS clients,
       SUM(rp.exposure) AS exposure,
       ROUND(100.0 * SUM(CASE WHEN ld.due_days >= 30 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS delinquency_pct
     FROM rp_filtered rp
-    LEFT JOIN [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK)
+    LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK)
       ON TRY_CAST(cu.PersonalID AS BIGINT) = TRY_CAST(rp.clientID AS BIGINT)
     LEFT JOIN latest_dpd ld ON ld.PersonalID = rp.clientID
     GROUP BY COALESCE(cu.City, cu.Branch, 'Unknown') ORDER BY exposure DESC
@@ -586,15 +587,15 @@ export async function getTopLoans(): Promise<TopLoan[]> {
   const result = await query<TopLoan>(`
     WITH latest_dpd AS (
       SELECT CreditAccount, MAX(TRY_CAST(DueDays AS FLOAT)) AS due_days
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY CreditAccount
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY CreditAccount
     )
     SELECT TOP 8 cr.CreditAccount AS credit_id, rp.clientID AS personal_id,
       COALESCE(rp.TypeOfProduct, cr.TypeOfCalculatioin, '') AS product_type,
       TRY_CAST(rp.totalExposure AS FLOAT) AS exposure,
       'Stage ' + CAST(rp.Stage AS VARCHAR) AS stage,
       COALESCE(ld.due_days, 0) AS due_days
-    FROM [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK)
-    JOIN [SPECTRA].[dbo].[RiskPortfolio] rp WITH (NOLOCK) ON rp.contractNumber = cr.NoCredit AND rp.CalculationDate = @mcd
+    FROM [dbo].[Credits] cr WITH (NOLOCK)
+    JOIN [dbo].[RiskPortfolio] rp WITH (NOLOCK) ON rp.contractNumber = cr.NoCredit AND rp.CalculationDate = @mcd
     LEFT JOIN latest_dpd ld ON ld.CreditAccount = cr.CreditAccount
     ORDER BY TRY_CAST(rp.totalExposure AS FLOAT) DESC
   `, { mcd, mdid })
@@ -614,7 +615,7 @@ export async function getCreditTransactions(days?: number): Promise<PortfolioCre
     -- Description: Recent credit transactions from TCredits, optional date window
     WITH latest_rp AS (
       SELECT clientID, Stage, contractNumber
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
     )
     SELECT TOP 100
@@ -625,8 +626,8 @@ export async function getCreditTransactions(days?: number): Promise<PortfolioCre
       COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A') AS stage,
       LEFT(tc.Date, 10)                            AS start_date,
       ''                                           AS end_date
-    FROM [SPECTRA].[dbo].[TCredits] tc WITH (NOLOCK)
-    LEFT JOIN [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK)
+    FROM [dbo].[TCredits] tc WITH (NOLOCK)
+    LEFT JOIN [dbo].[Credits] cr WITH (NOLOCK)
       ON cr.CreditAccount = tc.CreditAccount
     LEFT JOIN latest_rp rp ON rp.contractNumber = cr.NoCredit
     WHERE tc.Date >= @dateFrom
@@ -644,7 +645,7 @@ export async function getAccountTransactions(): Promise<PortfolioAccountTransact
       TRY_CAST(a.Balance AS FLOAT)                   AS balance,
       COALESCE(TRY_CAST(a.amountonhold AS FLOAT), 0) AS overdraft_limit,
       a.Currency                                     AS currency
-    FROM [SPECTRA].[dbo].[Accounts] a WITH (NOLOCK)
+    FROM [dbo].[Accounts] a WITH (NOLOCK)
     ORDER BY TRY_CAST(a.Balance AS FLOAT) ASC
   `)
   sc('accountTransactions', result, TTL); return result
@@ -663,7 +664,7 @@ export async function getCardTransactions(days?: number): Promise<PortfolioCardT
       TRY_CAST(cc.Ammount AS FLOAT)               AS amount,
       LEFT(cc.trans_date, 10)                    AS event_date,
       COALESCE(cc.TERMINAL_ID, '')               AS merchant
-    FROM [SPECTRA].[dbo].[CC_Event_LOG] cc WITH (NOLOCK)
+    FROM [dbo].[CC_Event_LOG] cc WITH (NOLOCK)
     WHERE cc.trans_date >= @dateFrom
     ORDER BY cc.eventno DESC
   `, { dateFrom })
@@ -671,6 +672,9 @@ export async function getCardTransactions(days?: number): Promise<PortfolioCardT
 
 // ─── Early Warnings ───────────────────────────────────────────────────────────
 
+/** Returns portfolio-level EWI summary counts grouped by severity.
+ * @returns EWISummary with critical/high/medium/low alert counts
+ */
 export async function getEWISummary(): Promise<EWISummary> {
   if (_ewiSummary && Date.now() < _ewiExp) return _ewiSummary
   const [mcd, mdid] = await Promise.all([maxCalcDate(), maxDateID()])
@@ -684,32 +688,32 @@ export async function getEWISummary(): Promise<EWISummary> {
     -- Pre-aggregate: clients who DID have salary inflow in last 60 days
     recent_salary AS (
       SELECT DISTINCT a.PersonalID
-      FROM [SPECTRA].[dbo].[Accounts] a WITH (NOLOCK)
-      JOIN [SPECTRA].[dbo].[TAccounts] ta WITH (NOLOCK) ON ta.NoAccount = a.NoAccount
+      FROM [dbo].[Accounts] a WITH (NOLOCK)
+      JOIN [dbo].[TAccounts] ta WITH (NOLOCK) ON ta.NoAccount = a.NoAccount
       WHERE TRY_CAST(ta.Amount AS FLOAT) > 0
         AND ta.Date >= @d60d
     ),
     salary_stopped AS (
       SELECT COUNT(DISTINCT rp.clientID) AS cnt
-      FROM [SPECTRA].[dbo].[RiskPortfolio] rp WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
       LEFT JOIN recent_salary rs ON rs.PersonalID = rp.clientID
       WHERE rp.CalculationDate = @mcd AND rp.Stage >= 2 AND rs.PersonalID IS NULL
     ),
     overdraft_spike AS (
-      SELECT COUNT(DISTINCT PersonalID) AS cnt FROM [SPECTRA].[dbo].[Accounts] WITH (NOLOCK) WHERE TRY_CAST(Balance AS FLOAT) < 0
+      SELECT COUNT(DISTINCT PersonalID) AS cnt FROM [dbo].[Accounts] WITH (NOLOCK) WHERE TRY_CAST(Balance AS FLOAT) < 0
     ),
     card_high AS (
       SELECT COUNT(DISTINCT ca.PersonalID) AS cnt
-      FROM [SPECTRA].[dbo].[Cards] ca WITH (NOLOCK)
+      FROM [dbo].[Cards] ca WITH (NOLOCK)
       JOIN (
         SELECT Account, SUM(TRY_CAST(Ammount AS FLOAT)) AS monthly_spend
-        FROM [SPECTRA].[dbo].[CC_Event_LOG] WITH (NOLOCK)
+        FROM [dbo].[CC_Event_LOG] WITH (NOLOCK)
         WHERE trans_date >= @d30d
         GROUP BY Account HAVING SUM(TRY_CAST(Ammount AS FLOAT)) > 1000
       ) hs ON hs.Account = ca.NoCards
     ),
     consec_lates AS (
-      SELECT COUNT(DISTINCT PersonalID) AS cnt FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      SELECT COUNT(DISTINCT PersonalID) AS cnt FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE TRY_CAST(DueDays AS FLOAT) > 0 AND dateID = @mdid
     )
     SELECT ss.cnt AS salary_stopped, od.cnt AS overdraft_spike, ch.cnt AS card_high_util, cl.cnt AS consecutive_lates
@@ -733,7 +737,7 @@ export async function getActiveAlerts(): Promise<AlertItem[]> {
       -- duplicate entries on the same dateID (prevents key collisions in the UI)
       SELECT CreditAccount, PersonalID, DueDays,
         ROW_NUMBER() OVER (PARTITION BY CreditAccount ORDER BY TRY_CAST(DueDays AS FLOAT) DESC) AS rn
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID = @mdid
     ),
     first_breach AS (
@@ -742,7 +746,7 @@ export async function getActiveAlerts(): Promise<AlertItem[]> {
       -- range-seek with IX_DueDaysDaily_dateID instead of converting every row.
       SELECT CreditAccount,
         LEFT(MIN(dateID), 10) AS triggered_date
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE TRY_CAST(DueDays AS FLOAT) >= 30
         AND dateID >= @d6m
       GROUP BY CreditAccount
@@ -751,7 +755,7 @@ export async function getActiveAlerts(): Promise<AlertItem[]> {
       -- One row per client on the snapshot date: pick highest exposure record
       SELECT clientID, Stage, totalExposure,
         ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY TRY_CAST(totalExposure AS FLOAT) DESC) AS rn
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
     ),
     cr_dedup AS (
@@ -759,7 +763,7 @@ export async function getActiveAlerts(): Promise<AlertItem[]> {
       -- the Credits table multiplying rows when a CreditAccount has multiple entries
       SELECT CreditAccount, Amount,
         ROW_NUMBER() OVER (PARTITION BY CreditAccount ORDER BY TRY_CAST(Amount AS FLOAT) DESC) AS rn
-      FROM [SPECTRA].[dbo].[Credits] WITH (NOLOCK)
+      FROM [dbo].[Credits] WITH (NOLOCK)
     )
     SELECT TOP 10
       -- Cast IDs to VARCHAR so mssql never returns BigInt — RSC cannot serialize BigInt
@@ -815,6 +819,12 @@ export interface AlertFilters {
   stage?:    string  // '' | '1' | '2' | '3' | 'NA'
 }
 
+/** Returns a paginated, filtered list of active EWI alerts.
+ * @param q - Search query
+ * @param page - 1-based page number
+ * @param filters - Optional AlertFilters
+ * @returns Paginated rows and total count
+ */
 export async function getAlertsPaginated(
   q: string,
   page: number,
@@ -854,25 +864,25 @@ export async function getAlertsPaginated(
     WITH latest_dpd AS (
       SELECT CreditAccount, PersonalID, DueDays,
         ROW_NUMBER() OVER (PARTITION BY CreditAccount ORDER BY TRY_CAST(DueDays AS FLOAT) DESC) AS rn
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID = @mdid
     ),
     first_breach AS (
       SELECT CreditAccount, LEFT(MIN(dateID), 10) AS triggered_date
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE TRY_CAST(DueDays AS FLOAT) >= 30 AND dateID >= @d6m
       GROUP BY CreditAccount
     ),
     rp_dedup AS (
       SELECT clientID, Stage, totalExposure,
         ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY TRY_CAST(totalExposure AS FLOAT) DESC) AS rn
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
     ),
     cr_dedup AS (
       SELECT CreditAccount, Amount,
         ROW_NUMBER() OVER (PARTITION BY CreditAccount ORDER BY TRY_CAST(Amount AS FLOAT) DESC) AS rn
-      FROM [SPECTRA].[dbo].[Credits] WITH (NOLOCK)
+      FROM [dbo].[Credits] WITH (NOLOCK)
     )
     SELECT
       CAST(ld.CreditAccount AS VARCHAR(50))                                      AS credit_id,
@@ -897,7 +907,7 @@ export async function getAlertsPaginated(
       COALESCE(TRY_CAST(rp.totalExposure AS FLOAT), TRY_CAST(cr.Amount AS FLOAT), 0) AS exposure,
       fb.triggered_date                                                          AS triggered_date
     FROM latest_dpd ld
-    LEFT JOIN [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = ld.PersonalID
+    LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = ld.PersonalID
     LEFT JOIN cr_dedup  cr ON cr.CreditAccount = ld.CreditAccount AND cr.rn = 1
     LEFT JOIN rp_dedup  rp ON rp.clientID      = ld.PersonalID    AND rp.rn = 1
     LEFT JOIN first_breach fb ON fb.CreditAccount = ld.CreditAccount
@@ -910,18 +920,18 @@ export async function getAlertsPaginated(
     WITH latest_dpd AS (
       SELECT CreditAccount, PersonalID, DueDays,
         ROW_NUMBER() OVER (PARTITION BY CreditAccount ORDER BY TRY_CAST(DueDays AS FLOAT) DESC) AS rn
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID = @mdid
     ),
     rp_dedup AS (
       SELECT clientID, Stage,
         ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY TRY_CAST(totalExposure AS FLOAT) DESC) AS rn
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
     )
     SELECT COUNT(*) AS total
     FROM latest_dpd ld
-    LEFT JOIN [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = ld.PersonalID
+    LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = ld.PersonalID
     LEFT JOIN rp_dedup rp ON rp.clientID = ld.PersonalID AND rp.rn = 1
     ${ALERT_WHERE}
   `, { mcd, mdid, pattern, sevFilter, stgFilter }, 30000)
@@ -945,7 +955,7 @@ export async function getAlertTrend(): Promise<AlertTrend[]> {
     -- before that window are chronic and correctly excluded from the 6-month chart.
     WITH all_breaches AS (
       SELECT PersonalID, MIN(LEFT(dateID, 7)) AS first_ever_breach_month
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE TRY_CAST(DueDays AS FLOAT) >= 30 AND dateID >= @d18m
       GROUP BY PersonalID
     )
@@ -968,7 +978,7 @@ export async function getCardSpendAlerts(): Promise<CardSpendAlert[]> {
     WITH monthly AS (
       SELECT Account, LEFT(trans_date, 7) AS spend_month,
         SUM(TRY_CAST(Ammount AS FLOAT)) AS monthly_spend
-      FROM [SPECTRA].[dbo].[CC_Event_LOG] WITH (NOLOCK)
+      FROM [dbo].[CC_Event_LOG] WITH (NOLOCK)
       WHERE trans_date >= @d3m
       GROUP BY Account, LEFT(trans_date, 7)
     ),
@@ -985,7 +995,7 @@ export async function getCardSpendAlerts(): Promise<CardSpendAlert[]> {
       ROUND(wp.monthly_spend, 0)  AS current_spend,
       ROUND((wp.monthly_spend - wp.prev_spend) * 100.0 / NULLIF(wp.prev_spend, 0), 1) AS mom_growth_pct
     FROM with_prev wp
-    LEFT JOIN [SPECTRA].[dbo].[Cards] ca WITH (NOLOCK) ON ca.NoCards = wp.Account
+    LEFT JOIN [dbo].[Cards] ca WITH (NOLOCK) ON ca.NoCards = wp.Account
     WHERE wp.rn = 1 AND wp.prev_spend > 0
       AND (wp.monthly_spend - wp.prev_spend) * 100.0 / wp.prev_spend > 30
     ORDER BY mom_growth_pct DESC
@@ -1002,8 +1012,8 @@ export async function getOverdraftDependency(): Promise<OverdraftDependency[]> {
   const result = await query<OverdraftDependency>(`
     WITH monthly_od AS (
       SELECT a.PersonalID, REPLACE(LEFT(ta.Date, 7), '.', '-') AS usage_month
-      FROM [SPECTRA].[dbo].[TAccounts] ta WITH (NOLOCK)
-      JOIN [SPECTRA].[dbo].[Accounts] a WITH (NOLOCK) ON ta.NoAccount = a.NoAccount
+      FROM [dbo].[TAccounts] ta WITH (NOLOCK)
+      JOIN [dbo].[Accounts] a WITH (NOLOCK) ON ta.NoAccount = a.NoAccount
       WHERE TRY_CAST(ta.Amount AS FLOAT) < 0
         AND ta.Date >= @d12m
       GROUP BY a.PersonalID, REPLACE(LEFT(ta.Date, 7), '.', '-')
@@ -1022,12 +1032,16 @@ export async function getOverdraftDependency(): Promise<OverdraftDependency[]> {
 export async function getHighestRiskClient(): Promise<string> {
   const mcd = await maxCalcDate()
   const rows = await query<{ personal_id: string }>(`
-    SELECT TOP 1 clientID AS personal_id FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+    SELECT TOP 1 clientID AS personal_id FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     WHERE CalculationDate = @mcd AND Stage = 3 ORDER BY TRY_CAST(totalExposure AS FLOAT) DESC
   `, { mcd })
   return rows[0]?.personal_id ?? ''
 }
 
+/** Loads the full risk profile for a single client.
+ * @param personalId - Customer.PersonalID (primary key)
+ * @returns ClientProfile or null if not found
+ */
 export async function getClientProfile(personalId: string): Promise<ClientProfile | null> {
   const [mcd, mdid, pcd] = await Promise.all([maxCalcDate(), maxDateID(), prevCalcDate()])
   // Pre-compute date strings so SQL can seek on the string-stored dateID column
@@ -1040,40 +1054,40 @@ export async function getClientProfile(personalId: string): Promise<ClientProfil
     -- Resolve this client's RiskPortfolio contract numbers once (seeks on indexed clientID)
     WITH client_contracts AS (
       SELECT contractNumber
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE clientID = @personalId AND CalculationDate = @mcd
     ),
     client_contracts_all AS (
       SELECT contractNumber
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE clientID = @personalId
     ),
     latest_dpd AS (
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS DueDays
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID = @mdid AND PersonalID = @personalId
       GROUP BY PersonalID
     ),
     max_dpd_12m AS (
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS max_due_days_12m
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID >= @d12m AND PersonalID = @personalId
       GROUP BY PersonalID
     ),
     max_dpd_24m AS (
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS max_due_days_24m
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID >= @d24m AND PersonalID = @personalId
       GROUP BY PersonalID
     ),
     approved_total AS (
       SELECT @personalId AS PersonalID, SUM(TRY_CAST(Amount AS FLOAT)) AS total_approved
-      FROM [SPECTRA].[dbo].[Credits] WITH (NOLOCK)
+      FROM [dbo].[Credits] WITH (NOLOCK)
       WHERE NoCredit IN (SELECT contractNumber FROM client_contracts_all)
     ),
     prev_exp AS (
       SELECT TOP 1 TRY_CAST(totalExposure AS FLOAT) AS prev_exposure
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE clientID = @personalId AND CalculationDate = @pcd
     ),
     income_est AS (
@@ -1084,10 +1098,10 @@ export async function getClientProfile(personalId: string): Promise<ClientProfil
           / NULLIF(DATEDIFF(MONTH,
               MIN(TRY_CAST(ta.Date AS DATE)),
               MAX(TRY_CAST(ta.Date AS DATE))) + 1, 0) AS avg_monthly_income
-      FROM [SPECTRA].[dbo].[TAccounts] ta WITH (NOLOCK)
-      JOIN [SPECTRA].[dbo].[Accounts] a WITH (NOLOCK) ON ta.NoAccount = a.NoAccount
+      FROM [dbo].[TAccounts] ta WITH (NOLOCK)
+      JOIN [dbo].[Accounts] a WITH (NOLOCK) ON ta.NoAccount = a.NoAccount
       WHERE a.NoAccount IN (
-        SELECT DISTINCT cr_i.NoAccount FROM [SPECTRA].[dbo].[Credits] cr_i WITH (NOLOCK)
+        SELECT DISTINCT cr_i.NoAccount FROM [dbo].[Credits] cr_i WITH (NOLOCK)
         WHERE cr_i.NoCredit IN (SELECT contractNumber FROM client_contracts_all)
           AND cr_i.NoAccount IS NOT NULL AND LTRIM(RTRIM(cr_i.NoAccount)) != ''
       )
@@ -1100,9 +1114,9 @@ export async function getClientProfile(personalId: string): Promise<ClientProfil
         COUNT(*)                                                          AS total_payments,
         SUM(CASE WHEN TRY_CAST(OTPLATA AS FLOAT) < NULLIF(TRY_CAST(IZNOS AS FLOAT), 0)
                   AND TRY_CAST(DATUMDOSPECA AS DATE) < GETDATE() THEN 1 ELSE 0 END) AS missed_payments
-      FROM [SPECTRA].[dbo].[AmortizationPlan] WITH (NOLOCK)
+      FROM [dbo].[AmortizationPlan] WITH (NOLOCK)
       WHERE PARTIJA IN (
-        SELECT cr_ap.CreditAccount FROM [SPECTRA].[dbo].[Credits] cr_ap WITH (NOLOCK)
+        SELECT cr_ap.CreditAccount FROM [dbo].[Credits] cr_ap WITH (NOLOCK)
         WHERE cr_ap.NoCredit IN (SELECT contractNumber FROM client_contracts_all)
       )
       AND TRY_CAST(DATUMDOSPECA AS DATE) <= GETDATE()
@@ -1113,7 +1127,7 @@ export async function getClientProfile(personalId: string): Promise<ClientProfil
       SELECT @personalId AS PersonalID,
         SUM(COALESCE(rp2.total_payments,  0)) AS total_payments,
         SUM(COALESCE(rp2.missed_payments, 0)) AS missed_payments
-      FROM [SPECTRA].[dbo].[Credits] cr2 WITH (NOLOCK)
+      FROM [dbo].[Credits] cr2 WITH (NOLOCK)
       LEFT JOIN raw_payments rp2 ON rp2.CreditAccount = cr2.CreditAccount
       WHERE cr2.NoCredit IN (SELECT contractNumber FROM client_contracts_all)
     )
@@ -1195,9 +1209,9 @@ export async function getClientProfile(personalId: string): Promise<ClientProfil
       CASE WHEN COALESCE(rp.Stage, 1) >= 2 OR COALESCE(ld.DueDays, 0) >= 30 THEN 1 ELSE 0 END
                                                                              AS sicr_flagged
     -- Anchor on Customer — all clients visible regardless of RiskPortfolio coverage
-    FROM [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK)
-    LEFT JOIN (SELECT clientID, Stage, totalExposure, onBalanceExposure, TotalOffBalance, TypeOfProduct, contractNumber FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd) rp ON rp.clientID = cu.PersonalID
-    LEFT JOIN [SPECTRA].[dbo].[Credits]   cr WITH (NOLOCK) ON cr.NoCredit    = rp.contractNumber
+    FROM [dbo].[Customer] cu WITH (NOLOCK)
+    LEFT JOIN (SELECT clientID, Stage, totalExposure, onBalanceExposure, TotalOffBalance, TypeOfProduct, contractNumber FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd) rp ON rp.clientID = cu.PersonalID
+    LEFT JOIN [dbo].[Credits]   cr WITH (NOLOCK) ON cr.NoCredit    = rp.contractNumber
     LEFT JOIN latest_dpd    ld  ON ld.PersonalID  = cu.PersonalID
     LEFT JOIN max_dpd_12m   md  ON md.PersonalID  = cu.PersonalID
     LEFT JOIN max_dpd_24m   md2 ON md2.PersonalID = cu.PersonalID
@@ -1220,7 +1234,7 @@ export async function getClientDPDHistory(personalId: string): Promise<DPDHistor
     SELECT
       LEFT(dateID, 7)                  AS month,
       MAX(TRY_CAST(DueDays AS FLOAT))  AS due_days
-    FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+    FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
     WHERE PersonalID = @personalId
       AND dateID >= @ym7m
     GROUP BY LEFT(dateID, 7)
@@ -1241,19 +1255,19 @@ export async function getClientEWI(personalId: string): Promise<ClientEWI> {
   const rows = await query<ClientEWI>(`
     WITH client_accts AS (
       SELECT NoAccount, TRY_CAST(Balance AS FLOAT) AS balance_num
-      FROM [SPECTRA].[dbo].[Accounts] WITH (NOLOCK)
+      FROM [dbo].[Accounts] WITH (NOLOCK)
       WHERE TRY_CAST(PersonalID AS BIGINT) = TRY_CAST(@personalId AS BIGINT)
     ),
     client_cards AS (
       SELECT NoCards
-      FROM [SPECTRA].[dbo].[Cards] WITH (NOLOCK)
+      FROM [dbo].[Cards] WITH (NOLOCK)
       WHERE TRY_CAST(PersonalID AS BIGINT) = TRY_CAST(@personalId AS BIGINT)
     )
     SELECT
       -- Salary inflow: any credits in TAccounts in last 60 days?
       CASE
         WHEN EXISTS (
-          SELECT 1 FROM [SPECTRA].[dbo].[TAccounts] ta WITH (NOLOCK)
+          SELECT 1 FROM [dbo].[TAccounts] ta WITH (NOLOCK)
           JOIN client_accts ca ON ca.NoAccount = ta.NoAccount
           WHERE TRY_CAST(ta.Amount AS FLOAT) > 0
             AND ta.Date >= @d60d
@@ -1273,7 +1287,7 @@ export async function getClientEWI(personalId: string): Promise<ClientEWI> {
         WHEN (
           SELECT SUM(TRY_CAST(cc.Ammount AS FLOAT))
           FROM client_cards crd
-          JOIN [SPECTRA].[dbo].[CC_Event_LOG] cc WITH (NOLOCK) ON cc.Account = crd.NoCards
+          JOIN [dbo].[CC_Event_LOG] cc WITH (NOLOCK) ON cc.Account = crd.NoCards
           WHERE cc.trans_date >= @d30d
         ) > 500 THEN 'Elevated'
         ELSE 'Normal'
@@ -1282,10 +1296,10 @@ export async function getClientEWI(personalId: string): Promise<ClientEWI> {
       -- Consecutive lates: DueDays > 0 in latest snapshot?
       CASE
         WHEN (
-          SELECT MAX(TRY_CAST(DueDays AS FLOAT)) FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+          SELECT MAX(TRY_CAST(DueDays AS FLOAT)) FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
           WHERE PersonalID = @personalId AND dateID = @mdid
         ) > 0 THEN CAST(
-          (SELECT COUNT(DISTINCT dateID) FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+          (SELECT COUNT(DISTINCT dateID) FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
            WHERE PersonalID = @personalId AND TRY_CAST(DueDays AS FLOAT) > 0
              AND dateID >= @d3m
           ) AS VARCHAR
@@ -1332,11 +1346,11 @@ export async function getClientSignalsBatch(): Promise<Record<string, ClientSign
     WITH
     latest_dpd AS (
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS current_dpd
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
     ),
     max_dpd_12m AS (
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS max_dpd_12m
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID >= @d12m GROUP BY PersonalID
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID >= @d12m GROUP BY PersonalID
     ),
     payments AS (
       -- Count scheduled installments from AmortizationPlan (not DPD snapshots).
@@ -1349,21 +1363,21 @@ export async function getClientSignalsBatch(): Promise<Record<string, ClientSign
           COUNT(*) AS total_payments,
           SUM(CASE WHEN TRY_CAST(OTPLATA AS FLOAT) < NULLIF(TRY_CAST(IZNOS AS FLOAT), 0)
                     AND TRY_CAST(DATUMDOSPECA AS DATE) < GETDATE() THEN 1 ELSE 0 END) AS missed_payments
-        FROM [SPECTRA].[dbo].[AmortizationPlan] WITH (NOLOCK)
+        FROM [dbo].[AmortizationPlan] WITH (NOLOCK)
         WHERE TRY_CAST(DATUMDOSPECA AS DATE) <= GETDATE()
         GROUP BY PARTIJA
       ) ap_agg
-      JOIN [SPECTRA].[dbo].[Credits] cr_pay WITH (NOLOCK) ON cr_pay.CreditAccount = ap_agg.CreditAccount
+      JOIN [dbo].[Credits] cr_pay WITH (NOLOCK) ON cr_pay.CreditAccount = ap_agg.CreditAccount
       JOIN (
         SELECT DISTINCT clientID, contractNumber
-        FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+        FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       ) rp_pay ON rp_pay.contractNumber = cr_pay.NoCredit
       GROUP BY rp_pay.clientID
     ),
     -- Simplified from gaps-and-islands: client had late payments in 3+ distinct months of last 6m
     consec_late_clients AS (
       SELECT PersonalID
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID >= @d6m AND TRY_CAST(DueDays AS FLOAT) > 0
       GROUP BY PersonalID HAVING COUNT(DISTINCT LEFT(dateID, 7)) >= 3
     )
@@ -1387,7 +1401,7 @@ export async function getClientSignalsBatch(): Promise<Record<string, ClientSign
       END                                                                  AS repayment_rate
     FROM (
       SELECT *, ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY CalculationDate DESC) AS _rn
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     ) rp
     LEFT JOIN latest_dpd ld          ON ld.PersonalID = rp.clientID
     LEFT JOIN max_dpd_12m m          ON m.PersonalID  = rp.clientID
@@ -1406,7 +1420,7 @@ export async function getClientProducts(personalId: string): Promise<ClientProdu
   return query<ClientProduct>(`
     WITH latest_dpd AS (
       SELECT CreditAccount, MAX(TRY_CAST(DueDays AS FLOAT)) AS due_days
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID = @mdid GROUP BY CreditAccount
     )
     SELECT
@@ -1415,12 +1429,12 @@ export async function getClientProducts(personalId: string): Promise<ClientProdu
       COALESCE(TRY_CAST(cr.Amount AS FLOAT), 0)               AS approved_amount,
       'Stage ' + CAST(COALESCE(rp.Stage, 1) AS VARCHAR)       AS stage,
       COALESCE(ld.due_days, 0)                                 AS due_days
-    FROM [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK)
-    LEFT JOIN [SPECTRA].[dbo].[RiskPortfolio] rp WITH (NOLOCK)
+    FROM [dbo].[Credits] cr WITH (NOLOCK)
+    LEFT JOIN [dbo].[RiskPortfolio] rp WITH (NOLOCK)
       ON rp.contractNumber = cr.NoCredit AND rp.CalculationDate = @mcd
     LEFT JOIN latest_dpd ld ON ld.CreditAccount = cr.CreditAccount
     WHERE cr.NoCredit IN (
-      SELECT contractNumber FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      SELECT contractNumber FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE clientID = @personalId AND CalculationDate = @mcd
     )
     ORDER BY COALESCE(TRY_CAST(cr.Amount AS FLOAT), 0) DESC
@@ -1434,19 +1448,19 @@ export async function getAnalyticsKPIs(): Promise<AnalyticsKPIs> {
   const [mcd, pcd] = await Promise.all([maxCalcDate(), prevCalcDate()])
   const rows = await query<AnalyticsKPIs>(`
     WITH prev_month AS (
-      SELECT clientID, Stage AS prev_stage FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @pcd
+      SELECT clientID, Stage AS prev_stage FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @pcd
     ),
     curr_month AS (
       SELECT clientID, Stage AS curr_stage, CalculatedProvision, totalExposure
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd
     ),
     -- 90-day cure rate: find the CalculationDate closest to 90 days ago
     prev_90d AS (
       SELECT clientID, Stage AS stage_90d
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = (
         SELECT TOP 1 CalculationDate
-        FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+        FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
         WHERE TRY_CAST(CalculationDate AS DATE) <= DATEADD(DAY, -90, GETDATE())
         ORDER BY CalculationDate DESC
       )
@@ -1474,11 +1488,11 @@ export async function getDelinquencyBySegment(): Promise<SegmentDelinquency[]> {
   const result = await query<SegmentDelinquency>(`
     WITH latest_dpd AS (
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS due_days
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
     )
     SELECT COALESCE(rp.TypeOfProduct, 'Other') AS product_type,
       ROUND(100.0 * SUM(CASE WHEN ld.due_days >= 30 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS delinquency_pct
-    FROM [SPECTRA].[dbo].[RiskPortfolio] rp WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
     LEFT JOIN latest_dpd ld ON ld.PersonalID = rp.clientID
     WHERE rp.CalculationDate = @mcd GROUP BY rp.TypeOfProduct ORDER BY delinquency_pct DESC
   `, { mcd, mdid })
@@ -1490,10 +1504,10 @@ export async function getStageMigration(): Promise<StageMigration[]> {
   const [mcd, pcd] = await Promise.all([maxCalcDate(), prevCalcDate()])
   const result = await query<StageMigration>(`
     WITH prev AS (
-      SELECT clientID, Stage AS prev_stage FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @pcd
+      SELECT clientID, Stage AS prev_stage FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @pcd
     ),
     curr AS (
-      SELECT clientID, Stage AS curr_stage, totalExposure FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd
+      SELECT clientID, Stage AS curr_stage, totalExposure FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd
     )
     SELECT
       'Stage ' + CAST(p.prev_stage AS VARCHAR) AS from_stage,
@@ -1515,7 +1529,7 @@ export async function getProvisionByProduct(): Promise<ProvisionByProduct[]> {
   const result = await query<ProvisionByProduct>(`
     SELECT COALESCE(TypeOfProduct, 'Other') AS product_type,
       ROUND(AVG(100.0 * TRY_CAST(CalculatedProvision AS FLOAT) / NULLIF(TRY_CAST(totalExposure AS FLOAT), 0)), 1) AS provision_pct
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     WHERE CalculationDate = @mcd AND TRY_CAST(totalExposure AS FLOAT) > 0
     GROUP BY TypeOfProduct ORDER BY provision_pct DESC
   `, { mcd })
@@ -1533,7 +1547,7 @@ export async function getNPLRatioTrend(): Promise<NPLTrend[]> {
       ROUND(100.0 * SUM(CASE WHEN Stage = 3 THEN TRY_CAST(totalExposure AS FLOAT) ELSE 0 END)
             / NULLIF(SUM(TRY_CAST(totalExposure AS FLOAT)), 0), 2)               AS npl_ratio_pct,
       SUM(CASE WHEN Stage = 3 THEN TRY_CAST(totalExposure AS FLOAT) ELSE 0 END)  AS npl_exposure
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     WHERE LEFT(CalculationDate, 7) >= @ym6m
     GROUP BY LEFT(CalculationDate, 7)
     ORDER BY LEFT(CalculationDate, 7)
@@ -1556,7 +1570,7 @@ export async function getRollrateMatrix(): Promise<RollrateCell[]> {
           WHEN TRY_CAST(DueDays AS FLOAT) BETWEEN 60 AND 89 THEN '60-89 DPD'
           ELSE '90+ DPD'
         END AS from_bucket
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID = @pdid
     ),
     curr_snap AS (
@@ -1568,7 +1582,7 @@ export async function getRollrateMatrix(): Promise<RollrateCell[]> {
           WHEN TRY_CAST(DueDays AS FLOAT) BETWEEN 60 AND 89 THEN '60-89 DPD'
           ELSE '90+ DPD'
         END AS to_bucket
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID = @mdid
     ),
     transitions AS (
@@ -1598,14 +1612,14 @@ export async function getVintageAnalysis(): Promise<VintageRow[]> {
   const result = await query<VintageRow>(`
     WITH dpd AS (
       SELECT CreditAccount, MAX(TRY_CAST(DueDays AS FLOAT)) AS due_days
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY CreditAccount
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY CreditAccount
     )
     SELECT TOP 6
       cr.FromYear                                                                 AS vintage_year,
       COUNT(DISTINCT cr.CreditAccount)                                            AS loan_count,
       ROUND(100.0 * SUM(CASE WHEN d.due_days >= 30 THEN 1 ELSE 0 END)
             / NULLIF(COUNT(*), 0), 1)                                            AS delinquency_rate_pct
-    FROM [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK)
+    FROM [dbo].[Credits] cr WITH (NOLOCK)
     LEFT JOIN dpd d ON d.CreditAccount = cr.CreditAccount
     WHERE cr.FromYear IS NOT NULL
       AND TRY_CAST(cr.FromYear AS INT) >= YEAR(GETDATE()) - 5
@@ -1623,7 +1637,7 @@ export async function getECLProvisionGap(): Promise<ECLGapRow[]> {
       SUM(TRY_CAST(CalculatedProvision AS FLOAT)) AS calculated_ecl,
       SUM(TRY_CAST(totalExposure AS FLOAT)) - SUM(TRY_CAST(CalculatedProvision AS FLOAT)) AS provision_gap,
       ROUND(100.0 * SUM(TRY_CAST(CalculatedProvision AS FLOAT)) / NULLIF(SUM(TRY_CAST(totalExposure AS FLOAT)), 0), 1) AS coverage_ratio_pct
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     WHERE CalculationDate = @mcd GROUP BY Stage ORDER BY Stage
   `, { mcd })
   sc('eclProvisionGap', result, EWI_TTL); return result
@@ -1644,7 +1658,7 @@ export async function getECLByStage(): Promise<ECLByStage[]> {
         CASE Stage WHEN 1 THEN 0.01 WHEN 2 THEN 0.05 ELSE 0.20 END), 0)          AS calculated_ecl,
       ROUND(SUM(TRY_CAST(CalculatedProvision AS FLOAT)) - SUM(TRY_CAST(totalExposure AS FLOAT) *
         CASE Stage WHEN 1 THEN 0.01 WHEN 2 THEN 0.05 ELSE 0.20 END), 0)          AS provision_gap
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     WHERE CalculationDate = @mcd
     GROUP BY Stage, stageDescr ORDER BY Stage
   `, { mcd })
@@ -1657,7 +1671,7 @@ export async function getRepaymentSummary(): Promise<RepaymentSummary> {
     -- Description: Repayment breakdown — full / partial / critical installments
     WITH rates AS (
       SELECT TRY_CAST(OTPLATA AS FLOAT) / NULLIF(TRY_CAST(ANUITET AS FLOAT), 0) AS rate
-      FROM [SPECTRA].[dbo].[AmortizationPlan] WITH (NOLOCK)
+      FROM [dbo].[AmortizationPlan] WITH (NOLOCK)
       WHERE TRY_CAST(ANUITET AS FLOAT) > 0 AND TRY_CAST(DATUMDOSPECA AS DATE) <= GETDATE()
     )
     SELECT
@@ -1681,7 +1695,7 @@ export async function getInterestAtRisk(): Promise<InterestAtRisk[]> {
       COUNT(*) AS client_count, ROUND(SUM(TRY_CAST(totalExposure AS FLOAT)), 0) AS at_risk_exposure,
       ROUND(AVG(TRY_CAST([Effective Interest Rate] AS FLOAT)), 2) AS avg_interest_rate,
       ROUND(SUM(TRY_CAST(totalExposure AS FLOAT) * TRY_CAST([Effective Interest Rate] AS FLOAT) / 100), 0) AS interest_income_at_risk
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     WHERE Stage IN (2, 3) AND CalculationDate = @mcd
     GROUP BY Stage, stageDescr ORDER BY Stage
   `, { mcd })
@@ -1695,7 +1709,7 @@ export async function getPDByRating(): Promise<PDByRating[]> {
     SELECT TOP 10 BankPreviousMonthRating AS rating_last_month, COUNT(*) AS total_clients,
       SUM(CASE WHEN Stage = 3 THEN 1 ELSE 0 END) AS defaulted,
       ROUND(SUM(CASE WHEN Stage = 3 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 1) AS pd_pct
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     WHERE BankPreviousMonthRating IS NOT NULL AND CalculationDate = @mcd
     GROUP BY BankPreviousMonthRating ORDER BY pd_pct DESC
   `, { mcd })
@@ -1718,12 +1732,12 @@ export async function getCoverageByStage(): Promise<CoverageByStage[]> {
     WITH prev_calc AS (
       SELECT Stage,
         ROUND(100.0 * SUM(TRY_CAST(CalculatedProvision AS FLOAT)) / NULLIF(SUM(TRY_CAST(totalExposure AS FLOAT)), 0), 1) AS prev_cov
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @pcd GROUP BY Stage
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @pcd GROUP BY Stage
     ),
     curr_calc AS (
       SELECT Stage,
         ROUND(100.0 * SUM(TRY_CAST(CalculatedProvision AS FLOAT)) / NULLIF(SUM(TRY_CAST(totalExposure AS FLOAT)), 0), 1) AS curr_cov
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd GROUP BY Stage
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd GROUP BY Stage
     )
     SELECT
       c.Stage                                          AS stage,
@@ -1744,10 +1758,10 @@ export async function getFastDefaultAlerts(): Promise<FastDefaultAlert[]> {
     SELECT cr.CreditAccount AS credit_account, cr.PersonalID AS personal_id,
       cr.FromYear AS vintage_year, ROUND(TRY_CAST(cr.Amount AS FLOAT), 0) AS amount,
       COALESCE(cr.TypeOfCalculatioin, 'N/A') AS product_type, d.due_days AS current_dpd
-    FROM [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK)
+    FROM [dbo].[Credits] cr WITH (NOLOCK)
     JOIN (
       SELECT CreditAccount, MAX(TRY_CAST(DueDays AS FLOAT)) AS due_days
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY CreditAccount
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY CreditAccount
     ) d ON d.CreditAccount = cr.CreditAccount
     WHERE TRY_CAST(cr.FromYear AS INT) >= YEAR(GETDATE()) - 1 AND d.due_days >= 30
     ORDER BY d.due_days DESC
@@ -1789,6 +1803,12 @@ export interface ClientFilters {
   status?: string   // '' | 'Active' | 'Inactive' | 'Suspended' | 'Deceased'
 }
 
+/** Returns a paginated, filtered client list for the portfolio table.
+ * @param q - Search query
+ * @param page - 1-based page number
+ * @param filters - Optional ClientFilters
+ * @returns Paginated ClientTableRow array and total count
+ */
 export async function getClientsPaginated(
   q: string,
   page: number,
@@ -1816,12 +1836,12 @@ export async function getClientsPaginated(
       SELECT clientID, TypeOfProduct, Stage,
         TRY_CAST(totalExposure AS FLOAT) AS exposure,
         CalculationDate AS last_activity
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
     ),
     latest_dpd AS (
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS current_dpd
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID = @mdid GROUP BY PersonalID
     )
     SELECT
@@ -1846,10 +1866,10 @@ export async function getClientsPaginated(
       COALESCE(CAST(rp.last_activity AS VARCHAR(30)), '')                  AS last_activity,
       COALESCE(ld.current_dpd,     0)                                      AS current_dpd,
       CASE WHEN cr.client_id IS NOT NULL THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS is_resolved
-    FROM [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK)
+    FROM [dbo].[Customer] cu WITH (NOLOCK)
     INNER JOIN latest_rp rp ON rp.clientID = cu.PersonalID
     LEFT  JOIN latest_dpd ld ON ld.PersonalID = cu.PersonalID
-    LEFT  JOIN [SPECTRA].[dbo].[ClientResolutions] cr WITH (NOLOCK) ON cr.client_id = cu.PersonalID
+    LEFT  JOIN [dbo].[ClientResolutions] cr WITH (NOLOCK) ON cr.client_id = cu.PersonalID
     WHERE (cu.PersonalID LIKE @pattern
        OR (COALESCE(cu.name, '') + ' ' + COALESCE(cu.surname, '')) LIKE @pattern)
       AND (@stageFilter  = '' OR (@stageFilter = 'NA' AND rp.Stage IS NULL) OR CAST(rp.Stage AS VARCHAR) = @stageFilter)
@@ -1868,16 +1888,16 @@ export async function getClientsPaginated(
   const cntQ = dpdFilter
     ? query<{ total: number }>(`
         WITH latest_rp AS (
-          SELECT clientID, Stage FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+          SELECT clientID, Stage FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
           WHERE CalculationDate = @mcd
         ),
         latest_dpd AS (
           SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS current_dpd
-          FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+          FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
           WHERE dateID = @mdid GROUP BY PersonalID
         )
         SELECT COUNT(*) AS total
-        FROM [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK)
+        FROM [dbo].[Customer] cu WITH (NOLOCK)
         INNER JOIN latest_rp rp  ON rp.clientID   = cu.PersonalID
         LEFT  JOIN latest_dpd ld ON ld.PersonalID = cu.PersonalID
         WHERE (cu.PersonalID LIKE @pattern
@@ -1892,11 +1912,11 @@ export async function getClientsPaginated(
       `, { ...commonParams, dpdFilter }, 15000)
     : query<{ total: number }>(`
         WITH latest_rp AS (
-          SELECT clientID, Stage FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+          SELECT clientID, Stage FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
           WHERE CalculationDate = @mcd
         )
         SELECT COUNT(*) AS total
-        FROM [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK)
+        FROM [dbo].[Customer] cu WITH (NOLOCK)
         INNER JOIN latest_rp rp ON rp.clientID = cu.PersonalID
         WHERE (cu.PersonalID LIKE @pattern
            OR (COALESCE(cu.name, '') + ' ' + COALESCE(cu.surname, '')) LIKE @pattern)
@@ -1930,8 +1950,8 @@ export interface ClientSearchResult {
 export async function getFrozenClientIds(): Promise<Set<string>> {
   try {
     const rows = await query<{ clientId: string }>(`
-      SELECT DISTINCT clientId FROM [SPECTRA].[dbo].[ClientActions] WITH (NOLOCK)
-      WHERE action IN ('Freeze Account', 'Freeze account') AND status = 'active'
+      SELECT DISTINCT clientId FROM [dbo].[ClientActions] WITH (NOLOCK)
+      WHERE action IN ('Freeze Account', 'Freeze account', 'Credit Limit Frozen') AND status = 'active'
     `)
     return new Set(rows.map(r => r.clientId))
   } catch {
@@ -1939,6 +1959,10 @@ export async function getFrozenClientIds(): Promise<Set<string>> {
   }
 }
 
+/** Full-text search across PersonalID, name, and credit account. Returns up to 20 matches.
+ * @param q - Search query string
+ * @returns Array of lightweight ClientSearchResult rows
+ */
 export async function searchClients(q: string): Promise<ClientSearchResult[]> {
   const [mcd, mdid] = await Promise.all([maxCalcDate(), maxDateID()])
   return query<ClientSearchResult>(`
@@ -1948,9 +1972,9 @@ export async function searchClients(q: string): Promise<ClientSearchResult[]> {
       COALESCE(TRY_CAST(rp.totalExposure AS FLOAT), 0) AS exposure,
       COALESCE(TRY_CAST(ld.DueDays AS FLOAT), 0) AS current_due_days,
       COALESCE(cu.City, cu.Branch, 'Unknown') AS region
-    FROM [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK)
-    LEFT JOIN (SELECT clientID, Stage, totalExposure FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd) rp ON rp.clientID = cu.PersonalID
-    LEFT JOIN (SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS DueDays FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID) ld ON ld.PersonalID = cu.PersonalID
+    FROM [dbo].[Customer] cu WITH (NOLOCK)
+    LEFT JOIN (SELECT clientID, Stage, totalExposure FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd) rp ON rp.clientID = cu.PersonalID
+    LEFT JOIN (SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS DueDays FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID) ld ON ld.PersonalID = cu.PersonalID
     WHERE cu.PersonalID LIKE @q OR (COALESCE(cu.name, '') + ' ' + COALESCE(cu.surname, '')) LIKE @q
     ORDER BY COALESCE(TRY_CAST(rp.totalExposure AS FLOAT), 0) DESC
   `, { mcd, mdid, q: `%${q}%` })
@@ -1965,9 +1989,9 @@ export async function getHighRiskClientsList(): Promise<ClientSearchResult[]> {
       COALESCE(TRY_CAST(rp.totalExposure AS FLOAT), 0) AS exposure,
       COALESCE(TRY_CAST(ld.DueDays AS FLOAT), 0) AS current_due_days,
       COALESCE(cu.City, cu.Branch, 'Unknown') AS region
-    FROM [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK)
-    LEFT JOIN (SELECT clientID, Stage, totalExposure FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd) rp ON rp.clientID = cu.PersonalID
-    LEFT JOIN (SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS DueDays FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID) ld ON ld.PersonalID = cu.PersonalID
+    FROM [dbo].[Customer] cu WITH (NOLOCK)
+    LEFT JOIN (SELECT clientID, Stage, totalExposure FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd) rp ON rp.clientID = cu.PersonalID
+    LEFT JOIN (SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS DueDays FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID) ld ON ld.PersonalID = cu.PersonalID
     ORDER BY rp.Stage DESC, COALESCE(TRY_CAST(rp.totalExposure AS FLOAT), 0) DESC
   `, { mcd, mdid })
 }
@@ -1980,11 +2004,11 @@ export async function getEWIFilteredClients(ewi: string): Promise<ClientSearchRe
   const d30dStr = d30d.toISOString().slice(0, 10)
 
   const baseJoins = `
-    FROM [SPECTRA].[dbo].[RiskPortfolio] rp WITH (NOLOCK)
-    LEFT JOIN [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = rp.clientID
+    FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
+    LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = rp.clientID
     LEFT JOIN (
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS DueDays
-      FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
     ) ld ON ld.PersonalID = rp.clientID`
 
   const baseSelect = `
@@ -2002,8 +2026,8 @@ export async function getEWIFilteredClients(ewi: string): Promise<ClientSearchRe
       sql = `
         WITH recent_salary AS (
           SELECT DISTINCT a.PersonalID
-          FROM [SPECTRA].[dbo].[Accounts] a WITH (NOLOCK)
-          JOIN [SPECTRA].[dbo].[TAccounts] ta WITH (NOLOCK) ON ta.NoAccount = a.NoAccount
+          FROM [dbo].[Accounts] a WITH (NOLOCK)
+          JOIN [dbo].[TAccounts] ta WITH (NOLOCK) ON ta.NoAccount = a.NoAccount
           WHERE TRY_CAST(ta.Amount AS FLOAT) > 0
             AND ta.Date >= @d60d
         )
@@ -2018,7 +2042,7 @@ export async function getEWIFilteredClients(ewi: string): Promise<ClientSearchRe
         ${baseSelect}
         ${baseJoins}
         INNER JOIN (
-          SELECT DISTINCT PersonalID FROM [SPECTRA].[dbo].[Accounts] WITH (NOLOCK)
+          SELECT DISTINCT PersonalID FROM [dbo].[Accounts] WITH (NOLOCK)
           WHERE TRY_CAST(Balance AS FLOAT) < 0
         ) od ON od.PersonalID = rp.clientID
         WHERE rp.CalculationDate = @mcd
@@ -2028,9 +2052,9 @@ export async function getEWIFilteredClients(ewi: string): Promise<ClientSearchRe
       sql = `
         ${baseSelect}
         ${baseJoins}
-        INNER JOIN [SPECTRA].[dbo].[Cards] ca WITH (NOLOCK) ON ca.PersonalID = rp.clientID
+        INNER JOIN [dbo].[Cards] ca WITH (NOLOCK) ON ca.PersonalID = rp.clientID
         INNER JOIN (
-          SELECT Account FROM [SPECTRA].[dbo].[CC_Event_LOG] WITH (NOLOCK)
+          SELECT Account FROM [dbo].[CC_Event_LOG] WITH (NOLOCK)
           WHERE trans_date >= @d30d
           GROUP BY Account HAVING SUM(TRY_CAST(Ammount AS FLOAT)) > 1000
         ) hs ON hs.Account = ca.NoCards
@@ -2042,7 +2066,7 @@ export async function getEWIFilteredClients(ewi: string): Promise<ClientSearchRe
         ${baseSelect}
         ${baseJoins}
         INNER JOIN (
-          SELECT DISTINCT PersonalID FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+          SELECT DISTINCT PersonalID FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
           WHERE TRY_CAST(DueDays AS FLOAT) > 0 AND dateID = @mdid
         ) cl ON cl.PersonalID = rp.clientID
         WHERE rp.CalculationDate = @mcd
@@ -2054,10 +2078,13 @@ export async function getEWIFilteredClients(ewi: string): Promise<ClientSearchRe
   return query<ClientSearchResult>(sql, { mcd, mdid, d60d: d60dStr, d30d: d30dStr })
 }
 
+/** Returns the count of critical-severity alerts for the notification badge.
+ * @returns Number of active critical alerts
+ */
 export async function getCriticalAlertCount(): Promise<number> {
   const mdid = await maxDateID()
   const rows = await query<{ cnt: number }>(`
-    SELECT COUNT(*) AS cnt FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+    SELECT COUNT(*) AS cnt FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
     WHERE dateID = @mdid AND TRY_CAST(DueDays AS FLOAT) >= 60
   `, { mdid })
   return rows[0]?.cnt ?? 0
@@ -2067,7 +2094,7 @@ export async function getCriticalAlertCount(): Promise<number> {
 
 const ENSURE_ACTIONS_TABLE = `
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ClientActions' AND schema_id = SCHEMA_ID('dbo'))
-  CREATE TABLE [SPECTRA].[dbo].[ClientActions] (
+  CREATE TABLE [dbo].[ClientActions] (
     id          UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
     clientId    NVARCHAR(50)     NOT NULL,
     action      NVARCHAR(100)    NOT NULL,
@@ -2079,9 +2106,9 @@ IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'ClientActions' AND schema_
   )
 ELSE BEGIN
   IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('SPECTRA.dbo.ClientActions') AND name = 'notes')
-    ALTER TABLE [SPECTRA].[dbo].[ClientActions] ADD notes NVARCHAR(MAX) NULL;
+    ALTER TABLE [dbo].[ClientActions] ADD notes NVARCHAR(MAX) NULL;
   IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('SPECTRA.dbo.ClientActions') AND name = 'metadata')
-    ALTER TABLE [SPECTRA].[dbo].[ClientActions] ADD metadata NVARCHAR(MAX) NULL;
+    ALTER TABLE [dbo].[ClientActions] ADD metadata NVARCHAR(MAX) NULL;
 END
 `
 
@@ -2115,42 +2142,53 @@ export interface CaseAction {
 export async function recordClientAction(clientId: string, action: string, actionedBy = 'risk_officer'): Promise<void> {
   await ensureActionsTable()
   await query(
-    `INSERT INTO [SPECTRA].[dbo].[ClientActions] (clientId, action, actionedBy) VALUES (@clientId, @action, @actionedBy)`,
+    `INSERT INTO [dbo].[ClientActions] (clientId, action, actionedBy) VALUES (@clientId, @action, @actionedBy)`,
     { clientId, action, actionedBy }
   )
 }
 
-/** Write a rich action (with notes + metadata) to the ClientActions table */
+/** Write a rich action (with notes + metadata) to the ClientActions table.
+ * @param clientId - Customer PersonalID
+ * @param action - Action label string
+ * @param actionedBy - Username of the performing officer
+ * @param notes - Optional free-text notes
+ * @param metadata - Optional structured JSON metadata
+ */
 export async function recordRichClientAction(
   clientId: string, action: string, actionedBy: string,
   notes?: string, metadata?: Record<string, unknown>
 ): Promise<void> {
   await ensureActionsTable()
   await query(
-    `INSERT INTO [SPECTRA].[dbo].[ClientActions] (clientId, action, actionedBy, notes, metadata)
+    `INSERT INTO [dbo].[ClientActions] (clientId, action, actionedBy, notes, metadata)
      VALUES (@clientId, @action, @actionedBy, @notes, @metadata)`,
     { clientId, action, actionedBy, notes: notes ?? null, metadata: metadata ? JSON.stringify(metadata) : null }
   )
 }
 
-/** Mark all active Freeze Account records for a client as resolved */
+/** Mark all active freeze records for a client as resolved */
 export async function resolveClientFreezeAction(clientId: string): Promise<void> {
   await ensureActionsTable()
   await query(
-    `UPDATE [SPECTRA].[dbo].[ClientActions]
+    `UPDATE [dbo].[ClientActions]
      SET status = 'resolved'
-     WHERE clientId = @clientId AND action IN ('Freeze Account', 'Freeze account') AND status = 'active'`,
+     WHERE clientId = @clientId
+       AND action IN ('Freeze Account', 'Freeze account', 'Credit Limit Frozen')
+       AND status = 'active'`,
     { clientId }
   )
 }
 
-/** Return all active actions logged for a client (lean, for frozen check etc.) */
+/** Returns all currently active actions for a client (freeze checks, watchlist, etc.).
+ * @param clientId - Customer PersonalID
+ * @returns Array of active action labels with timestamps
+ */
 export async function getClientActiveActions(clientId: string): Promise<{ action: string; createdAt: string }[]> {
   try {
     await ensureActionsTable()
     return await query<{ action: string; createdAt: string }>(
       `SELECT action, CONVERT(VARCHAR(20), createdAt, 120) AS createdAt
-       FROM [SPECTRA].[dbo].[ClientActions]
+       FROM [dbo].[ClientActions]
        WHERE clientId = @clientId AND status = 'active'
        ORDER BY createdAt DESC`,
       { clientId }
@@ -2161,14 +2199,17 @@ export async function getClientActiveActions(clientId: string): Promise<{ action
   }
 }
 
-/** Return full case history with notes + metadata */
+/** Returns the full action/case history for a client (last 30 entries).
+ * @param clientId - Customer PersonalID
+ * @returns Array of CaseAction rows ordered newest-first
+ */
 export async function getClientCaseHistory(clientId: string): Promise<CaseAction[]> {
   try {
     await ensureActionsTable()
     const rows = await query<{ id: string; action: string; status: string; actionedBy: string; notes: string | null; metadata: string | null; createdAt: string }>(
       `SELECT TOP 30 CAST(id AS VARCHAR(36)) AS id, action, status, actionedBy, notes, metadata,
               CONVERT(VARCHAR(20), createdAt, 120) AS createdAt
-       FROM [SPECTRA].[dbo].[ClientActions]
+       FROM [dbo].[ClientActions]
        WHERE clientId = @clientId
        ORDER BY createdAt DESC`,
       { clientId }
@@ -2187,10 +2228,10 @@ export async function getClientAccountBalance(clientId: string): Promise<number>
   try {
     const rows = await query<{ balance: number }>(
       `SELECT COALESCE(SUM(TRY_CAST(Balance AS FLOAT)), 0) AS balance
-       FROM [SPECTRA].[dbo].[Accounts] WITH (NOLOCK)
+       FROM [dbo].[Accounts] WITH (NOLOCK)
        WHERE NoAccount IN (
-         SELECT DISTINCT cr.NoAccount FROM [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK)
-         WHERE cr.NoCredit IN (SELECT contractNumber FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT))
+         SELECT DISTINCT cr.NoAccount FROM [dbo].[Credits] cr WITH (NOLOCK)
+         WHERE cr.NoCredit IN (SELECT contractNumber FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT))
          AND cr.NoAccount IS NOT NULL AND LTRIM(RTRIM(cr.NoAccount)) != ''
        ) AND TRY_CAST(Balance AS FLOAT) > 0`,
       { clientId }
@@ -2259,10 +2300,10 @@ export async function getClientAccounts(clientId: string): Promise<ClientAccount
         COALESCE(a.OpenDate, '')                               AS open_date,
         COALESCE(a.Branch, '')                                  AS branch,
         COALESCE(a.AccountStatus, '')                             AS account_status
-      FROM [SPECTRA].[dbo].[Accounts] a WITH (NOLOCK)
+      FROM [dbo].[Accounts] a WITH (NOLOCK)
       WHERE a.NoAccount IN (
-        SELECT DISTINCT cr.NoAccount FROM [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK)
-        WHERE cr.NoCredit IN (SELECT contractNumber FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT))
+        SELECT DISTINCT cr.NoAccount FROM [dbo].[Credits] cr WITH (NOLOCK)
+        WHERE cr.NoCredit IN (SELECT contractNumber FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT))
         AND cr.NoAccount IS NOT NULL AND LTRIM(RTRIM(cr.NoAccount)) != ''
       )
       ORDER BY COALESCE(TRY_CAST(a.Balance AS FLOAT), 0) DESC
@@ -2280,11 +2321,11 @@ export async function getClientAccountTransactions(clientId: string, limit = 30)
         CONVERT(VARCHAR(10), TRY_CAST(ta.Date AS DATE), 23) AS date,
         COALESCE(TRY_CAST(ta.Amount AS FLOAT), 0)           AS amount,
         COALESCE(ta.TDescription1, '')                        AS description
-      FROM [SPECTRA].[dbo].[TAccounts] ta WITH (NOLOCK)
-      JOIN [SPECTRA].[dbo].[Accounts] a WITH (NOLOCK) ON a.NoAccount = ta.NoAccount
+      FROM [dbo].[TAccounts] ta WITH (NOLOCK)
+      JOIN [dbo].[Accounts] a WITH (NOLOCK) ON a.NoAccount = ta.NoAccount
       WHERE a.NoAccount IN (
-        SELECT DISTINCT cr.NoAccount FROM [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK)
-        WHERE cr.NoCredit IN (SELECT contractNumber FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT))
+        SELECT DISTINCT cr.NoAccount FROM [dbo].[Credits] cr WITH (NOLOCK)
+        WHERE cr.NoCredit IN (SELECT contractNumber FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT))
         AND cr.NoAccount IS NOT NULL AND LTRIM(RTRIM(cr.NoAccount)) != ''
       )
         AND ta.Amount IS NOT NULL
@@ -2302,9 +2343,9 @@ export async function getClientCardTransactions(clientId: string, limit = 20): P
         CONVERT(VARCHAR(10), TRY_CAST(cc.trans_date AS DATE), 23) AS date,
         COALESCE(cc.EventID, 'Card Transaction')                  AS description,
         COALESCE(TRY_CAST(cc.Ammount AS FLOAT), 0)               AS amount
-      FROM [SPECTRA].[dbo].[CC_Event_LOG] cc WITH (NOLOCK)
+      FROM [dbo].[CC_Event_LOG] cc WITH (NOLOCK)
       WHERE cc.Account IN (
-        SELECT NoCards FROM [SPECTRA].[dbo].[Cards] WITH (NOLOCK)
+        SELECT NoCards FROM [dbo].[Cards] WITH (NOLOCK)
         WHERE TRY_CAST(PersonalID AS BIGINT) = TRY_CAST(@clientId AS BIGINT)
       )
       AND cc.trans_date IS NOT NULL
@@ -2324,10 +2365,10 @@ export async function getClientUpcomingPayments(clientId: string): Promise<Sched
         COALESCE(TRY_CAST(ap.OTPLATA AS FLOAT), 0)              AS paid_amount,
         CASE WHEN COALESCE(TRY_CAST(ap.OTPLATA AS FLOAT), 0) >= COALESCE(TRY_CAST(ap.ANUITET AS FLOAT), 0) * 0.9
              THEN 1 ELSE 0 END                                  AS is_paid
-      FROM [SPECTRA].[dbo].[AmortizationPlan] ap WITH (NOLOCK)
-      JOIN [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK) ON cr.CreditAccount = ap.PARTIJA
+      FROM [dbo].[AmortizationPlan] ap WITH (NOLOCK)
+      JOIN [dbo].[Credits] cr WITH (NOLOCK) ON cr.CreditAccount = ap.PARTIJA
       WHERE cr.NoCredit IN (
-        SELECT contractNumber FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT)
+        SELECT contractNumber FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT)
       )
         AND ap.DATUMDOSPECA IS NOT NULL
       ORDER BY ap.DATUMDOSPECA ASC
@@ -2344,10 +2385,10 @@ export async function getClientCreditTransactions(clientId: string, limit = 20):
         CONVERT(VARCHAR(10), TRY_CAST(tc.Date AS DATE), 23)    AS date,
         COALESCE(tc.Kind, 'Payment')                            AS kind,
         COALESCE(TRY_CAST(tc.Amount AS FLOAT), 0)              AS amount
-      FROM [SPECTRA].[dbo].[TCredits] tc WITH (NOLOCK)
-      JOIN [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK) ON cr.CreditAccount = tc.CreditAccount
+      FROM [dbo].[TCredits] tc WITH (NOLOCK)
+      JOIN [dbo].[Credits] cr WITH (NOLOCK) ON cr.CreditAccount = tc.CreditAccount
       WHERE cr.NoCredit IN (
-        SELECT contractNumber FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT)
+        SELECT contractNumber FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT)
       )
         AND tc.Date IS NOT NULL
       ORDER BY tc.Date DESC
@@ -2431,7 +2472,7 @@ export async function getClientPersonalInfo(clientId: string): Promise<ClientPer
         COALESCE(c.CustomerType, '')                                          AS customer_type,
         COALESCE(c.DateOfRegister, '')                                        AS date_of_register,
         COALESCE(c.Status, '')                                                AS status
-      FROM [SPECTRA].[dbo].[Customer] c WITH (NOLOCK)
+      FROM [dbo].[Customer] c WITH (NOLOCK)
       WHERE TRY_CAST(c.PersonalID AS BIGINT) = TRY_CAST(@clientId AS BIGINT)
     `, { clientId })
     return rows[0] ?? null
@@ -2444,7 +2485,7 @@ export async function getClientLoanDetails(clientId: string): Promise<ClientLoan
     return await query<ClientLoanDetail>(`
       WITH latest_dpd AS (
         SELECT CreditAccount, MAX(TRY_CAST(DueDays AS FLOAT)) AS due_days
-        FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+        FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
         WHERE dateID = @mdid GROUP BY CreditAccount
       )
       SELECT
@@ -2462,8 +2503,8 @@ export async function getClientLoanDetails(clientId: string): Promise<ClientLoan
         COALESCE(cr.Branch, '')                                      AS branch,
         'Stage ' + CAST(COALESCE(rp.Stage, 1) AS VARCHAR)          AS stage,
         COALESCE(ld.due_days, 0)                                     AS due_days
-      FROM [SPECTRA].[dbo].[RiskPortfolio] rp WITH (NOLOCK)
-      JOIN [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK) ON cr.NoCredit = rp.contractNumber
+      FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
+      JOIN [dbo].[Credits] cr WITH (NOLOCK) ON cr.NoCredit = rp.contractNumber
       LEFT JOIN latest_dpd ld ON ld.CreditAccount = cr.CreditAccount
       WHERE TRY_CAST(rp.clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT) AND rp.CalculationDate = @mcd
       ORDER BY COALESCE(TRY_CAST(cr.Amount AS FLOAT), 0) DESC
@@ -2497,7 +2538,7 @@ export async function getClientCards(clientId: string): Promise<ClientCard[]> {
           COALESCE(CONVERT(VARCHAR(10), TRY_CAST(c.production_date AS DATE), 23), '') AS production_date,
           COALESCE(CONVERT(VARCHAR(10), TRY_CAST(c.delivery_date AS DATE), 23), '')   AS delivery_date,
           ROW_NUMBER() OVER (PARTITION BY c.NoCards ORDER BY TRY_CAST(c.production_date AS DATE) DESC) AS rn
-        FROM [SPECTRA].[dbo].[Cards] c WITH (NOLOCK)
+        FROM [dbo].[Cards] c WITH (NOLOCK)
         WHERE TRY_CAST(c.PersonalID AS BIGINT) = TRY_CAST(@clientId AS BIGINT)
       )
       SELECT card_no, brand_label, type_label, kind_label, card_status_label, production_date, delivery_date
@@ -2522,10 +2563,10 @@ export async function getClientAmortization(clientId: string): Promise<Amortizat
         COALESCE(TRY_CAST(ap.InsuranceAmount AS FLOAT), 0)                AS insurance,
         CASE WHEN COALESCE(TRY_CAST(ap.OTPLATA AS FLOAT), 0) >= COALESCE(TRY_CAST(ap.ANUITET AS FLOAT), 0) * 0.9
              THEN 1 ELSE 0 END                                             AS is_paid
-      FROM [SPECTRA].[dbo].[AmortizationPlan] ap WITH (NOLOCK)
-      JOIN [SPECTRA].[dbo].[Credits] cr WITH (NOLOCK) ON cr.CreditAccount = ap.PARTIJA
+      FROM [dbo].[AmortizationPlan] ap WITH (NOLOCK)
+      JOIN [dbo].[Credits] cr WITH (NOLOCK) ON cr.CreditAccount = ap.PARTIJA
       WHERE cr.NoCredit IN (
-        SELECT contractNumber FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT)
+        SELECT contractNumber FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE TRY_CAST(clientID AS BIGINT) = TRY_CAST(@clientId AS BIGINT)
       )
         AND ap.DATUMDOSPECA IS NOT NULL
       ORDER BY ap.PARTIJA, ap.DATUMDOSPECA ASC
@@ -2561,17 +2602,17 @@ export async function getWatchlistClients(): Promise<WatchlistClient[]> {
         ca.actionedBy                                                             AS added_by,
         CONVERT(VARCHAR(20), ca.createdAt, 120)                                  AS added_at,
         DATEDIFF(DAY, ca.createdAt, GETDATE())                                   AS days_on_watch
-      FROM [SPECTRA].[dbo].[ClientActions] ca WITH (NOLOCK)
-      LEFT JOIN [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK)
+      FROM [dbo].[ClientActions] ca WITH (NOLOCK)
+      LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK)
         ON cu.PersonalID = ca.clientId
       LEFT JOIN (
         SELECT clientID, Stage, totalExposure
-        FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+        FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
         WHERE CalculationDate = @mcd
       ) rp ON rp.clientID = ca.clientId
       LEFT JOIN (
         SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS DueDays
-        FROM [SPECTRA].[dbo].[DueDaysDaily] WITH (NOLOCK)
+        FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
         WHERE dateID = @mdid GROUP BY PersonalID
       ) ld ON ld.PersonalID = ca.clientId
       WHERE ca.action IN ('Add to Watchlist', 'Add to watchlist')
@@ -2587,7 +2628,7 @@ export async function getWatchlistClients(): Promise<WatchlistClient[]> {
 export async function getWatchlistCount(): Promise<number> {
   try {
     const rows = await query<{ cnt: number }>(
-      `SELECT COUNT(*) AS cnt FROM [SPECTRA].[dbo].[ClientActions] WITH (NOLOCK)
+      `SELECT COUNT(*) AS cnt FROM [dbo].[ClientActions] WITH (NOLOCK)
        WHERE action IN ('Add to Watchlist', 'Add to watchlist') AND status = 'active'`
     )
     return rows[0]?.cnt ?? 0
@@ -2632,7 +2673,7 @@ export async function getTopObligors(): Promise<TopObligor[]> {
   const rows = await query<{ clientID: string; exposure: number; stage: number; grand_total: number }>(`
     WITH totals AS (
       SELECT SUM(TRY_CAST(totalExposure AS FLOAT)) AS grand_total
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
     ),
     per_client AS (
@@ -2640,7 +2681,7 @@ export async function getTopObligors(): Promise<TopObligor[]> {
         CAST(clientID AS VARCHAR(50)) AS clientID,
         SUM(TRY_CAST(totalExposure AS FLOAT)) AS exposure,
         MAX(Stage) AS stage
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
       GROUP BY clientID
     )
@@ -2670,7 +2711,7 @@ export async function getConcentrationByProduct(): Promise<ConcentrationSegment[
       COALESCE(TypeOfCalculatioin, 'Other') AS segment,
       SUM(TRY_CAST(Amount AS FLOAT)) AS exposure,
       COUNT(DISTINCT PersonalID) AS client_count
-    FROM [SPECTRA].[dbo].[Credits] WITH (NOLOCK)
+    FROM [dbo].[Credits] WITH (NOLOCK)
     WHERE TRY_CAST(Amount AS FLOAT) > 0
     GROUP BY TypeOfCalculatioin
     ORDER BY exposure DESC
@@ -2687,7 +2728,7 @@ export async function getProductHHI(): Promise<ConcentrationHHI> {
         COALESCE(TypeOfCalculatioin, 'Other') AS seg,
         SUM(TRY_CAST(Amount AS FLOAT)) AS exposure,
         SUM(SUM(TRY_CAST(Amount AS FLOAT))) OVER () AS total_exposure
-      FROM [SPECTRA].[dbo].[Credits] WITH (NOLOCK)
+      FROM [dbo].[Credits] WITH (NOLOCK)
       WHERE TRY_CAST(Amount AS FLOAT) > 0
       GROUP BY TypeOfCalculatioin
     )
@@ -2710,7 +2751,7 @@ export async function getConcentrationByRegion(): Promise<ConcentrationSegment[]
   const rows = await query<ConcentrationSegment>(`
     WITH rp_filtered AS (
       SELECT clientID, TRY_CAST(totalExposure AS FLOAT) AS exposure
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd AND TRY_CAST(totalExposure AS FLOAT) > 0
     )
     SELECT
@@ -2718,7 +2759,7 @@ export async function getConcentrationByRegion(): Promise<ConcentrationSegment[]
       SUM(rp.exposure)            AS exposure,
       COUNT(DISTINCT rp.clientID) AS client_count
     FROM rp_filtered rp
-    LEFT JOIN [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK)
+    LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK)
       ON TRY_CAST(cu.PersonalID AS BIGINT) = TRY_CAST(rp.clientID AS BIGINT)
     GROUP BY COALESCE(cu.City, cu.Branch, 'Unknown')
     ORDER BY exposure DESC
@@ -2733,7 +2774,7 @@ export async function getRegionHHI(): Promise<ConcentrationHHI> {
   const rows = await query<ConcentrationHHI>(`
     WITH rp_filtered AS (
       SELECT clientID, TRY_CAST(totalExposure AS FLOAT) AS exposure
-      FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd AND TRY_CAST(totalExposure AS FLOAT) > 0
     ),
     exposure_data AS (
@@ -2742,7 +2783,7 @@ export async function getRegionHHI(): Promise<ConcentrationHHI> {
         SUM(rp.exposure) AS exposure,
         SUM(SUM(rp.exposure)) OVER () AS total_exposure
       FROM rp_filtered rp
-      LEFT JOIN [SPECTRA].[dbo].[Customer] cu WITH (NOLOCK)
+      LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK)
         ON TRY_CAST(cu.PersonalID AS BIGINT) = TRY_CAST(rp.clientID AS BIGINT)
       GROUP BY COALESCE(cu.City, cu.Branch, 'Unknown')
     )
@@ -2786,7 +2827,7 @@ export async function getAuditLog(limit = 100): Promise<AuditEntry[]> {
        CAST(id AS VARCHAR(36)) AS id,
        clientId, action, status, actionedBy, notes,
        CONVERT(VARCHAR(20), createdAt, 120) AS createdAt
-     FROM [SPECTRA].[dbo].[ClientActions] WITH (NOLOCK)
+     FROM [dbo].[ClientActions] WITH (NOLOCK)
      ORDER BY createdAt DESC`,
     { limit }
   )
@@ -2798,9 +2839,9 @@ export async function getAuditStats(): Promise<AuditStats> {
     `SELECT
        ISNULL(SUM(CASE WHEN CAST(createdAt AS DATE) = CAST(GETDATE() AS DATE) THEN 1 ELSE 0 END), 0) AS total_today,
        ISNULL(SUM(CASE WHEN createdAt >= DATEADD(DAY,-7,GETDATE()) THEN 1 ELSE 0 END), 0)             AS total_week,
-       ISNULL(SUM(CASE WHEN action IN ('Freeze Account','Freeze account') AND status='active' THEN 1 ELSE 0 END), 0) AS active_freezes,
+       ISNULL(SUM(CASE WHEN action IN ('Freeze Account','Freeze account','Credit Limit Frozen') AND status='active' THEN 1 ELSE 0 END), 0) AS active_freezes,
        COUNT(*)                                                                                        AS total_all
-     FROM [SPECTRA].[dbo].[ClientActions] WITH (NOLOCK)`
+     FROM [dbo].[ClientActions] WITH (NOLOCK)`
   )
   return rows[0] ?? { total_today: 0, total_week: 0, active_freezes: 0, total_all: 0 }
 }

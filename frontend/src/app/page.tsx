@@ -77,7 +77,7 @@ async function TransactionsSection() {
                   }}>
                     {fmt(t.amount)}
                   </td>
-                  <td className="mono" style={{ color: 'var(--muted)' }}>{t.date}</td>
+                  <td className="mono" style={{ color: 'var(--muted)' }}>{t.date ? fmtDate(t.date) ?? t.date : '—'}</td>
                   <td><span className={`badge ${stageBadge(t.stage)}`}>{t.stage ?? 'N/A'}</span></td>
                 </tr>
               ))}

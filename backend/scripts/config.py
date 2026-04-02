@@ -76,6 +76,36 @@ class _SICR:
 SICR = _SICR()
 
 
+# ─── IFRS 9 ECL Parameters ────────────────────────────────────────────────────
+# Parameters for the full PD × LGD × EAD ECL formula (IFRS 9 §5.5).
+# Python mirror of config.ts ECL block — keep both in sync.
+#
+# Stage 1 (12-month ECL):    PD_12M      × LGD          ≈ 0.0222 × 0.45 = 1%
+# Stage 2 (Lifetime ECL):    PD_LIFETIME × LGD          ≈ 0.1111 × 0.45 = 5%
+# Stage 3 (Credit-impaired): PD_IMPAIRED × LGD_IMPAIRED = 1.00   × 0.20 = 20%
+#
+# Sources:
+#   PD_12M / PD_LIFETIME: internal model calibration, risk-committee approved
+#   LGD: Basel II/III unsecured retail (IRBA floor = 0.45)
+#   LGD_IMPAIRED: collateral-adjusted LGD for Stage 3 secured assets (IFRS 9 §B5.5.17)
+class _ECL:
+    PD_12M       = _f('ECL_PD_12M',       0.0222)  # Stage 1 — 12-month PD
+    PD_LIFETIME  = _f('ECL_PD_LIFETIME',  0.1111)  # Stage 2 — lifetime PD
+    PD_IMPAIRED  = _f('ECL_PD_IMPAIRED',  1.0)     # Stage 3 — certain default
+    LGD          = _f('ECL_LGD',          0.45)    # Loss Given Default, unsecured (Basel retail)
+    LGD_IMPAIRED = _f('ECL_LGD_IMPAIRED', 0.20)    # Stage 3 collateral-adjusted LGD
+
+    @property
+    def rates(self) -> dict[int, float]:
+        """Derived ECL flat rates per stage (PD × LGD). Use these for calculations."""
+        return {
+            1: round(self.PD_12M      * self.LGD,          6),
+            2: round(self.PD_LIFETIME * self.LGD,          6),
+            3: round(self.PD_IMPAIRED * self.LGD_IMPAIRED, 6),
+        }
+
+ECL = _ECL()
+
 # ─── Stress Testing ───────────────────────────────────────────────────────────
 # Source: Basel II/III unsecured retail LGD; scenario multipliers by risk committee
 class _Stress:

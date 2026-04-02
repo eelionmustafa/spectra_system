@@ -1,0 +1,179 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="softShadow" x="0" y="0" width="1920" height="1080" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="5"/>
+      <feGaussianBlur stdDeviation="8"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0509804 0 0 0 0 0.105882 0 0 0 0 0.164706 0 0 0 0.1 0"/>
+      <feBlend mode="normal" in2="SourceGraphic" result="shape"/>
+    </filter>
+    <marker id="arrowNavy" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#0D1B2A"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#1EA97C"/>
+    </marker>
+    <marker id="arrowAmber" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0 0L12 6L0 12V0Z" fill="#D97706"/>
+    </marker>
+    <style>
+      .title { font: 700 40px Inter, Arial, sans-serif; fill: #0D1B2A; }
+      .sub { font: 400 22px Inter, Arial, sans-serif; fill: #64748B; }
+      .zone { font: 700 18px Inter, Arial, sans-serif; fill: #0D1B2A; letter-spacing: .08em; }
+      .cardTitle { font: 700 22px Inter, Arial, sans-serif; fill: #0D1B2A; }
+      .cardText { font: 500 16px Inter, Arial, sans-serif; fill: #475569; }
+      .small { font: 600 14px Inter, Arial, sans-serif; fill: #64748B; }
+      .footer { font: 500 16px Inter, Arial, sans-serif; fill: #64748B; }
+      .lineNavy { stroke: #0D1B2A; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrowNavy); }
+      .lineBlue { stroke: #2563EB; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrowBlue); }
+      .lineGreen { stroke: #1EA97C; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrowGreen); }
+      .lineAmber { stroke: #D97706; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; marker-end: url(#arrowAmber); }
+      .dashed { stroke: #CBD5E1; stroke-width: 3; stroke-dasharray: 12 10; }
+    </style>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#F8FAFC"/>
+
+  <text x="72" y="82" class="title">SPECTRA System Architecture</text>
+  <text x="72" y="118" class="sub">FigJam-style high-level view of the internal web platform, data layer, and ML pipeline</text>
+
+  <g>
+    <rect x="72" y="162" width="290" height="44" rx="14" fill="#DBEAFE"/>
+    <text x="217" y="190" class="zone" text-anchor="middle">USER ACCESS</text>
+
+    <rect x="470" y="162" width="520" height="44" rx="14" fill="#E2E8F0"/>
+    <text x="730" y="190" class="zone" text-anchor="middle">NEXT.JS FULL-STACK APPLICATION</text>
+
+    <rect x="1098" y="162" width="338" height="44" rx="14" fill="#DCFCE7"/>
+    <text x="1267" y="190" class="zone" text-anchor="middle">DATA &amp; WORKFLOW</text>
+
+    <rect x="1490" y="162" width="358" height="44" rx="14" fill="#FEF3C7"/>
+    <text x="1669" y="190" class="zone" text-anchor="middle">ML PIPELINE &amp; ARTIFACTS</text>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="66" y="236" width="306" height="314" rx="28" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="3"/>
+    <rect x="504" y="236" width="452" height="624" rx="30" fill="#FDFEFE" class="dashed"/>
+    <rect x="1118" y="236" width="298" height="624" rx="30" fill="#FDFEFE" class="dashed"/>
+    <rect x="1512" y="236" width="316" height="624" rx="30" fill="#FDFEFE" class="dashed"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="106" y="286" width="226" height="104" rx="22" fill="#EFF6FF" stroke="#93C5FD" stroke-width="2.5"/>
+    <text x="136" y="330" class="cardTitle">Staff Browser</text>
+    <text x="136" y="360" class="cardText">Internal users access</text>
+    <text x="136" y="383" class="cardText">dashboard and workflow UI</text>
+
+    <rect x="106" y="428" width="226" height="92" rx="22" fill="#EFF6FF" stroke="#93C5FD" stroke-width="2.5"/>
+    <text x="136" y="468" class="cardTitle">Vercel Edge / CDN</text>
+    <text x="136" y="497" class="cardText">Hosts the Next.js app</text>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="550" y="280" width="360" height="106" rx="24" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2.5"/>
+    <text x="580" y="324" class="cardTitle">UI Layer</text>
+    <text x="580" y="353" class="cardText">Dashboard, Portfolio, Warnings,</text>
+    <text x="580" y="376" class="cardText">Watchlist, Stress, Audit, Clients</text>
+
+    <rect x="550" y="424" width="360" height="106" rx="24" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2.5"/>
+    <text x="580" y="468" class="cardTitle">API Layer</text>
+    <text x="580" y="497" class="cardText">Auth, clients, alerts, analytics,</text>
+    <text x="580" y="520" class="cardText">monitoring, exports, notifications</text>
+
+    <rect x="550" y="568" width="168" height="120" rx="24" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2.5"/>
+    <text x="580" y="610" class="cardTitle">Auth &amp; RBAC</text>
+    <text x="580" y="639" class="cardText">JWT cookie auth</text>
+    <text x="580" y="662" class="cardText">Role validation</text>
+
+    <rect x="742" y="568" width="168" height="120" rx="24" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2.5"/>
+    <text x="772" y="610" class="cardTitle">Realtime</text>
+    <text x="772" y="639" class="cardText">Polling</text>
+    <text x="772" y="662" class="cardText">In-process event bus</text>
+
+    <rect x="550" y="726" width="360" height="96" rx="24" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="2.5"/>
+    <text x="580" y="768" class="cardTitle">Service Layer</text>
+    <text x="580" y="797" class="cardText">Classification, monitoring, notifications,</text>
+    <text x="580" y="820" class="cardText">committee, recovery, restructuring</text>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="1160" y="292" width="214" height="156" rx="24" fill="#ECFDF5" stroke="#86EFAC" stroke-width="2.5"/>
+    <text x="1190" y="334" class="cardTitle">SQL Server</text>
+    <text x="1190" y="364" class="cardText">Core banking source tables</text>
+    <text x="1190" y="387" class="cardText">Read-only to SPECTRA</text>
+    <text x="1190" y="418" class="small">Customer, Credits, RiskPortfolio</text>
+
+    <rect x="1160" y="502" width="214" height="220" rx="24" fill="#ECFDF5" stroke="#86EFAC" stroke-width="2.5"/>
+    <text x="1190" y="544" class="cardTitle">Workflow Tables</text>
+    <text x="1190" y="574" class="cardText">Operational state and audit evidence</text>
+    <text x="1190" y="605" class="small">SystemActions</text>
+    <text x="1190" y="628" class="small">Notifications</text>
+    <text x="1190" y="651" class="small">ClientMonitoring</text>
+    <text x="1190" y="674" class="small">DocumentRequests</text>
+    <text x="1190" y="697" class="small">RecoveryCases / RestructuringPlans</text>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect x="1550" y="286" width="240" height="84" rx="22" fill="#FFFBEB" stroke="#FCD34D" stroke-width="2.5"/>
+    <text x="1580" y="336" class="cardTitle">feature_engineering.py</text>
+
+    <rect x="1550" y="394" width="240" height="84" rx="22" fill="#FFFBEB" stroke="#FCD34D" stroke-width="2.5"/>
+    <text x="1580" y="444" class="cardTitle">build_labels.py</text>
+
+    <rect x="1550" y="502" width="240" height="84" rx="22" fill="#FFFBEB" stroke="#FCD34D" stroke-width="2.5"/>
+    <text x="1580" y="552" class="cardTitle">train_model.py</text>
+
+    <rect x="1550" y="610" width="240" height="96" rx="22" fill="#FFFBEB" stroke="#FCD34D" stroke-width="2.5"/>
+    <text x="1580" y="652" class="cardTitle">predict.py + explain.py</text>
+    <text x="1580" y="681" class="cardText">Generates scores and explanations</text>
+
+    <rect x="1550" y="746" width="240" height="92" rx="22" fill="#FFF7ED" stroke="#FDBA74" stroke-width="2.5"/>
+    <text x="1580" y="786" class="cardTitle">Artifacts</text>
+    <text x="1580" y="815" class="cardText">`data/processed/*.csv`,</text>
+    <text x="1580" y="838" class="cardText">`models/*.pkl`, `training_meta.json`</text>
+  </g>
+
+  <path d="M332 338 C390 338, 420 338, 470 338" class="lineBlue"/>
+  <path d="M332 474 C390 474, 420 474, 470 474" class="lineBlue"/>
+  <path d="M730 386 C730 398, 730 406, 730 424" class="lineNavy"/>
+  <path d="M638 530 C638 548, 638 554, 638 568" class="lineNavy"/>
+  <path d="M822 530 C822 548, 822 554, 822 568" class="lineNavy"/>
+  <path d="M730 688 C730 704, 730 712, 730 726" class="lineNavy"/>
+
+  <path d="M910 774 C1000 774, 1048 774, 1118 774" class="lineGreen"/>
+  <path d="M1118 392 C980 392, 960 664, 910 774" class="lineGreen"/>
+  <path d="M1267 448 C1267 470, 1267 480, 1267 502" class="lineGreen"/>
+
+  <path d="M1416 370 C1470 370, 1492 338, 1550 328" class="lineAmber"/>
+  <path d="M1670 370 C1670 382, 1670 386, 1670 394" class="lineAmber"/>
+  <path d="M1670 478 C1670 490, 1670 494, 1670 502" class="lineAmber"/>
+  <path d="M1670 586 C1670 598, 1670 602, 1670 610" class="lineAmber"/>
+  <path d="M1670 706 C1670 724, 1670 730, 1670 746" class="lineAmber"/>
+  <path d="M1550 792 C1460 792, 1410 792, 1374 792" class="lineGreen"/>
+  <path d="M1374 792 C1280 792, 1060 792, 910 792" class="lineGreen"/>
+
+  <path d="M826 628 C980 628, 1052 628, 1118 628" class="lineNavy"/>
+  <path d="M822 628 C822 910, 214 910, 214 552" class="lineBlue"/>
+
+  <g>
+    <rect x="72" y="930" width="188" height="46" rx="14" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <rect x="90" y="944" width="18" height="18" rx="5" fill="#DBEAFE"/>
+    <text x="120" y="958" class="small">Access path</text>
+
+    <rect x="284" y="930" width="220" height="46" rx="14" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <rect x="302" y="944" width="18" height="18" rx="5" fill="#E2E8F0"/>
+    <text x="332" y="958" class="small">Web application</text>
+
+    <rect x="528" y="930" width="218" height="46" rx="14" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <rect x="546" y="944" width="18" height="18" rx="5" fill="#DCFCE7"/>
+    <text x="576" y="958" class="small">Data and workflow</text>
+
+    <rect x="772" y="930" width="252" height="46" rx="14" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <rect x="790" y="944" width="18" height="18" rx="5" fill="#FEF3C7"/>
+    <text x="820" y="958" class="small">ML pipeline and artifacts</text>
+  </g>
+
+  <text x="72" y="1028" class="footer">Slide-friendly view: the web app is a modular monolith on `Next.js`, backed by `SQL Server`, with a separate Python ML pipeline feeding scored artifacts back into the app.</text>
+</svg>

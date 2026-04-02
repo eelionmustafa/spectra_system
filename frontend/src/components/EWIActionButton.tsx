@@ -15,7 +15,7 @@ export default function EWIActionButton({ recommendationId, initialActioned = fa
     return (
       <span style={{
         fontSize: '11px', fontWeight: 700, padding: '4px 12px', borderRadius: '5px',
-        background: '#DCFCE7', color: 'var(--green)', display: 'inline-flex',
+        background: 'rgba(20,83,45,0.25)', color: 'var(--green)', display: 'inline-flex',
         alignItems: 'center', gap: '4px',
       }}>
         ✓ Actioned
@@ -39,7 +39,7 @@ export default function EWIActionButton({ recommendationId, initialActioned = fa
       }}
       style={{
         fontSize: '11px', fontWeight: 600, padding: '4px 12px', borderRadius: '5px',
-        border: '1px solid var(--border)', background: loading ? '#F1F5F9' : 'white',
+        border: '1px solid var(--border)', background: loading ? 'rgba(255,255,255,0.04)' : 'var(--card)',
         color: loading ? 'var(--muted)' : 'var(--text)', cursor: loading ? 'default' : 'pointer',
         fontFamily: 'var(--font)',
       }}

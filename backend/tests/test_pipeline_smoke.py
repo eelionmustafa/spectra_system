@@ -57,11 +57,17 @@ def synthetic_data(tmp_dirs):
         "card_spend_mom_growth": rng.uniform(-10, 50, N),
     }, index=pd.Index(CLIENT_IDS, name="clientID"))
 
-    # Positive rates: migration 15%, default 10%, dpd 5%  (all ≥ 1% threshold)
+    default_30 = (rng.random(N) < 0.05).astype(int)
+    default_60 = np.maximum(default_30, (rng.random(N) < 0.08).astype(int))
+    default_90 = np.maximum(default_60, (rng.random(N) < 0.10).astype(int))
+
+    # Positive rates stay above the 1% training threshold and preserve horizon nesting.
     labels = pd.DataFrame({
         "clientID":              CLIENT_IDS,
         "label_stage_migration": (rng.random(N) < 0.15).astype(int),
-        "label_default_90d":     (rng.random(N) < 0.10).astype(int),
+        "label_default_30d":     default_30,
+        "label_default_60d":     default_60,
+        "label_default_90d":     default_90,
         "label_dpd_escalation":  (rng.random(N) < 0.05).astype(int),
     })
 

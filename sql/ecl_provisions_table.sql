@@ -6,10 +6,11 @@
 -- to a different stage. The most-recent row per client represents the current
 -- provision obligation.
 --
--- Provision rates (matching eclProvisionService.ts):
---   Stage 1 → 1%  of outstanding balance  (12-month ECL, IFRS 9 §5.5.5)
---   Stage 2 → 5%  of outstanding balance  (Lifetime ECL — SICR, IFRS 9 §5.5.3)
---   Stage 3 → 20% of outstanding balance  (Lifetime ECL + specific, IFRS 9 §5.5.3)
+-- Provision formula: ECL = PD × LGD × EAD  (IFRS 9 §5.5)
+-- Rates are derived in eclProvisionService.ts from config.ts ECL parameters:
+--   Stage 1 →  1%  (PD_12M=2.22%      × LGD=45%)  12-month ECL          (IFRS 9 §5.5.5)
+--   Stage 2 →  5%  (PD_Lifetime=11.1% × LGD=45%)  Lifetime ECL — SICR   (IFRS 9 §5.5.3)
+--   Stage 3 → 20%  (PD_Impaired=100%  × LGD_Impaired=20%) Lifetime ECL, credit-impaired (IFRS 9 §5.5.3, §B5.5.17)
 --
 -- Note: The Next.js application creates this table automatically on first use
 -- via DDL-on-first-use guard in eclProvisionService.ts.

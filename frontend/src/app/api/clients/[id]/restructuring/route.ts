@@ -25,7 +25,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { createRestructuringPlan, getRestructuringPlans } from '@/lib/restructuringService'
 import { createNotification } from '@/lib/notificationService'
 import { emitSpectraEvent } from '@/lib/eventBus'
@@ -46,7 +46,7 @@ export async function GET(
 ) {
   try {
     const cookieStore = await cookies()
-    const token = cookieStore.get('spectra_session')?.value
+    const token = cookieStore.get(COOKIE_NAME)?.value
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     await verifyToken(token)
 
@@ -73,13 +73,13 @@ export async function POST(
 ) {
   try {
     const cookieStore = await cookies()
-    const token = cookieStore.get('spectra_session')?.value
+    const token = cookieStore.get(COOKIE_NAME)?.value
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const session = await verifyToken(token)
 
-    if (!['risk_officer', 'admin'].includes(session.role)) {
+    if (!['risk_underwriter', 'credit_risk_manager', 'senior_risk_manager'].includes(session.role)) {
       return NextResponse.json(
-        { error: 'Forbidden: Restructuring proposals require Risk Officer or Admin' },
+        { error: 'Forbidden: Restructuring proposals require Risk Underwriter, Credit Risk Manager or Senior Risk Manager' },
         { status: 403 }
       )
     }

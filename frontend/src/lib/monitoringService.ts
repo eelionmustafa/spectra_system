@@ -24,7 +24,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'ClientMonitoring' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[ClientMonitoring] (
+CREATE TABLE [dbo].[ClientMonitoring] (
   client_id         NVARCHAR(50)  NOT NULL PRIMARY KEY,
   -- 'Monthly' | 'Weekly' | 'Daily'
   review_frequency  NVARCHAR(20)  NOT NULL DEFAULT 'Monthly',
@@ -41,7 +41,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'CollateralReview' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[CollateralReview] (
+CREATE TABLE [dbo].[CollateralReview] (
   id                  UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id           NVARCHAR(50)     NOT NULL,
   credit_id           NVARCHAR(50)     NULL,
@@ -64,10 +64,10 @@ const ENSURE_IDX_COLLATERAL_CLIENT = `
 IF NOT EXISTS (
   SELECT 1 FROM sys.indexes
   WHERE name = 'IX_CollateralReview_ClientID_RevalDate'
-    AND object_id = OBJECT_ID('SPECTRA.dbo.CollateralReview')
+    AND object_id = OBJECT_ID('dbo.CollateralReview')
 )
 CREATE INDEX IX_CollateralReview_ClientID_RevalDate
-  ON [SPECTRA].[dbo].[CollateralReview] (client_id, revaluation_date DESC)
+  ON [dbo].[CollateralReview] (client_id, revaluation_date DESC)
   INCLUDE (new_value, ltv_recalculated)
 `
 
@@ -123,7 +123,7 @@ export async function upsertClientMonitoring(
   await ensureTables()
   // MERGE = atomic upsert; avoids race between INSERT and UPDATE under concurrency
   await query(
-    `MERGE [SPECTRA].[dbo].[ClientMonitoring] AS target
+    `MERGE [dbo].[ClientMonitoring] AS target
      USING (VALUES (@clientId, @reviewFrequency, @isFreezed, @freezeReason)) AS src
        (client_id, review_frequency, is_freezed, freeze_reason)
      ON target.client_id = src.client_id
@@ -172,7 +172,7 @@ export async function getClientMonitoring(clientId: string): Promise<ClientMonit
        freeze_reason,
        CONVERT(VARCHAR(30), frozen_at,  127)    AS frozen_at,
        CONVERT(VARCHAR(30), updated_at, 127)    AS updated_at
-     FROM [SPECTRA].[dbo].[ClientMonitoring] WITH (NOLOCK)
+     FROM [dbo].[ClientMonitoring] WITH (NOLOCK)
      WHERE client_id = @clientId`,
     { clientId }
   )
@@ -239,7 +239,7 @@ export async function createCollateralReview(rec: CollateralReviewRecord): Promi
       : null
 
   const rows = await query<{ id: string }>(
-    `INSERT INTO [SPECTRA].[dbo].[CollateralReview]
+    `INSERT INTO [dbo].[CollateralReview]
        (client_id, credit_id, revaluation_date, old_value, new_value,
         current_exposure, ltv_recalculated, reviewed_by, notes)
      OUTPUT CAST(inserted.id AS VARCHAR(36)) AS id
@@ -275,7 +275,7 @@ export async function getCollateralReviews(
        old_value, new_value, current_exposure, ltv_recalculated,
        reviewed_by, notes,
        CONVERT(VARCHAR(30), created_at, 127)         AS created_at
-     FROM [SPECTRA].[dbo].[CollateralReview] WITH (NOLOCK)
+     FROM [dbo].[CollateralReview] WITH (NOLOCK)
      WHERE client_id = @clientId
      ORDER BY revaluation_date DESC, created_at DESC`,
     { clientId, limit }
@@ -293,49 +293,55 @@ export interface FrozenClientRow {
 }
 
 export async function getAllFrozenClients(): Promise<FrozenClientRow[]> {
-  await ensureTables()
-  return query<FrozenClientRow>(
-    `SELECT
-       client_id, review_frequency, freeze_reason,
-       CONVERT(VARCHAR(30), frozen_at,  127) AS frozen_at,
-       CONVERT(VARCHAR(30), updated_at, 127) AS updated_at
-     FROM [SPECTRA].[dbo].[ClientMonitoring] WITH (NOLOCK)
-     WHERE is_freezed = 1
-     ORDER BY frozen_at DESC`,
-    {}
-  )
+  try {
+    await ensureTables()
+    return query<FrozenClientRow>(
+      `SELECT
+         client_id, review_frequency, freeze_reason,
+         CONVERT(VARCHAR(30), frozen_at,  127) AS frozen_at,
+         CONVERT(VARCHAR(30), updated_at, 127) AS updated_at
+       FROM [dbo].[ClientMonitoring] WITH (NOLOCK)
+       WHERE is_freezed = 1
+       ORDER BY frozen_at DESC`,
+      {}
+    )
+  } catch { return [] }
 }
 
 export async function getAllPendingDocumentRequests(limit = 50): Promise<DocumentRequestRow[]> {
-  await ensureTables()
-  return query<DocumentRequestRow>(
-    `SELECT TOP (@limit)
-       CAST(id AS VARCHAR(36))                      AS id,
-       client_id, credit_id, requested_docs,
-       requested_by,
-       CONVERT(VARCHAR(10), due_date, 23)           AS due_date,
-       status, notes,
-       CONVERT(VARCHAR(30), fulfilled_at, 127)      AS fulfilled_at,
-       CONVERT(VARCHAR(30), created_at,   127)      AS created_at,
-       CONVERT(VARCHAR(30), updated_at,   127)      AS updated_at
-     FROM [SPECTRA].[dbo].[DocumentRequests] WITH (NOLOCK)
-     ORDER BY created_at DESC`,
-    { limit }
-  )
+  try {
+    await ensureTables()
+    return query<DocumentRequestRow>(
+      `SELECT TOP (@limit)
+         CAST(id AS VARCHAR(36))                      AS id,
+         client_id, credit_id, requested_docs,
+         requested_by,
+         CONVERT(VARCHAR(10), due_date, 23)           AS due_date,
+         status, notes,
+         CONVERT(VARCHAR(30), fulfilled_at, 127)      AS fulfilled_at,
+         CONVERT(VARCHAR(30), created_at,   127)      AS created_at,
+         CONVERT(VARCHAR(30), updated_at,   127)      AS updated_at
+       FROM [dbo].[DocumentRequests] WITH (NOLOCK)
+       ORDER BY created_at DESC`,
+      { limit }
+    )
+  } catch { return [] }
 }
 
 export async function getAllRecentCollateralReviews(limit = 20): Promise<CollateralReviewRow[]> {
-  await ensureTables()
-  return query<CollateralReviewRow>(
-    `SELECT TOP (@limit)
-       CAST(id AS VARCHAR(36))                       AS id,
-       client_id, credit_id,
-       CONVERT(VARCHAR(10), revaluation_date, 23)    AS revaluation_date,
-       old_value, new_value, current_exposure, ltv_recalculated,
-       reviewed_by, notes,
-       CONVERT(VARCHAR(30), created_at, 127)         AS created_at
-     FROM [SPECTRA].[dbo].[CollateralReview] WITH (NOLOCK)
-     ORDER BY revaluation_date DESC, created_at DESC`,
-    { limit }
-  )
+  try {
+    await ensureTables()
+    return query<CollateralReviewRow>(
+      `SELECT TOP (@limit)
+         CAST(id AS VARCHAR(36))                       AS id,
+         client_id, credit_id,
+         CONVERT(VARCHAR(10), revaluation_date, 23)    AS revaluation_date,
+         old_value, new_value, current_exposure, ltv_recalculated,
+         reviewed_by, notes,
+         CONVERT(VARCHAR(30), created_at, 127)         AS created_at
+       FROM [dbo].[CollateralReview] WITH (NOLOCK)
+       ORDER BY revaluation_date DESC, created_at DESC`,
+      { limit }
+    )
+  } catch { return [] }
 }

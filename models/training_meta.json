@@ -1,11 +1,11 @@
 {
-  "training_date": "2026-03-18T23:56:11.522614",
+  "training_date": "2026-03-30T05:46:41.308958",
   "targets": {
     "label_stage_migration": {
       "target": "label_stage_migration",
-      "best_model": "GradientBoosting",
-      "auc": 0.8073058108953215,
-      "cv_auc": 0.7997285752397628,
+      "best_model": null,
+      "auc": null,
+      "cv_auc": null,
       "feature_cols": [
         "rating_deterioration",
         "stage_age_months",
@@ -15,30 +15,79 @@
         "repayment_rate_min",
         "missed_payment_count",
         "missed_payment_ratio",
-        "consecutive_lates",
-        "NetAmount",
-        "Ammount"
+        "consecutive_lates"
+      ],
+      "all_results": {},
+      "skipped": true,
+      "skip_reason": "positive_rate=0.0078"
+    },
+    "label_default_30d": {
+      "target": "label_default_30d",
+      "best_model": "GradientBoosting",
+      "auc": 0.9378958242714224,
+      "cv_auc": 0.9451506648789305,
+      "feature_cols": [
+        "rating_deterioration",
+        "stage_age_months",
+        "exposure_growth_rate",
+        "dpd_trend",
+        "repayment_rate_avg",
+        "repayment_rate_min",
+        "missed_payment_count",
+        "missed_payment_ratio",
+        "consecutive_lates"
       ],
       "all_results": {
         "GradientBoosting": {
-          "auc": 0.8073058108953215,
-          "cv_auc": 0.7997285752397628
+          "auc": 0.9378958242714224,
+          "cv_auc": 0.9451506648789305
         },
         "RandomForest": {
-          "auc": 0.7682434368117026,
-          "cv_auc": 0.7645877744369224
+          "auc": 0.9289276134551254,
+          "cv_auc": 0.9357538618880316
         },
         "LogisticRegression": {
-          "auc": 0.7263888499669886,
-          "cv_auc": 0.7185156858098564
+          "auc": 0.7105614760040597,
+          "cv_auc": 0.7259492346625758
+        }
+      }
+    },
+    "label_default_60d": {
+      "target": "label_default_60d",
+      "best_model": "GradientBoosting",
+      "auc": 0.9410362842087882,
+      "cv_auc": 0.9419954075183016,
+      "feature_cols": [
+        "rating_deterioration",
+        "stage_age_months",
+        "exposure_growth_rate",
+        "dpd_trend",
+        "repayment_rate_avg",
+        "repayment_rate_min",
+        "missed_payment_count",
+        "missed_payment_ratio",
+        "consecutive_lates"
+      ],
+      "all_results": {
+        "GradientBoosting": {
+          "auc": 0.9410362842087882,
+          "cv_auc": 0.9419954075183016
+        },
+        "RandomForest": {
+          "auc": 0.9335572278541369,
+          "cv_auc": 0.9324946686084038
+        },
+        "LogisticRegression": {
+          "auc": 0.7293181725574802,
+          "cv_auc": 0.7167217620463628
         }
       }
     },
     "label_default_90d": {
       "target": "label_default_90d",
       "best_model": "GradientBoosting",
-      "auc": 0.9313039770935874,
-      "cv_auc": 0.9295331021173219,
+      "auc": 0.949212726715112,
+      "cv_auc": 0.937494233811422,
       "feature_cols": [
         "rating_deterioration",
         "stage_age_months",
@@ -48,22 +97,20 @@
         "repayment_rate_min",
         "missed_payment_count",
         "missed_payment_ratio",
-        "consecutive_lates",
-        "NetAmount",
-        "Ammount"
+        "consecutive_lates"
       ],
       "all_results": {
         "GradientBoosting": {
-          "auc": 0.9313039770935874,
-          "cv_auc": 0.9295331021173219
+          "auc": 0.949212726715112,
+          "cv_auc": 0.937494233811422
         },
         "RandomForest": {
-          "auc": 0.9113449423528013,
-          "cv_auc": 0.9147934438006828
+          "auc": 0.9406082368542861,
+          "cv_auc": 0.9292026354308003
         },
         "LogisticRegression": {
-          "auc": 0.6461871219505462,
-          "cv_auc": 0.6698737662947368
+          "auc": 0.7395053301301437,
+          "cv_auc": 0.7007646338394211
         }
       }
     },
@@ -81,9 +128,7 @@
         "repayment_rate_min",
         "missed_payment_count",
         "missed_payment_ratio",
-        "consecutive_lates",
-        "NetAmount",
-        "Ammount"
+        "consecutive_lates"
       ],
       "all_results": {},
       "skipped": true,

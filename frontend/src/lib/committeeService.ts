@@ -21,7 +21,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'CreditCommitteeLog' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[CreditCommitteeLog] (
+CREATE TABLE [dbo].[CreditCommitteeLog] (
   id             UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id      NVARCHAR(50)     NOT NULL,
   credit_id      NVARCHAR(50)     NULL,
@@ -43,7 +43,7 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('SPECTRA.dbo.CreditCommitteeLog')
 )
 CREATE INDEX IX_CreditCommitteeLog_ClientID_EscalatedAt
-  ON [SPECTRA].[dbo].[CreditCommitteeLog] (client_id, escalated_at DESC)
+  ON [dbo].[CreditCommitteeLog] (client_id, escalated_at DESC)
   INCLUDE (decision, escalated_by)
 `
 
@@ -93,7 +93,7 @@ export async function createCommitteeEscalation(
   await ensureTables()
 
   const rows = await query<{ id: string }>(
-    `INSERT INTO [SPECTRA].[dbo].[CreditCommitteeLog]
+    `INSERT INTO [dbo].[CreditCommitteeLog]
        (client_id, credit_id, escalated_by, notes)
      OUTPUT CAST(inserted.id AS VARCHAR(36)) AS id
      VALUES (@clientId, @creditId, @escalatedBy, @notes)`,
@@ -134,7 +134,7 @@ export async function updateCommitteeDecision(
   await ensureTables()
 
   await query(
-    `UPDATE [SPECTRA].[dbo].[CreditCommitteeLog]
+    `UPDATE [dbo].[CreditCommitteeLog]
      SET
        decision      = @decision,
        decision_date = @decisionDate,
@@ -183,7 +183,7 @@ export async function getCommitteeLog(clientId: string): Promise<CommitteeRow[]>
        CONVERT(VARCHAR(10), decision_date, 23)              AS decision_date,
        decided_by, notes,
        CONVERT(VARCHAR(30), updated_at, 127)                AS updated_at
-     FROM [SPECTRA].[dbo].[CreditCommitteeLog] WITH (NOLOCK)
+     FROM [dbo].[CreditCommitteeLog] WITH (NOLOCK)
      WHERE client_id = @clientId
      ORDER BY escalated_at DESC`,
     { clientId }

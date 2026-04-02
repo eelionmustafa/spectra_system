@@ -68,14 +68,12 @@ export default function Topbar({
         <div className="tb-right">
           <RefreshButton />
           <div className="tb-divider" />
-          <span className="tb-date">{date}</span>
+          <span className="tb-date" suppressHydrationWarning>{date}</span>
           <NotificationBell />
         </div>
       </div>
 
-      {mobileOpen && (
-        <MobileSidebar session={session ?? null} onClose={() => setMobileOpen(false)} />
-      )}
+      <MobileSidebar session={session ?? null} open={mobileOpen} onClose={() => setMobileOpen(false)} />
     </>
   )
 }

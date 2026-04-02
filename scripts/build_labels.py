@@ -27,87 +27,97 @@ def _get_conn():
     return get_conn()
 
 
+# Using MAX(...) across a client's full history collapses the default horizons:
+# any client that ever reaches Stage 3 will always have at least one row where
+# the *next* snapshot is Stage 3. Instead, anchor each client on a single
+# reference snapshot: the latest RiskPortfolio row that still has 3 forward
+# snapshots available. That preserves the intended 30/60/90-day distinction.
+_SQL_RP_ANCHOR = """
+WITH ordered AS (
+    SELECT
+        clientID,
+        Stage,
+        CalculationDate,
+        COUNT(*) OVER (PARTITION BY clientID) AS snapshot_count,
+        ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY CalculationDate DESC) AS rev_rn,
+        LEAD(Stage, 1) OVER (PARTITION BY clientID ORDER BY CalculationDate) AS next_stage_1,
+        LEAD(Stage, 2) OVER (PARTITION BY clientID ORDER BY CalculationDate) AS next_stage_2,
+        LEAD(Stage, 3) OVER (PARTITION BY clientID ORDER BY CalculationDate) AS next_stage_3,
+        LEAD(CalculationDate, 1) OVER (PARTITION BY clientID ORDER BY CalculationDate) AS next_date_1,
+        LEAD(CalculationDate, 2) OVER (PARTITION BY clientID ORDER BY CalculationDate) AS next_date_2,
+        LEAD(CalculationDate, 3) OVER (PARTITION BY clientID ORDER BY CalculationDate) AS next_date_3
+    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
+),
+anchor AS (
+    SELECT
+        clientID,
+        Stage,
+        CalculationDate,
+        next_stage_1,
+        next_stage_2,
+        next_stage_3,
+        next_date_1,
+        next_date_2,
+        next_date_3
+    FROM ordered
+    WHERE snapshot_count >= 4
+      AND rev_rn = 4
+)
+"""
+
 # ---------- Target 1: label_stage_migration (Stage increases next snapshot) ---
 
-_SQL_STAGE_MIG = """
-WITH ordered AS (
-    SELECT clientID, Stage, CalculationDate,
-        LAG(Stage) OVER (PARTITION BY clientID ORDER BY CalculationDate) AS prev_stage,
-        LAG(CalculationDate) OVER (PARTITION BY clientID ORDER BY CalculationDate) AS prev_date
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
-)
-SELECT clientID,
-    MAX(CASE WHEN Stage > prev_stage AND DATEDIFF(day, prev_date, CalculationDate) <= 40 THEN 1 ELSE 0 END) AS label_stage_migration
-FROM ordered
-WHERE prev_stage IS NOT NULL
-GROUP BY clientID
+_SQL_STAGE_MIG = _SQL_RP_ANCHOR + """
+SELECT
+    clientID,
+    CASE
+        WHEN next_stage_1 > Stage
+         AND DATEDIFF(day, CalculationDate, next_date_1) <= 40
+        THEN 1 ELSE 0
+    END AS label_stage_migration
+FROM anchor
 """
 
 # ---------- Target 2a: label_default_30d (Stage 3 within NEXT snapshot ≈30d) --
 
-_SQL_DEFAULT_30D = """
-WITH ordered AS (
-    SELECT clientID, Stage, CalculationDate,
-        ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY CalculationDate) AS rn
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
-),
-future_stage AS (
-    SELECT o1.clientID,
-        MAX(CASE
-            WHEN o2.Stage = 3
-             AND o2.rn = o1.rn + 1
-             AND DATEDIFF(day, o1.CalculationDate, o2.CalculationDate) <= 40
-            THEN 1 ELSE 0
-        END) AS label_default_30d
-    FROM ordered o1
-    LEFT JOIN ordered o2 ON o2.clientID = o1.clientID
-    GROUP BY o1.clientID
-)
-SELECT DISTINCT fs.clientID, fs.label_default_30d
-FROM future_stage fs
+_SQL_DEFAULT_30D = _SQL_RP_ANCHOR + """
+SELECT
+    clientID,
+    CASE
+        WHEN next_stage_1 = 3
+         AND DATEDIFF(day, CalculationDate, next_date_1) <= 40
+        THEN 1 ELSE 0
+    END AS label_default_30d
+FROM anchor
 """
 
 # ---------- Target 2b: label_default_60d (Stage 3 within next 2 snapshots ≈60d)
 
-_SQL_DEFAULT_60D = """
-WITH ordered AS (
-    SELECT clientID, Stage, CalculationDate,
-        ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY CalculationDate) AS rn
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
-),
-future_stage AS (
-    SELECT o1.clientID,
-        MAX(CASE
-            WHEN o2.Stage = 3
-             AND o2.rn BETWEEN o1.rn + 1 AND o1.rn + 2
-             AND DATEDIFF(day, o1.CalculationDate, o2.CalculationDate) <= 65
-            THEN 1 ELSE 0
-        END) AS label_default_60d
-    FROM ordered o1
-    LEFT JOIN ordered o2 ON o2.clientID = o1.clientID
-    GROUP BY o1.clientID
-)
-SELECT DISTINCT fs.clientID, fs.label_default_60d
-FROM future_stage fs
+_SQL_DEFAULT_60D = _SQL_RP_ANCHOR + """
+SELECT
+    clientID,
+    CASE
+        WHEN next_stage_1 = 3
+         AND DATEDIFF(day, CalculationDate, next_date_1) <= 40
+        THEN 1
+        WHEN next_stage_2 = 3
+         AND DATEDIFF(day, CalculationDate, next_date_2) <= 65
+        THEN 1
+        ELSE 0
+    END AS label_default_60d
+FROM anchor
 """
 
 # ---------- Target 2c: label_default_90d (reaches Stage 3 within 3 snapshots) -
 
-_SQL_DEFAULT_90D = """
-WITH ordered AS (
-    SELECT clientID, Stage, CalculationDate,
-        ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY CalculationDate) AS rn
-    FROM [SPECTRA].[dbo].[RiskPortfolio] WITH (NOLOCK)
-),
-future_stage AS (
-    SELECT o1.clientID,
-        MAX(CASE WHEN o2.Stage = 3 AND o2.rn BETWEEN o1.rn+1 AND o1.rn+3 THEN 1 ELSE 0 END) AS label_default_90d
-    FROM ordered o1
-    LEFT JOIN ordered o2 ON o2.clientID = o1.clientID
-    GROUP BY o1.clientID
-)
-SELECT DISTINCT fs.clientID, fs.label_default_90d
-FROM future_stage fs
+_SQL_DEFAULT_90D = _SQL_RP_ANCHOR + """
+SELECT
+    clientID,
+    CASE
+        WHEN next_stage_1 = 3 OR next_stage_2 = 3 OR next_stage_3 = 3
+        THEN 1 ELSE 0
+    END AS label_default_90d
+FROM anchor
 """
 
 # ---------- Target 3: label_dpd_escalation (DPD crosses 30 next month) --------
@@ -170,6 +180,9 @@ def build_labels() -> pd.DataFrame:
     log.info("Default 60d rate:     %.1f%%", df["label_default_60d"].mean()*100)
     log.info("Default 90d rate:     %.1f%%", df["label_default_90d"].mean()*100)
     log.info("DPD escalation rate:  %.1f%%", df["label_dpd_escalation"].mean()*100)
+    log.info("Horizon deltas -- 30d!=60d: %d | 60d!=90d: %d",
+             int((df["label_default_30d"] != df["label_default_60d"]).sum()),
+             int((df["label_default_60d"] != df["label_default_90d"]).sum()))
 
     df.to_parquet(_OUTPUT, index=False)
     log.info("Saved to %s", _OUTPUT)

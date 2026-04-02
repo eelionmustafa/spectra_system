@@ -67,7 +67,6 @@ BEGIN
   CREATE TABLE [dbo].[WrittenOffClients] (
     id               UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
     client_id        NVARCHAR(50)     NOT NULL UNIQUE,
-    recovery_case_id NVARCHAR(36)     NULL,
     written_off_by   NVARCHAR(100)    NOT NULL,
     written_off_at   DATETIME         NOT NULL DEFAULT GETDATE(),
     notes            NVARCHAR(MAX)    NULL
@@ -78,6 +77,17 @@ ELSE
   PRINT 'Table already exists: WrittenOffClients';
 GO
 
+
+-- ── Migration: drop dead column recovery_case_id (existing deployments) ───────
+IF EXISTS (
+  SELECT 1 FROM sys.columns
+  WHERE object_id = OBJECT_ID(N'dbo.WrittenOffClients') AND name = N'recovery_case_id'
+)
+BEGIN
+  ALTER TABLE [dbo].[WrittenOffClients] DROP COLUMN [recovery_case_id];
+  PRINT N'Dropped dead column: WrittenOffClients.recovery_case_id';
+END
+GO
 
 -- ─── Sample verification queries ──────────────────────────────────────────────
 

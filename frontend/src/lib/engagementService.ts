@@ -22,7 +22,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'ClientEngagements' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[ClientEngagements] (
+CREATE TABLE [dbo].[ClientEngagements] (
   id           UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id    NVARCHAR(50)     NOT NULL,
   credit_id    NVARCHAR(50)     NULL,
@@ -46,7 +46,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'CovenantWaivers' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[CovenantWaivers] (
+CREATE TABLE [dbo].[CovenantWaivers] (
   id              UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id       NVARCHAR(50)     NOT NULL,
   credit_id       NVARCHAR(50)     NULL,
@@ -71,7 +71,7 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('SPECTRA.dbo.ClientEngagements')
 )
 CREATE INDEX IX_ClientEngagements_ClientID_ScheduledAt
-  ON [SPECTRA].[dbo].[ClientEngagements] (client_id, scheduled_at DESC)
+  ON [dbo].[ClientEngagements] (client_id, scheduled_at DESC)
   INCLUDE (type, status, outcome)
 `
 
@@ -82,7 +82,7 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('SPECTRA.dbo.CovenantWaivers')
 )
 CREATE INDEX IX_CovenantWaivers_ClientID_RequestedDate
-  ON [SPECTRA].[dbo].[CovenantWaivers] (client_id, requested_date DESC)
+  ON [dbo].[CovenantWaivers] (client_id, requested_date DESC)
   INCLUDE (waiver_type, status)
 `
 
@@ -132,7 +132,7 @@ export interface EngagementRow {
 export async function createEngagement(rec: EngagementRecord): Promise<string> {
   await ensureTables()
   const rows = await query<{ id: string }>(
-    `INSERT INTO [SPECTRA].[dbo].[ClientEngagements]
+    `INSERT INTO [dbo].[ClientEngagements]
        (client_id, credit_id, type, scheduled_at, notes, logged_by)
      OUTPUT CAST(inserted.id AS VARCHAR(36)) AS id
      VALUES (@clientId, @creditId, @type, @scheduledAt, @notes, @loggedBy)`,
@@ -160,7 +160,7 @@ export async function getEngagements(
        CONVERT(VARCHAR(30), scheduled_at, 127)   AS scheduled_at,
        CONVERT(VARCHAR(30), created_at,   127)   AS created_at,
        CONVERT(VARCHAR(30), updated_at,   127)   AS updated_at
-     FROM [SPECTRA].[dbo].[ClientEngagements] WITH (NOLOCK)
+     FROM [dbo].[ClientEngagements] WITH (NOLOCK)
      WHERE client_id = @clientId
      ORDER BY scheduled_at DESC`,
     { clientId, limit }
@@ -173,7 +173,7 @@ export async function updateEngagement(
 ): Promise<void> {
   await ensureTables()
   await query(
-    `UPDATE [SPECTRA].[dbo].[ClientEngagements]
+    `UPDATE [dbo].[ClientEngagements]
      SET
        status     = COALESCE(@status,  status),
        outcome    = COALESCE(@outcome, outcome),
@@ -218,7 +218,7 @@ export interface WaiverRow {
 export async function createWaiver(rec: WaiverRecord): Promise<string> {
   await ensureTables()
   const rows = await query<{ id: string }>(
-    `INSERT INTO [SPECTRA].[dbo].[CovenantWaivers]
+    `INSERT INTO [dbo].[CovenantWaivers]
        (client_id, credit_id, waiver_type, requested_date, requested_by, reason)
      OUTPUT CAST(inserted.id AS VARCHAR(36)) AS id
      VALUES (@clientId, @creditId, @waiverType, @requestedDate, @requestedBy, @reason)`,
@@ -248,7 +248,7 @@ export async function getWaivers(
        CONVERT(VARCHAR(30), approved_at, 127)        AS approved_at,
        decision_notes,
        CONVERT(VARCHAR(30), created_at, 127)         AS created_at
-     FROM [SPECTRA].[dbo].[CovenantWaivers] WITH (NOLOCK)
+     FROM [dbo].[CovenantWaivers] WITH (NOLOCK)
      WHERE client_id = @clientId
      ORDER BY requested_date DESC, created_at DESC`,
     { clientId, limit }
@@ -267,7 +267,7 @@ export async function decideWaiver(
 ): Promise<void> {
   await ensureTables()
   await query(
-    `UPDATE [SPECTRA].[dbo].[CovenantWaivers]
+    `UPDATE [dbo].[CovenantWaivers]
      SET
        status         = @status,
        approved_by    = CASE WHEN @status = 'Approved' THEN @decidedBy  ELSE NULL END,

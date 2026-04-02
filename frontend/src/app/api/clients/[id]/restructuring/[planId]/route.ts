@@ -43,8 +43,8 @@ export async function PATCH(
     }
 
     // Approving a plan requires elevated role
-    if (status === 'Approved' && session.role !== 'admin' && session.role !== 'risk_officer') {
-      return NextResponse.json({ error: 'Risk officer or admin role required to approve plans' }, { status: 403 })
+    if (status === 'Approved' && !['credit_risk_manager', 'senior_risk_manager'].includes(session.role)) {
+      return NextResponse.json({ error: 'Credit risk manager or senior risk manager required to approve plans' }, { status: 403 })
     }
 
     await updateRestructuringPlan(planId, {

@@ -22,10 +22,11 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
+import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { createEngagement, getEngagements } from '@/lib/engagementService'
 import { createNotification } from '@/lib/notificationService'
 import { emitSpectraEvent } from '@/lib/eventBus'
+import { sendSystemMessage } from '@/lib/messagingService'
 
 export async function GET(
   req: NextRequest,
@@ -33,7 +34,7 @@ export async function GET(
 ) {
   try {
     const cookieStore = await cookies()
-    const token = cookieStore.get('spectra_session')?.value
+    const token = cookieStore.get(COOKIE_NAME)?.value
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     await verifyToken(token)
 
@@ -64,7 +65,7 @@ export async function POST(
 ) {
   try {
     const cookieStore = await cookies()
-    const token = cookieStore.get('spectra_session')?.value
+    const token = cookieStore.get(COOKIE_NAME)?.value
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const session = await verifyToken(token)
 
@@ -107,6 +108,9 @@ export async function POST(
       actor:    session.username,
       message:  `${type === 'call' ? 'Call' : 'Meeting'} scheduled by ${session.username}`,
     })
+
+    const when = scheduledAt ? new Date(scheduledAt).toLocaleString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'shortly'
+    sendSystemMessage(clientId, session.username, session.username, `📅 ${type === 'call' ? 'Call' : 'Meeting'} Scheduled\n\nYour advisor has scheduled a ${type} with you on ${when}.${notes ? `\n\n${notes}` : ''}\n\nPlease ensure you are available at the scheduled time.`).catch(() => {})
 
     return NextResponse.json({ ok: true, id }, { status: 201 })
   } catch (err) {

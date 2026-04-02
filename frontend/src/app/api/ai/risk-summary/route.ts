@@ -10,8 +10,16 @@ export async function POST(req: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     await verifyToken(token)
 
+    const groqApiKey = process.env.GROQ_API_KEY?.trim()
+    if (!groqApiKey) {
+      return NextResponse.json(
+        { error: 'AI risk summary is not configured. Set GROQ_API_KEY and retry.' },
+        { status: 503 }
+      )
+    }
+
     const groq = new OpenAI({
-      apiKey: process.env.GROQ_API_KEY,
+      apiKey: groqApiKey,
       baseURL: 'https://api.groq.com/openai/v1',
     })
 
@@ -22,7 +30,7 @@ export async function POST(req: NextRequest) {
       max_tokens: 400,
       messages: [{
         role: 'user',
-        content: `You are a senior credit risk analyst at a bank. Write a concise 3-4 sentence risk assessment for this client. Be specific about the key risk drivers and state a recommended action.
+        content: `You are a senior credit risk analyst at a bank. Write a concise 3-4 sentence risk assessment for this client. Be specific about the key risk drivers and state a recommended action. Return plain text only with no headings, bullets, or markdown.
 
 Client: ${profile.full_name || profile.personal_id} | Age: ${profile.age} | ${profile.region} | ${profile.employment_type}
 Stage: ${profile.stage} | Risk Score: ${profile.risk_score}/10 | Exposure: €${Number(profile.total_exposure).toLocaleString()}

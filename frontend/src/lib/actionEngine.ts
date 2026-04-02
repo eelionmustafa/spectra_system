@@ -87,15 +87,15 @@ export const TIER_META: Record<Tier, {
 }> = {
   'default-imminent': {
     label: 'Default Imminent', emoji: '🔴',
-    color: '#9B1C1C', bg: '#FEF2F2', border: '#FECACA',
+    color: '#FCA5A5', bg: '#2D1515', border: '#7F1D1D',
   },
   'deteriorating': {
     label: 'Deteriorating', emoji: '🟠',
-    color: '#92400E', bg: '#FFFBEB', border: '#FDE68A',
+    color: '#FCD34D', bg: '#2D2510', border: '#78350F',
   },
   'stable-watch': {
     label: 'Stable Watch', emoji: '🟢',
-    color: '#065F46', bg: '#ECFDF5', border: '#A7F3D0',
+    color: '#6EE7B7', bg: '#0D2D1A', border: '#14532D',
   },
 }
 

@@ -2,17 +2,32 @@ import sql from 'mssql'
 
 const useWindowsAuth = !process.env.DB_USER
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const authOptions: any = useWindowsAuth
-  ? { trustServerCertificate: process.env.NODE_ENV !== 'production', enableArithAbort: true }
-  : { trustServerCertificate: process.env.NODE_ENV !== 'production', enableArithAbort: true }
+const baseOptions: sql.config['options'] = {
+  trustServerCertificate: true,
+  enableArithAbort: true,
+  encrypt: true,          // required by Azure SQL
+  port: 1433,
+  connectTimeout:  30000, // TCP handshake timeout — Azure SQL cold starts need > 15s default
+  cancelTimeout:   5000,
+}
+
+const windowsAuthOptions = baseOptions
+const sqlAuthOptions      = baseOptions
 
 const config: sql.config = useWindowsAuth
   ? {
       server:   process.env.DB_SERVER!,
       database: process.env.DB_NAME!,
-      // domain: leave unset — tedious uses the current process identity
-      options:  authOptions,
+      domain:   process.env.DB_DOMAIN,
+      authentication: {
+        type: 'ntlm',
+        options: {
+          domain:   process.env.DB_DOMAIN ?? '',
+          userName: process.env.DB_NTLM_USER ?? '',
+          password: process.env.DB_NTLM_PASSWORD ?? '',
+        },
+      },
+      options:  windowsAuthOptions,
       pool: { max: 30, min: 2, idleTimeoutMillis: 60000, acquireTimeoutMillis: 15000 },
       requestTimeout: 60000,
     }
@@ -21,7 +36,7 @@ const config: sql.config = useWindowsAuth
       database: process.env.DB_NAME!,
       user:     process.env.DB_USER!,
       password: process.env.DB_PASSWORD!,
-      options:  { trustServerCertificate: process.env.NODE_ENV !== 'production', enableArithAbort: true },
+      options:  sqlAuthOptions,
       pool: { max: 30, min: 2, idleTimeoutMillis: 60000, acquireTimeoutMillis: 15000 },
       requestTimeout: 60000,
     }
@@ -42,10 +57,30 @@ function resetPool() {
 }
 
 async function createPool(): Promise<sql.ConnectionPool> {
-  const p = await sql.connect(config)
-  // Reset our reference if the pool emits an error so the next call reconnects cleanly
-  p.on('error', () => { if (g.__spectraPool === p) resetPool() })
-  return p
+  const MAX_ATTEMPTS = 3
+  let lastErr: unknown
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const p = await sql.connect(config)
+      // Reset our reference if the pool emits an error so the next call reconnects cleanly
+      p.on('error', () => { if (g.__spectraPool === p) resetPool() })
+      if (attempt > 1) {
+        console.warn(`[SPECTRA DB] Connected on attempt ${attempt}`)
+      }
+      return p
+    } catch (err) {
+      lastErr = err
+      const isTimeout = (err as Error).message?.includes('Failed to connect') ||
+                        (err as Error).message?.includes('timeout')
+      if (!isTimeout || attempt === MAX_ATTEMPTS) throw err
+      const delay = attempt * 2000 // 2s, 4s
+      console.warn(`[SPECTRA DB] Connection attempt ${attempt} failed — retrying in ${delay}ms...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+
+  throw lastErr
 }
 
 export async function getPool(): Promise<sql.ConnectionPool> {
@@ -75,8 +110,12 @@ export async function query<T>(sqlText: string, params?: Record<string, unknown>
     const result = await req.query<T>(sqlText)
     return result.recordset
   } catch (err) {
-    const sqlSnippet = sqlText.trim().split('\n').map(l => l.trim()).filter(Boolean).slice(0, 3).join(' | ')
-    console.error('[SPECTRA QUERY ERROR]', (err as Error).message, '\nSQL:', sqlSnippet)
+    if (process.env.NODE_ENV !== 'production') {
+      const sqlSnippet = sqlText.trim().split('\n').map(l => l.trim()).filter(Boolean).slice(0, 3).join(' | ')
+      console.error('[SPECTRA QUERY ERROR]', (err as Error).message, '\nSQL:', sqlSnippet)
+    } else {
+      console.error('[SPECTRA QUERY ERROR]', (err as Error).message)
+    }
     throw err
   }
 }

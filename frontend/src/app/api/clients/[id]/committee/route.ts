@@ -39,9 +39,9 @@ export async function POST(
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const session = await verifyToken(token)
 
-    if (!['risk_officer', 'admin'].includes(session.role)) {
+    if (!['credit_risk_manager', 'senior_risk_manager'].includes(session.role)) {
       return NextResponse.json(
-        { error: 'Forbidden: Committee escalation requires Risk Officer or Admin' },
+        { error: 'Forbidden: Committee escalation requires Credit Risk Manager or Senior Risk Manager' },
         { status: 403 }
       )
     }

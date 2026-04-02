@@ -19,7 +19,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'WrittenOffClients' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[WrittenOffClients] (
+CREATE TABLE [dbo].[WrittenOffClients] (
   id              UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id       NVARCHAR(50)     NOT NULL UNIQUE,
   recovery_case_id NVARCHAR(36)    NULL,
@@ -54,7 +54,7 @@ export async function markClientWrittenOff(
   await ensureWrittenOffTable()
   // Use MERGE so re-running a write-off (e.g. correction) is idempotent
   await query(
-    `MERGE [SPECTRA].[dbo].[WrittenOffClients] AS target
+    `MERGE [dbo].[WrittenOffClients] AS target
      USING (VALUES (@clientId, @recoveryCaseId, @writtenOffBy, @notes))
        AS source (client_id, recovery_case_id, written_off_by, notes)
      ON target.client_id = source.client_id
@@ -75,7 +75,7 @@ export async function markClientWrittenOff(
 export async function isClientWrittenOff(clientId: string): Promise<boolean> {
   await ensureWrittenOffTable()
   const rows = await query<{ cnt: number }>(
-    `SELECT COUNT(*) AS cnt FROM [SPECTRA].[dbo].[WrittenOffClients] WITH (NOLOCK)
+    `SELECT COUNT(*) AS cnt FROM [dbo].[WrittenOffClients] WITH (NOLOCK)
      WHERE client_id = @clientId`,
     { clientId }
   )

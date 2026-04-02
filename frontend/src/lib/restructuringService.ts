@@ -18,7 +18,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'RestructuringPlans' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[RestructuringPlans] (
+CREATE TABLE [dbo].[RestructuringPlans] (
   id                       UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id                NVARCHAR(50)     NOT NULL,
   credit_id                NVARCHAR(50)     NULL,
@@ -46,7 +46,7 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('SPECTRA.dbo.RestructuringPlans')
 )
 CREATE INDEX IX_RestructuringPlans_ClientID_CreatedAt
-  ON [SPECTRA].[dbo].[RestructuringPlans] (client_id, created_at DESC)
+  ON [dbo].[RestructuringPlans] (client_id, created_at DESC)
   INCLUDE (type, status)
 `
 
@@ -103,7 +103,7 @@ export interface PlanRow {
 export async function createRestructuringPlan(rec: PlanRecord): Promise<string> {
   await ensureTables()
   const rows = await query<{ id: string }>(
-    `INSERT INTO [SPECTRA].[dbo].[RestructuringPlans]
+    `INSERT INTO [dbo].[RestructuringPlans]
        (client_id, credit_id, type, new_maturity_date, holiday_duration_months,
         new_interest_rate, forgiven_amount, notes, created_by)
      OUTPUT CAST(inserted.id AS VARCHAR(36)) AS id
@@ -140,7 +140,7 @@ export async function getRestructuringPlans(
        notes, created_by,
        CONVERT(VARCHAR(30), created_at, 127)           AS created_at,
        CONVERT(VARCHAR(30), updated_at, 127)           AS updated_at
-     FROM [SPECTRA].[dbo].[RestructuringPlans] WITH (NOLOCK)
+     FROM [dbo].[RestructuringPlans] WITH (NOLOCK)
      WHERE client_id = @clientId
      ORDER BY created_at DESC`,
     { clientId, limit }
@@ -166,7 +166,7 @@ export async function getActiveRestructuringPlan(
        notes, created_by,
        CONVERT(VARCHAR(30), created_at, 127)           AS created_at,
        CONVERT(VARCHAR(30), updated_at, 127)           AS updated_at
-     FROM [SPECTRA].[dbo].[RestructuringPlans] WITH (NOLOCK)
+     FROM [dbo].[RestructuringPlans] WITH (NOLOCK)
      WHERE client_id = @clientId
        AND status IN ('Proposed', 'Approved', 'Active')
      ORDER BY created_at DESC`,
@@ -185,7 +185,7 @@ export async function updateRestructuringPlan(
 ): Promise<void> {
   await ensureTables()
   await query(
-    `UPDATE [SPECTRA].[dbo].[RestructuringPlans]
+    `UPDATE [dbo].[RestructuringPlans]
      SET
        status      = COALESCE(@status,     status),
        approved_by = CASE WHEN @status = 'Approved' THEN @approvedBy ELSE approved_by END,

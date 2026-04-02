@@ -4,13 +4,14 @@ import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { createDocumentRequest, getDocumentRequests, markDocumentsReceived } from '@/lib/documentRequestService'
 import { recordRichClientAction } from '@/lib/queries'
 import { createNotification } from '@/lib/notificationService'
+import { sendSystemMessage } from '@/lib/messagingService'
 
 async function auth(req: NextRequest) {
   const jar = await cookies()
   const token = jar.get(COOKIE_NAME)?.value
   if (!token) throw new Error('Unauthorized')
   const session = await verifyToken(token)
-  return { username: (session as { username?: string; role: string }).username ?? session.role ?? 'risk_officer' }
+  return { username: session.username }
 }
 
 export async function GET(
@@ -74,6 +75,10 @@ export async function POST(
       assignedRM:       null,
     })
 
+    const docList = body.requestedDocs.map(d => `• ${d}`).join('\n')
+    const dueNote = body.dueDate ? `\n\nPlease submit by: ${new Date(body.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}.` : ''
+    sendSystemMessage(id, username, username, `📄 Documents Required\n\nYour bank has requested the following documents:\n${docList}${dueNote}\n\nPlease submit them to your branch or relationship manager.${body.notes ? `\n\nNote: ${body.notes}` : ''}`).catch(() => {})
+
     return NextResponse.json({ ok: true, id: reqId }, { status: 201 })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
@@ -93,7 +98,10 @@ export async function PATCH(
     await verifyToken(token)
     const { reqId } = await req.json() as { reqId: string }
     if (!reqId) return NextResponse.json({ error: 'reqId required' }, { status: 400 })
-    await markDocumentsReceived(reqId)
+    const { rowsAffected } = await markDocumentsReceived(reqId)
+    if (rowsAffected === 0) {
+      return NextResponse.json({ error: 'Document request not found or not in Pending status' }, { status: 409 })
+    }
     return NextResponse.json({ ok: true })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })

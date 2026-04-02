@@ -36,9 +36,25 @@ async function getUsername(): Promise<string> {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function requireSession(): Promise<{ username: string } | null> {
   try {
-    const username = await getUsername()
+    const cookieStore = await cookies()
+    const token = cookieStore.get('spectra_session')?.value
+    if (!token) return null
+    const session = await verifyToken(token)
+    return { username: session.username ?? session.role ?? 'unknown' }
+  } catch {
+    return null
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const session = await requireSession()
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  try {
+    const username = session.username
     const body = await req.json() as { credit_id?: string; personal_id?: string; action?: AckAction; note?: string }
     const { credit_id, personal_id, action, note = '' } = body
 
@@ -52,8 +68,8 @@ export async function POST(req: NextRequest) {
     // Atomic upsert via MERGE — no gap between delete and insert
     const now = new Date().toISOString()
     await query(`
-      MERGE [SPECTRA].[dbo].[AlertAcknowledgements] WITH (HOLDLOCK) AS tgt
-      USING (SELECT @credit_id AS credit_id) AS src ON tgt.credit_id = src.credit_id
+      MERGE [dbo].[AlertAcknowledgements] WITH (HOLDLOCK) AS tgt
+      USING (SELECT @credit_id AS credit_id, @personal_id AS personal_id) AS src ON tgt.credit_id = src.credit_id AND tgt.personal_id = src.personal_id
       WHEN MATCHED THEN
         UPDATE SET personal_id = @personal_id, action = @action, note = @note,
                    acknowledged_by = @acknowledged_by, acknowledged_at = @acknowledged_at
@@ -70,11 +86,16 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
+  const session = await requireSession()
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const rows = await query<AlertAck>(`
       SELECT credit_id, personal_id, action, note, acknowledged_by,
              CONVERT(VARCHAR(30), acknowledged_at, 127) AS acknowledged_at
-      FROM [SPECTRA].[dbo].[AlertAcknowledgements] WITH (NOLOCK)
+      FROM [dbo].[AlertAcknowledgements] WITH (NOLOCK)
       ORDER BY acknowledged_at DESC
     `)
     return NextResponse.json(rows)

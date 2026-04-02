@@ -15,15 +15,12 @@ export interface ClientUpdatePayload {
 }
 
 async function getActingUser(): Promise<string> {
-  try {
-    const jar = await cookies()
-    const token = jar.get(COOKIE_NAME)?.value
-    if (!token) return 'risk_officer'
-    const payload = await verifyToken(token)
-    return (payload as { sub?: string }).sub ?? 'risk_officer'
-  } catch {
-    return 'risk_officer'
-  }
+  const jar = await cookies()
+  const token = jar.get(COOKIE_NAME)?.value
+  if (!token) throw new Error('Unauthenticated')
+  const session = await verifyToken(token)
+  if (!session) throw new Error('Unauthenticated')
+  return session.username
 }
 
 export async function updateClient(
@@ -35,7 +32,7 @@ export async function updateClient(
   try {
     // Parameterized UPDATE — no string interpolation of user input
     await query(`
-      UPDATE [SPECTRA].[dbo].[Customer]
+      UPDATE [dbo].[Customer]
       SET Tel        = @phone,
           email      = @email,
           Address    = @address,
@@ -55,7 +52,7 @@ export async function updateClient(
     if (data.notes.trim()) {
       const actor = await getActingUser()
       await query(`
-        INSERT INTO [SPECTRA].[dbo].[ClientActions]
+        INSERT INTO [dbo].[ClientActions]
           (id, clientId, action, status, actionedBy, notes, createdAt)
         VALUES
           (NEWID(), @clientId, 'Profile Update', 'completed', @actionedBy, @notes, GETDATE())

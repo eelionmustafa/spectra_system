@@ -1,11 +1,11 @@
 {
-  "training_date": "2026-03-18T23:56:11.522614",
+  "training_date": "2026-04-02T21:18:25.610327",
   "targets": {
     "label_stage_migration": {
       "target": "label_stage_migration",
       "best_model": "GradientBoosting",
-      "auc": 0.8073058108953215,
-      "cv_auc": 0.7997285752397628,
+      "auc": 0.7713091463437569,
+      "cv_auc": 0.781459699778791,
       "feature_cols": [
         "rating_deterioration",
         "stage_age_months",
@@ -16,29 +16,110 @@
         "missed_payment_count",
         "missed_payment_ratio",
         "consecutive_lates",
-        "NetAmount",
-        "Ammount"
+        "salary_months_active",
+        "salary_stopped_flag",
+        "overdraft_months",
+        "overdraft_dependency",
+        "card_spend_last30d",
+        "card_spend_mom_growth",
+        "card_acceleration_flag"
       ],
       "all_results": {
         "GradientBoosting": {
-          "auc": 0.8073058108953215,
-          "cv_auc": 0.7997285752397628
+          "auc": 0.7713091463437569,
+          "cv_auc": 0.781459699778791
         },
         "RandomForest": {
-          "auc": 0.7682434368117026,
-          "cv_auc": 0.7645877744369224
+          "auc": 0.7477636625764795,
+          "cv_auc": 0.7599733054789611
         },
         "LogisticRegression": {
-          "auc": 0.7263888499669886,
-          "cv_auc": 0.7185156858098564
+          "auc": 0.7132444440201011,
+          "cv_auc": 0.7211244126572302
+        }
+      }
+    },
+    "label_default_30d": {
+      "target": "label_default_30d",
+      "best_model": "GradientBoosting",
+      "auc": 0.8833089254954636,
+      "cv_auc": 0.8726475977738944,
+      "feature_cols": [
+        "rating_deterioration",
+        "stage_age_months",
+        "exposure_growth_rate",
+        "dpd_trend",
+        "repayment_rate_avg",
+        "repayment_rate_min",
+        "missed_payment_count",
+        "missed_payment_ratio",
+        "consecutive_lates",
+        "salary_months_active",
+        "salary_stopped_flag",
+        "overdraft_months",
+        "overdraft_dependency",
+        "card_spend_last30d",
+        "card_spend_mom_growth",
+        "card_acceleration_flag"
+      ],
+      "all_results": {
+        "GradientBoosting": {
+          "auc": 0.8833089254954636,
+          "cv_auc": 0.8726475977738944
+        },
+        "RandomForest": {
+          "auc": 0.8651297502005485,
+          "cv_auc": 0.8603502927669577
+        },
+        "LogisticRegression": {
+          "auc": 0.6876807268249912,
+          "cv_auc": 0.6942317224575023
+        }
+      }
+    },
+    "label_default_60d": {
+      "target": "label_default_60d",
+      "best_model": "GradientBoosting",
+      "auc": 0.8833089254954636,
+      "cv_auc": 0.8726475977738944,
+      "feature_cols": [
+        "rating_deterioration",
+        "stage_age_months",
+        "exposure_growth_rate",
+        "dpd_trend",
+        "repayment_rate_avg",
+        "repayment_rate_min",
+        "missed_payment_count",
+        "missed_payment_ratio",
+        "consecutive_lates",
+        "salary_months_active",
+        "salary_stopped_flag",
+        "overdraft_months",
+        "overdraft_dependency",
+        "card_spend_last30d",
+        "card_spend_mom_growth",
+        "card_acceleration_flag"
+      ],
+      "all_results": {
+        "GradientBoosting": {
+          "auc": 0.8833089254954636,
+          "cv_auc": 0.8726475977738944
+        },
+        "RandomForest": {
+          "auc": 0.8651297502005485,
+          "cv_auc": 0.8603502927669577
+        },
+        "LogisticRegression": {
+          "auc": 0.6876807268249912,
+          "cv_auc": 0.6942317224575023
         }
       }
     },
     "label_default_90d": {
       "target": "label_default_90d",
       "best_model": "GradientBoosting",
-      "auc": 0.9313039770935874,
-      "cv_auc": 0.9295331021173219,
+      "auc": 0.8833089254954636,
+      "cv_auc": 0.8726475977738944,
       "feature_cols": [
         "rating_deterioration",
         "stage_age_months",
@@ -49,21 +130,26 @@
         "missed_payment_count",
         "missed_payment_ratio",
         "consecutive_lates",
-        "NetAmount",
-        "Ammount"
+        "salary_months_active",
+        "salary_stopped_flag",
+        "overdraft_months",
+        "overdraft_dependency",
+        "card_spend_last30d",
+        "card_spend_mom_growth",
+        "card_acceleration_flag"
       ],
       "all_results": {
         "GradientBoosting": {
-          "auc": 0.9313039770935874,
-          "cv_auc": 0.9295331021173219
+          "auc": 0.8833089254954636,
+          "cv_auc": 0.8726475977738944
         },
         "RandomForest": {
-          "auc": 0.9113449423528013,
-          "cv_auc": 0.9147934438006828
+          "auc": 0.8651297502005485,
+          "cv_auc": 0.8603502927669577
         },
         "LogisticRegression": {
-          "auc": 0.6461871219505462,
-          "cv_auc": 0.6698737662947368
+          "auc": 0.6876807268249912,
+          "cv_auc": 0.6942317224575023
         }
       }
     },
@@ -82,12 +168,17 @@
         "missed_payment_count",
         "missed_payment_ratio",
         "consecutive_lates",
-        "NetAmount",
-        "Ammount"
+        "salary_months_active",
+        "salary_stopped_flag",
+        "overdraft_months",
+        "overdraft_dependency",
+        "card_spend_last30d",
+        "card_spend_mom_growth",
+        "card_acceleration_flag"
       ],
       "all_results": {},
       "skipped": true,
-      "skip_reason": "positive_rate=0.0001"
+      "skip_reason": "positive_rate=0.0006"
     }
   }
 }

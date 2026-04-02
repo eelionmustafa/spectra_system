@@ -9,6 +9,7 @@ import type { PredictionRow, ShapRow, RiskFlagRow } from '@/lib/predictions'
 import type { PlanRow } from '@/lib/restructuringService'
 import type { CommitteeRow } from '@/lib/committeeService'
 import type { RecoveryCaseRow } from '@/lib/recoveryService'
+import MessagingPanel from './MessagingPanel'
 
 /* ─── types ───────────────────────────────────────────────────────────────── */
 
@@ -36,8 +37,29 @@ interface Props {
   restructuringPlan: PlanRow | null
   committeeLog: CommitteeRow[]
   recoveryCase: RecoveryCaseRow | null
+  recoveryHistory: RecoveryCaseRow[]
   isWrittenOff: boolean
   isResolved: boolean
+}
+
+interface RecoveryMutationResponse {
+  ok?: boolean
+  caseId?: string
+  case?: RecoveryCaseRow
+  mode?: 'created' | 'updated'
+  error?: string
+}
+
+const RECOVERY_STAGE_LABELS: Record<RecoveryCaseRow['stage'], string> = {
+  DebtCollection: 'Debt Collection',
+  CollateralEnforcement: 'Collateral Enforcement',
+  LegalProceedings: 'Legal Proceedings',
+  DebtSale: 'Debt Sale',
+  WriteOff: 'Write-Off',
+}
+
+function sortRecoveryCases(cases: RecoveryCaseRow[]): RecoveryCaseRow[] {
+  return [...cases].sort((a, b) => new Date(b.opened_at).getTime() - new Date(a.opened_at).getTime())
 }
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
@@ -115,6 +137,7 @@ export default function ClientProfileTabs({
   prediction, shap, riskFlag, userRole, clientId, restructuringPlan: restructuringPlanProp,
   committeeLog: committeeLogProp,
   recoveryCase: recoveryCaseProp,
+  recoveryHistory: recoveryHistoryProp,
   isWrittenOff,
   isResolved: isResolvedProp,
 }: Props) {
@@ -135,6 +158,7 @@ export default function ClientProfileTabs({
 
   // Recovery state
   const [activeRecovery, setActiveRecovery]         = useState<RecoveryCaseRow | null>(recoveryCaseProp)
+  const [recoveryHistory, setRecoveryHistory]       = useState<RecoveryCaseRow[]>(sortRecoveryCases(recoveryHistoryProp))
   const [recoveryOpen, setRecoveryOpen]             = useState(false)
   const [recoverySubmitting, setRecoverySubmitting] = useState(false)
   const [rcStage, setRcStage]                       = useState('DebtCollection')
@@ -163,6 +187,9 @@ export default function ClientProfileTabs({
   const [freezeModalOpen, setFreezeModalOpen] = useState(false)
   const [freezeReason, setFreezeReason] = useState('')
   const [freezeLoading, setFreezeLoading] = useState(false)
+  const [unfreezeModalOpen, setUnfreezeModalOpen] = useState(false)
+  const [unfreezeReason, setUnfreezeReason] = useState('')
+  const [unfreezeLoading, setUnfreezeLoading] = useState(false)
   const [isFrozen, setIsFrozen] = useState(false)
 
   // Resolve
@@ -183,23 +210,54 @@ export default function ClientProfileTabs({
   const [sweepLoading, setSweepLoading] = useState(false)
   const [sweepResult, setSweepResult]   = useState<{ ok: boolean; sweepAmount?: number; reason?: string } | null>(null)
 
-  // Real-time collaboration: auto-refresh when a colleague acts on this client
+  // Notify modal state
+  const [notifyModal, setNotifyModal] = useState<'payment_reminder' | 'overdue_notice' | 'legal_notice' | 'custom' | null>(null)
+  const [notifyAmount, setNotifyAmount] = useState('')
+  const [notifyDaysOverdue, setNotifyDaysOverdue] = useState('')
+  const [notifyDueDate, setNotifyDueDate] = useState('')
+  const [notifyCustomBody, setNotifyCustomBody] = useState('')
+  const [notifyLoading, setNotifyLoading] = useState(false)
+  const [notifyDone, setNotifyDone] = useState<Set<string>>(new Set())
+
+
+  // Avoid long-lived SSE subscriptions in the browser; refresh periodically instead.
   const router = useRouter()
   useEffect(() => {
-    let es: EventSource | null = null
-    try {
-      es = new EventSource('/api/events')
-      es.onmessage = (e) => {
-        try {
-          const event = JSON.parse(e.data as string) as { type: string; clientId?: string }
-          if (event.type !== 'connected' && event.clientId === profile.personal_id) {
-            router.refresh()
-          }
-        } catch { /* ignore */ }
+    const refreshProfile = () => {
+      if (document.visibilityState === 'visible') {
+        router.refresh()
       }
-    } catch { /* SSR guard */ }
-    return () => { es?.close() }
-  }, [profile.personal_id, router])
+    }
+
+    const id = window.setInterval(refreshProfile, 60_000)
+    document.addEventListener('visibilitychange', refreshProfile)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', refreshProfile)
+    }
+  }, [router])
+
+  useEffect(() => {
+    setActiveRecovery(recoveryCaseProp)
+  }, [recoveryCaseProp])
+
+  useEffect(() => {
+    setRecoveryHistory(sortRecoveryCases(recoveryHistoryProp))
+  }, [recoveryHistoryProp])
+
+  useEffect(() => {
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/clients/${clientId}/freeze`, { cache: 'no-store' })
+        const data = await res.json()
+        if (!cancelled && !data.error) setIsFrozen(Boolean(data.freeze))
+      } catch { /* silent */ }
+    })()
+
+    return () => { cancelled = true }
+  }, [clientId])
 
   /* ── derived values ─────────────────────────────────────────────────── */
   const creditUtil = profile.approved_amount > 0
@@ -211,6 +269,8 @@ export default function ClientProfileTabs({
   const initials = profile.full_name
     ? profile.full_name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')
     : profile.personal_id.slice(0, 2).toUpperCase()
+  const openRecoveryCount = recoveryHistory.filter(c => c.status === 'Open').length
+  const hasDuplicateOpenRecovery = openRecoveryCount > 1
 
   /* ── derived alerts (products with overdue) ─────────────────────────── */
   const derivedAlerts = products
@@ -256,14 +316,11 @@ export default function ClientProfileTabs({
 
   /* ── actions ─────────────────────────────────────────────────────────── */
 
-  // useMutation wraps the streaming SSE call to the insights endpoint.
-  // The mutationFn consumes the SSE stream, forwarding token chunks for
-  // progress, then resolves with the final parsed JSON when done:true arrives.
+  // Keep AI insights on plain JSON responses to avoid runtime stream issues.
   const {
     mutate:    generateInsights,
     isPending: generating,
     error:     insightsMutationError,
-    reset:     resetInsights,
   } = useMutation<AIInsights, Error>({
     mutationKey: ['insights', clientId],
     mutationFn:  async () => {
@@ -301,31 +358,10 @@ export default function ClientProfileTabs({
         }),
       })
 
-      if (!res.body) throw new Error('No response body from insights endpoint')
-
-      const reader  = res.body.getReader()
-      const decoder = new TextDecoder()
-      let   buffer  = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-
-        // Process complete SSE lines
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''   // keep incomplete tail for next chunk
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          let parsed: { chunk?: string; done?: boolean; insights?: AIInsights; error?: string }
-          try { parsed = JSON.parse(line.slice(6)) } catch { continue }
-
-          if (parsed.error) throw new Error(parsed.error)
-          if (parsed.done && parsed.insights) return parsed.insights
-        }
-      }
-      throw new Error('Stream ended without a complete response')
+      const payload = await res.json().catch(() => null) as { error?: string; insights?: AIInsights } | null
+      if (!res.ok) throw new Error(payload?.error ?? 'Failed to generate AI insights')
+      if (!payload?.insights) throw new Error('Insights endpoint returned no data')
+      return payload.insights
     },
     onSuccess: (data) => setInsights(data),
   })
@@ -334,7 +370,12 @@ export default function ClientProfileTabs({
 
   const logQuickAction = useCallback(async (action: string) => {
     if (action === 'Freeze Limit') {
-      setFreezeModalOpen(true)
+      if (isFrozen) setUnfreezeModalOpen(true)
+      else setFreezeModalOpen(true)
+      return
+    }
+    if (action === 'Unfreeze Limit') {
+      setUnfreezeModalOpen(true)
       return
     }
     if (action === 'Request Documents') {
@@ -352,7 +393,7 @@ export default function ClientProfileTabs({
     } catch { /* silent */ } finally {
       setQuickActionLoading('')
     }
-  }, [clientId])
+  }, [clientId, isFrozen])
 
   const openScheduleModal = useCallback((type: 'call' | 'meeting') => {
     setScheduleModalType(type)
@@ -394,7 +435,12 @@ export default function ClientProfileTabs({
       const data = await res.json()
       if (!data.error) {
         setIsFrozen(true)
-        setQuickActionDone(prev => new Set([...prev, 'Freeze Limit']))
+        setQuickActionDone(prev => {
+          const next = new Set(prev)
+          next.add('Freeze Limit')
+          next.delete('Unfreeze Limit')
+          return next
+        })
         setFreezeModalOpen(false)
         setFreezeReason('')
       }
@@ -402,6 +448,31 @@ export default function ClientProfileTabs({
       setFreezeLoading(false)
     }
   }, [clientId, freezeReason])
+
+  const confirmUnfreezeLimit = useCallback(async () => {
+    setUnfreezeLoading(true)
+    try {
+      const res = await fetch(`/api/clients/${clientId}/freeze`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: unfreezeReason || null }),
+      })
+      const data = await res.json()
+      if (!data.error) {
+        setIsFrozen(false)
+        setQuickActionDone(prev => {
+          const next = new Set(prev)
+          next.delete('Freeze Limit')
+          next.add('Unfreeze Limit')
+          return next
+        })
+        setUnfreezeModalOpen(false)
+        setUnfreezeReason('')
+      }
+    } catch { /* silent */ } finally {
+      setUnfreezeLoading(false)
+    }
+  }, [clientId, unfreezeReason])
 
   const submitDocumentRequest = useCallback(async () => {
     const selected = Object.entries(docSelections).filter(([, v]) => v).map(([k]) => k)
@@ -480,6 +551,39 @@ export default function ClientProfileTabs({
       setSweepLoading(false)
     }
   }, [clientId])
+
+
+  const sendNotify = async (type: 'payment_reminder' | 'overdue_notice' | 'legal_notice' | 'custom') => {
+    setNotifyLoading(true)
+    try {
+      const body: Record<string, unknown> = { type }
+      if (type === 'payment_reminder') {
+        if (notifyAmount) body.amount = Number(notifyAmount)
+        if (notifyDueDate) body.dueDate = notifyDueDate
+      } else if (type === 'overdue_notice') {
+        if (notifyAmount) body.amount = Number(notifyAmount)
+        if (notifyDaysOverdue) body.daysOverdue = Number(notifyDaysOverdue)
+      } else if (type === 'custom') {
+        body.customBody = notifyCustomBody
+      }
+      const res = await fetch(`/api/clients/${clientId}/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!data.error) {
+        setNotifyDone(prev => new Set([...prev, type]))
+        setNotifyModal(null)
+        setNotifyAmount('')
+        setNotifyDaysOverdue('')
+        setNotifyDueDate('')
+        setNotifyCustomBody('')
+      }
+    } catch { /* silent */ } finally {
+      setNotifyLoading(false)
+    }
+  }
 
   const proposeRestructuring = useCallback(async () => {
     setRestructuringSubmitting(true)
@@ -568,19 +672,14 @@ export default function ClientProfileTabs({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: rcStage, assignedTo: rcAssignedTo || null, notes: rcNotes || null }),
       })
-      const data = await res.json()
-      if (!data.error) {
-        setActiveRecovery({
-          id:          data.caseId,
-          client_id:   clientId,
-          credit_id:   null,
-          stage:       rcStage as RecoveryCaseRow['stage'],
-          assigned_to: rcAssignedTo || null,
-          status:      'Open',
-          notes:       rcNotes || null,
-          opened_at:   new Date().toISOString(),
-          updated_at:  new Date().toISOString(),
-        })
+      const data = await res.json() as RecoveryMutationResponse
+      if (!data.error && data.case) {
+        const nextCase = data.case
+        setActiveRecovery(nextCase)
+        setRecoveryHistory(prev => sortRecoveryCases([
+          nextCase,
+          ...prev.filter(item => item.id !== nextCase.id),
+        ]))
         setRecoveryOpen(false)
         setRcStage('DebtCollection'); setRcAssignedTo(''); setRcNotes('')
       }
@@ -588,6 +687,13 @@ export default function ClientProfileTabs({
       setRecoverySubmitting(false)
     }
   }, [clientId, rcStage, rcAssignedTo, rcNotes])
+
+  const openRecoveryModal = useCallback(() => {
+    setRcStage(activeRecovery?.stage ?? 'DebtCollection')
+    setRcAssignedTo(activeRecovery?.assigned_to ?? '')
+    setRcNotes(activeRecovery?.notes ?? '')
+    setRecoveryOpen(true)
+  }, [activeRecovery])
 
   /* ── render ──────────────────────────────────────────────────────────── */
   return (
@@ -1046,13 +1152,6 @@ export default function ClientProfileTabs({
 
                   {/* Active recovery case */}
                   {activeRecovery && (() => {
-                    const stageLabels: Record<string, string> = {
-                      DebtCollection:       'Debt Collection',
-                      CollateralEnforcement:'Collateral Enforcement',
-                      LegalProceedings:     'Legal Proceedings',
-                      DebtSale:             'Debt Sale',
-                      WriteOff:             'Write-Off',
-                    }
                     const stageColor = activeRecovery.stage === 'WriteOff'
                       ? 'var(--red)' : '#EA580C'
                     return (
@@ -1060,9 +1159,14 @@ export default function ClientProfileTabs({
                         <div className="ph">
                           <span className="pt">Active Recovery Case</span>
                           <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '3px', background: '#FFF7ED', color: stageColor }}>
-                            {stageLabels[activeRecovery.stage] ?? activeRecovery.stage}
+                            {RECOVERY_STAGE_LABELS[activeRecovery.stage] ?? activeRecovery.stage}
                           </span>
                         </div>
+                        {hasDuplicateOpenRecovery && (
+                          <div style={{ marginBottom: '10px', padding: '8px 10px', background: '#FEF2F2', borderRadius: '5px', borderLeft: '3px solid var(--red)', fontSize: '11.5px', color: '#991B1B', lineHeight: '1.45' }}>
+                            {openRecoveryCount} open recovery cases exist for this client. The banner shows the most recent one; the history below exposes the duplicates.
+                          </div>
+                        )}
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                           <div>
                             <div style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)', marginBottom: '2px' }}>Status</div>
@@ -1087,6 +1191,63 @@ export default function ClientProfileTabs({
                       </div>
                     )
                   })()}
+
+                  {recoveryHistory.length > 0 && (
+                    <div className="panel">
+                      <div className="ph">
+                        <span className="pt">Recovery History</span>
+                        <span style={{ fontSize: '10px', color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
+                          {recoveryHistory.length} case{recoveryHistory.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {recoveryHistory.slice(0, 5).map(item => {
+                          const itemColor = item.stage === 'WriteOff' ? 'var(--red)' : item.status === 'Open' ? '#EA580C' : 'var(--border)'
+                          return (
+                            <div
+                              key={item.id}
+                              style={{
+                                padding: '10px 12px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border)',
+                                background: item.status === 'Open' ? '#FFF7ED' : '#F8FAFC',
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center', marginBottom: '4px' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 600, color: itemColor }}>
+                                  {RECOVERY_STAGE_LABELS[item.stage] ?? item.stage}
+                                </div>
+                                <span style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '999px',
+                                  background: item.status === 'Open' ? '#FFEDD5' : '#E5E7EB',
+                                  color: item.status === 'Open' ? '#9A3412' : 'var(--muted)',
+                                }}>
+                                  {item.status}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '11px', color: 'var(--muted)', lineHeight: '1.5' }}>
+                                Opened {fmtDate(item.opened_at)}
+                                {item.assigned_to ? ` • Assigned to ${item.assigned_to}` : ''}
+                              </div>
+                              {item.notes && (
+                                <div style={{ marginTop: '6px', fontSize: '11.5px', color: 'var(--text)', lineHeight: '1.45' }}>
+                                  {item.notes}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                      {recoveryHistory.length > 5 && (
+                        <div style={{ marginTop: '10px', fontSize: '10.5px', color: 'var(--muted)' }}>
+                          Showing the latest 5 recovery cases.
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                 </div>{/* end left column */}
 
@@ -1854,8 +2015,11 @@ export default function ClientProfileTabs({
               { action: 'Freeze Limit',      icon: '🔒' },
               { action: 'Request Documents', icon: '📄' },
             ].map(({ action, icon }) => {
-              const done    = quickActionDone.has(action)
+              const isFreezeToggle = action === 'Freeze Limit'
+              const done    = isFreezeToggle ? false : quickActionDone.has(action)
               const loading = quickActionLoading === action
+              const displayLabel = isFreezeToggle ? (isFrozen ? 'Unfreeze Limit' : 'Freeze Limit') : action
+              const displayIcon = isFreezeToggle ? (isFrozen ? '🔓' : '🔒') : icon
               return (
                 <button
                   key={action}
@@ -1870,8 +2034,8 @@ export default function ClientProfileTabs({
                     fontSize: '11.5px',
                   }}
                 >
-                  <span style={{ marginRight: '6px' }}>{done ? '✓' : icon}</span>
-                  {loading ? 'Logging…' : done ? `${action} logged` : action}
+                  <span style={{ marginRight: '6px' }}>{done ? '✓' : displayIcon}</span>
+                  {loading ? 'Logging...' : done ? `${displayLabel} logged` : displayLabel}
                 </button>
               )
             })}
@@ -1902,7 +2066,7 @@ export default function ClientProfileTabs({
               <button
                 className="act-btn"
                 disabled={recoverySubmitting}
-                onClick={() => setRecoveryOpen(true)}
+                onClick={openRecoveryModal}
                 style={{
                   background: activeRecovery ? '#FEF9F0' : '#FFF7ED',
                   borderColor: '#FDBA74',
@@ -1912,7 +2076,7 @@ export default function ClientProfileTabs({
                 }}
               >
                 <span style={{ marginRight: '6px' }}>{activeRecovery ? '⚠️' : '⚖️'}</span>
-                {recoverySubmitting ? 'Creating…' : activeRecovery ? 'Recovery Active' : 'Initiate Recovery'}
+                {recoverySubmitting ? 'Saving…' : activeRecovery ? 'Update Recovery' : 'Initiate Recovery'}
               </button>
             )}
             {/* Salary Sweep */}
@@ -1940,6 +2104,48 @@ export default function ClientProfileTabs({
                     : 'Run Salary Sweep'}
               </button>
             )}
+            {/* Payment Reminder */}
+            <button
+              className="act-btn"
+              disabled={notifyDone.has('payment_reminder')}
+              onClick={() => setNotifyModal('payment_reminder')}
+              style={{ background: notifyDone.has('payment_reminder') ? '#F0FDF4' : '#F8FAFC', borderColor: notifyDone.has('payment_reminder') ? 'var(--green)' : 'var(--border)', color: notifyDone.has('payment_reminder') ? 'var(--green)' : 'var(--text)', fontSize: '11.5px' }}
+            >
+              <span style={{ marginRight: '6px' }}>{notifyDone.has('payment_reminder') ? '✓' : '📅'}</span>
+              {notifyDone.has('payment_reminder') ? 'Reminder Sent' : 'Payment Reminder'}
+            </button>
+
+            {/* Overdue Notice */}
+            <button
+              className="act-btn"
+              disabled={notifyDone.has('overdue_notice')}
+              onClick={() => setNotifyModal('overdue_notice')}
+              style={{ background: notifyDone.has('overdue_notice') ? '#F0FDF4' : '#F8FAFC', borderColor: notifyDone.has('overdue_notice') ? 'var(--green)' : 'var(--border)', color: notifyDone.has('overdue_notice') ? 'var(--green)' : 'var(--text)', fontSize: '11.5px' }}
+            >
+              <span style={{ marginRight: '6px' }}>{notifyDone.has('overdue_notice') ? '✓' : '⚠️'}</span>
+              {notifyDone.has('overdue_notice') ? 'Notice Sent' : 'Overdue Notice'}
+            </button>
+
+            {/* Legal Notice */}
+            <button
+              className="act-btn"
+              disabled={notifyDone.has('legal_notice')}
+              onClick={() => setNotifyModal('legal_notice')}
+              style={{ background: notifyDone.has('legal_notice') ? '#F0FDF4' : '#FFF7ED', borderColor: notifyDone.has('legal_notice') ? 'var(--green)' : '#FED7AA', color: notifyDone.has('legal_notice') ? 'var(--green)' : '#9A3412', fontSize: '11.5px', fontWeight: 600 }}
+            >
+              <span style={{ marginRight: '6px' }}>{notifyDone.has('legal_notice') ? '✓' : '⚖️'}</span>
+              {notifyDone.has('legal_notice') ? 'Legal Notice Sent' : 'Legal Notice'}
+            </button>
+
+            {/* Official Message */}
+            <button
+              className="act-btn"
+              onClick={() => setNotifyModal('custom')}
+              style={{ background: '#F8FAFC', borderColor: 'var(--border)', color: 'var(--text)', fontSize: '11.5px' }}
+            >
+              <span style={{ marginRight: '6px' }}>📋</span>
+              Official Message
+            </button>
           </div>
 
           {/* Mark Resolved */}
@@ -2324,7 +2530,7 @@ export default function ClientProfileTabs({
                   fontFamily: 'var(--font)', opacity: recoverySubmitting ? 0.7 : 1,
                 }}
               >
-                {recoverySubmitting ? 'Creating…' : rcStage === 'WriteOff' ? 'Confirm Write-Off' : 'Create Recovery Case'}
+                {recoverySubmitting ? 'Saving…' : rcStage === 'WriteOff' ? 'Confirm Write-Off' : activeRecovery ? 'Update Recovery Case' : 'Create Recovery Case'}
               </button>
             </div>
           </div>
@@ -2411,6 +2617,30 @@ export default function ClientProfileTabs({
                 <button onClick={() => setFreezeModalOpen(false)} style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: 'white', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancel</button>
                 <button onClick={confirmFreezeLimit} disabled={freezeLoading} style={{ flex: 2, padding: '9px', borderRadius: '6px', border: 'none', background: '#1E3A5F', color: 'white', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', opacity: freezeLoading ? 0.6 : 1 }}>
                   {freezeLoading ? 'Freezing...' : '🔒 Confirm Freeze'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* -- Unfreeze Limit Modal -- */}
+      {unfreezeModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setUnfreezeModalOpen(false)}>
+          <div style={{ background: 'white', borderRadius: '10px', padding: '24px', maxWidth: '400px', width: '90%', position: 'relative', boxShadow: 'var(--shadow-lg)' }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setUnfreezeModalOpen(false)} style={{ position: 'absolute', top: '12px', right: '14px', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--muted)', lineHeight: 1 }} aria-label="Close">×</button>
+            <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)', marginBottom: '4px' }}>Credit Limit</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '6px' }}>Unfreeze Client Limit</div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '18px', lineHeight: 1.5 }}>This will lift the formal credit limit freeze, resolve the active freeze record, and notify the team.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '5px' }}>Reason (optional)</label>
+                <textarea value={unfreezeReason} onChange={e => setUnfreezeReason(e.target.value)} rows={3} placeholder="Reason for unfreezing the credit limit..." style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px', fontFamily: 'var(--font)', resize: 'vertical', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                <button onClick={() => setUnfreezeModalOpen(false)} style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: 'white', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancel</button>
+                <button onClick={confirmUnfreezeLimit} disabled={unfreezeLoading} style={{ flex: 2, padding: '9px', borderRadius: '6px', border: 'none', background: '#065F46', color: 'white', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', opacity: unfreezeLoading ? 0.6 : 1 }}>
+                  {unfreezeLoading ? 'Unfreezing...' : '🔓 Confirm Unfreeze'}
                 </button>
               </div>
             </div>
@@ -2505,6 +2735,105 @@ export default function ClientProfileTabs({
           </div>
         </div>
       )}
+
+
+      {/* -- Payment Reminder Modal -- */}
+      {notifyModal === 'payment_reminder' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setNotifyModal(null)}>
+          <div style={{ background: 'white', borderRadius: '10px', padding: '24px', maxWidth: '400px', width: '90%', position: 'relative', boxShadow: 'var(--shadow-lg)' }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setNotifyModal(null)} style={{ position: 'absolute', top: '12px', right: '14px', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--muted)', lineHeight: 1 }} aria-label="Close">×</button>
+            <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)', marginBottom: '4px' }}>Notification</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '6px' }}>Payment Reminder</div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '18px', lineHeight: 1.5 }}>Send a payment reminder message to the client.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '5px' }}>Amount (optional)</label>
+                <input type="number" min="0" step="0.01" value={notifyAmount} onChange={e => setNotifyAmount(e.target.value)} placeholder="Amount €" style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px', fontFamily: 'var(--font)', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '5px' }}>Due Date (optional)</label>
+                <input type="date" value={notifyDueDate} onChange={e => setNotifyDueDate(e.target.value)} style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px', fontFamily: 'var(--font)', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                <button onClick={() => setNotifyModal(null)} style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: 'white', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancel</button>
+                <button onClick={() => sendNotify('payment_reminder')} disabled={notifyLoading} style={{ flex: 2, padding: '9px', borderRadius: '6px', border: 'none', background: 'var(--navy)', color: 'white', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', opacity: notifyLoading ? 0.6 : 1 }}>
+                  {notifyLoading ? 'Sending…' : '📅 Send Reminder'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* -- Overdue Notice Modal -- */}
+      {notifyModal === 'overdue_notice' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setNotifyModal(null)}>
+          <div style={{ background: 'white', borderRadius: '10px', padding: '24px', maxWidth: '400px', width: '90%', position: 'relative', boxShadow: 'var(--shadow-lg)' }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setNotifyModal(null)} style={{ position: 'absolute', top: '12px', right: '14px', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--muted)', lineHeight: 1 }} aria-label="Close">×</button>
+            <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)', marginBottom: '4px' }}>Notification</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '6px' }}>Overdue Payment Notice</div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '18px', lineHeight: 1.5 }}>Notify the client of an overdue payment and request immediate action.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '5px' }}>Overdue Amount (optional)</label>
+                <input type="number" min="0" step="0.01" value={notifyAmount} onChange={e => setNotifyAmount(e.target.value)} placeholder="Amount €" style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px', fontFamily: 'var(--font)', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '5px' }}>Days Overdue (optional)</label>
+                <input type="number" min="0" value={notifyDaysOverdue} onChange={e => setNotifyDaysOverdue(e.target.value)} placeholder="e.g. 30" style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px', fontFamily: 'var(--font)', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                <button onClick={() => setNotifyModal(null)} style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: 'white', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancel</button>
+                <button onClick={() => sendNotify('overdue_notice')} disabled={notifyLoading} style={{ flex: 2, padding: '9px', borderRadius: '6px', border: 'none', background: '#B45309', color: 'white', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', opacity: notifyLoading ? 0.6 : 1 }}>
+                  {notifyLoading ? 'Sending…' : '⚠️ Send Notice'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* -- Legal Notice Modal -- */}
+      {notifyModal === 'legal_notice' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setNotifyModal(null)}>
+          <div style={{ background: 'white', borderRadius: '10px', padding: '24px', maxWidth: '400px', width: '90%', position: 'relative', boxShadow: 'var(--shadow-lg)' }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setNotifyModal(null)} style={{ position: 'absolute', top: '12px', right: '14px', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--muted)', lineHeight: 1 }} aria-label="Close">×</button>
+            <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)', marginBottom: '4px' }}>Legal</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '6px' }}>Pre-Legal Warning</div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '18px', lineHeight: 1.5 }}>Send a formal pre-legal warning. The client will be informed that legal action will follow within 7 days if no payment is received.</div>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+              <button onClick={() => setNotifyModal(null)} style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: 'white', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancel</button>
+              <button onClick={() => sendNotify('legal_notice')} disabled={notifyLoading} style={{ flex: 2, padding: '9px', borderRadius: '6px', border: 'none', background: '#7F1D1D', color: 'white', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', opacity: notifyLoading ? 0.6 : 1 }}>
+                {notifyLoading ? 'Sending…' : '⚖️ Send Pre-Legal Warning'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* -- Custom Modal -- */}
+      {notifyModal === 'custom' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setNotifyModal(null)}>
+          <div style={{ background: 'white', borderRadius: '10px', padding: '24px', maxWidth: '440px', width: '90%', position: 'relative', boxShadow: 'var(--shadow-lg)' }} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setNotifyModal(null)} style={{ position: 'absolute', top: '12px', right: '14px', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--muted)', lineHeight: 1 }} aria-label="Close">×</button>
+            <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)', marginBottom: '4px' }}>Messaging</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '6px' }}>Send Official Message</div>
+            <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '18px', lineHeight: 1.5 }}>Compose an official bank communication to this client. Minimum 10 characters.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '5px' }}>Message</label>
+                <textarea value={notifyCustomBody} onChange={e => setNotifyCustomBody(e.target.value)} rows={5} placeholder="Enter your official message here..." style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px', fontFamily: 'var(--font)', resize: 'vertical', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                <button onClick={() => setNotifyModal(null)} style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: 'white', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancel</button>
+                <button onClick={() => sendNotify('custom')} disabled={notifyLoading || notifyCustomBody.trim().length < 10} style={{ flex: 2, padding: '9px', borderRadius: '6px', border: 'none', background: 'var(--navy)', color: 'white', fontSize: '12px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', opacity: (notifyLoading || notifyCustomBody.trim().length < 10) ? 0.6 : 1 }}>
+                  {notifyLoading ? 'Sending…' : '📋 Send Message'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <MessagingPanel clientId={clientId} clientName={profile.full_name || profile.personal_id} />
     </div>
   )
 }
+
+

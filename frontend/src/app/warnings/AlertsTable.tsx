@@ -49,18 +49,30 @@ function AlertAvatar({ row }: { row: AlertTableRow }) {
         fontSize: '10px', fontWeight: 700, color, fontFamily: 'var(--mono)',
       }}>{initials}</div>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap',
-          overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap',
+          overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' }}>
           {row.full_name}
         </div>
-        <div style={{ fontSize: '10px', color: 'var(--muted)', fontFamily: 'var(--mono)' }}>{row.city}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+          <span style={{ fontSize: '10px', color: 'var(--navy)', fontFamily: 'var(--mono)', fontWeight: 600 }}>
+            {row.personal_id}
+          </span>
+          {row.city && (
+            <span style={{
+              fontSize: '9px', color: 'var(--muted)', padding: '1px 6px', borderRadius: '999px',
+              background: '#F4F7FA', border: '1px solid var(--border)',
+            }}>
+              {row.city}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
 const columns = [
-  ch.display({ id: 'client', header: 'Client', cell: ({ row }) => <AlertAvatar row={row.original} />, size: 200 }),
+  ch.display({ id: 'client', header: 'Client', cell: ({ row }) => <AlertAvatar row={row.original} />, size: 240 }),
   ch.accessor('credit_id', {
     header: 'Account',
     cell: ({ getValue }) => <span style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--muted)' }}>{getValue()}</span>,
@@ -119,6 +131,24 @@ interface Props {
   initialPage:  number
   initialSev:   string
   initialStage: string
+}
+
+type PagerItem = number | 'ellipsis-left' | 'ellipsis-right'
+
+function buildPagerItems(page: number, totalPages: number): PagerItem[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1)
+  }
+
+  if (page <= 4) {
+    return [1, 2, 3, 4, 5, 'ellipsis-right', totalPages]
+  }
+
+  if (page >= totalPages - 3) {
+    return [1, 'ellipsis-left', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+  }
+
+  return [1, 'ellipsis-left', page - 1, page, page + 1, 'ellipsis-right', totalPages]
 }
 
 function AlertDrawer({ row, onClose }: { row: AlertTableRow; onClose: () => void }) {
@@ -291,6 +321,7 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
   useEffect(() => { filtersRef.current = { sev, stage } }, [sev, stage])
 
   const totalPages = Math.max(1, Math.ceil(total / 25))
+  const currentPage = Math.min(page, totalPages)
 
   const pushParams = useCallback((nq: string, np: number, ns: string, nst: string) => {
     const p = new URLSearchParams(searchParams.toString())
@@ -311,29 +342,67 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
   }, [q])
 
   useEffect(() => {
-    setRows(initialRows); setTotal(initialTotal); setPage(initialPage)
+    const nextTotalPages = Math.max(1, Math.ceil(initialTotal / 25))
+    setRows(initialRows); setTotal(initialTotal); setPage(Math.min(initialPage, nextTotalPages))
     setSev(initialSev); setStage(initialStage); setLoading(false)
   }, [initialRows, initialTotal, initialPage, initialSev, initialStage])
 
   function applySev(v: string)   { setSev(v);   setPage(1); setLoading(true); pushParams(q.trim(), 1, v,   stage) }
   function applyStage(v: string) { setStage(v); setPage(1); setLoading(true); pushParams(q.trim(), 1, sev, v)     }
 
+  function goToPage(target: number) {
+    const nextPage = Math.max(1, Math.min(totalPages, target))
+    if (nextPage === currentPage) return
+    setPage(nextPage)
+    setLoading(true)
+    pushParams(q.trim(), nextPage, sev, stage)
+  }
+
   const table = useReactTable({ data: rows, columns, getCoreRowModel: getCoreRowModel(), manualPagination: true, pageCount: totalPages })
 
   const activeFilters = [sev, stage].filter(Boolean).length
 
   function PgBtns() {
+    const pagerItems = buildPagerItems(currentPage, totalPages)
+
     return (
       <>
-        <button className="ew-pg-btn" disabled={page <= 1 || loading}
-          onClick={() => { setPage(p => p - 1); pushParams(q.trim(), page - 1, sev, stage) }}>‹</button>
-        {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
-          const p = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i
-          return <button key={p} className={`ew-pg-btn${p === page ? ' active' : ''}`} disabled={loading}
-            onClick={() => { setPage(p); pushParams(q.trim(), p, sev, stage) }}>{p}</button>
+        <button className="ew-pg-btn" disabled={currentPage <= 1 || loading}
+          onClick={() => goToPage(currentPage - 1)}>‹</button>
+        {pagerItems.map((item, i) => {
+          if (typeof item !== 'number') {
+            return (
+              <span
+                key={`${item}-${i}`}
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '12px',
+                  color: 'var(--muted)',
+                  fontFamily: 'var(--mono)',
+                }}
+              >
+                ...
+              </span>
+            )
+          }
+
+          return (
+            <button
+              key={item}
+              className={`ew-pg-btn${item === currentPage ? ' active' : ''}`}
+              disabled={loading}
+              onClick={() => goToPage(item)}
+            >
+              {item}
+            </button>
+          )
         })}
-        <button className="ew-pg-btn" disabled={page >= totalPages || loading}
-          onClick={() => { setPage(p => p + 1); pushParams(q.trim(), page + 1, sev, stage) }}>›</button>
+        <button className="ew-pg-btn" disabled={currentPage >= totalPages || loading}
+          onClick={() => goToPage(currentPage + 1)}>›</button>
       </>
     )
   }
@@ -342,8 +411,20 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
     <>
       <style>{`
         .ew-search:focus{border-color:var(--navy)!important;box-shadow:0 0 0 3px rgba(29,43,78,0.08)!important;}
-        .ew-row{cursor:pointer;transition:background 0.1s;} .ew-row:hover td{background:rgba(255,255,255,0.04) !important;}
-        .ew-row td{border-bottom:1px solid var(--border);}
+        .ew-row{cursor:pointer;}
+        .ew-row td{border-bottom:1px solid var(--border);transition:background 0.12s ease;}
+        .ew-row-critical td{background:#FFF9F9;}
+        .ew-row-high td{background:#FFFDF9;}
+        .ew-row-critical:hover td{background:#FEF2F2 !important;}
+        .ew-row-high:hover td{background:#FFF7ED !important;}
+        .ew-client-head{
+          position:sticky;left:0;z-index:4;background:#F8FAFC;
+          box-shadow:12px 0 18px -18px rgba(13,27,42,0.45);
+        }
+        .ew-client-cell{
+          position:sticky;left:0;z-index:2;
+          box-shadow:12px 0 18px -18px rgba(13,27,42,0.45);
+        }
         .ew-pg-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-family:var(--mono);color:var(--text);display:flex;align-items:center;justify-content:center;transition:background 0.1s;}
         .ew-pg-btn:hover:not(:disabled){background:#EEF2F7;} .ew-pg-btn:disabled{opacity:0.4;cursor:not-allowed;}
         .ew-pg-btn.active{background:var(--navy);color:white;border-color:var(--navy);font-weight:700;}
@@ -390,9 +471,12 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
       </div>
 
       {/* Stats + top pagination */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
         <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
           {loading ? 'Loading…' : `${total.toLocaleString()} alert${total !== 1 ? 's' : ''}${q ? ` matching "${q}"` : ''}`}
+        </span>
+        <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+          Scroll sideways if needed. The client column stays pinned.
         </span>
         <div style={{ display: 'flex', gap: '4px' }}>{PgBtns()}</div>
       </div>
@@ -400,12 +484,12 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
       {/* Table */}
       <div className="panel" style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', minWidth: '980px', borderCollapse: 'collapse' }}>
             <thead>
               {table.getHeaderGroups().map(hg => (
                 <tr key={hg.id}>
-                  {hg.headers.map(h => (
-                    <th key={h.id} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 700,
+                  {hg.headers.map((h, i) => (
+                    <th key={h.id} className={i === 0 ? 'ew-client-head' : undefined} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 700,
                       color: 'var(--muted)', letterSpacing: '1px', textTransform: 'uppercase',
                       background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', width: h.getSize() }}>
                       {flexRender(h.column.columnDef.header, h.getContext())}
@@ -428,9 +512,9 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
                 : table.getRowModel().rows.length === 0
                   ? <tr><td colSpan={columns.length} style={{ padding: '48px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>No alerts found.</td></tr>
                   : table.getRowModel().rows.map(row => (
-                    <tr key={row.id} className="ew-row" onClick={() => setSelected(row.original)}>
+                    <tr key={row.id} className={`ew-row ${row.original.severity === 'critical' ? 'ew-row-critical' : 'ew-row-high'}`} onClick={() => setSelected(row.original)}>
                       {row.getVisibleCells().map(cell => (
-                        <td key={cell.id} style={{ padding: '11px 14px', verticalAlign: 'middle' }}>
+                        <td key={cell.id} className={cell.column.id === 'client' ? 'ew-client-cell' : undefined} style={{ padding: '11px 14px', verticalAlign: 'middle' }}>
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </td>
                       ))}
@@ -441,7 +525,7 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
           </table>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'rgba(255,255,255,0.03)' }}>
-          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Page {page} of {totalPages}</span>
+          <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Page {currentPage} of {totalPages}</span>
           <div style={{ display: 'flex', gap: '4px' }}>{PgBtns()}</div>
         </div>
       </div>

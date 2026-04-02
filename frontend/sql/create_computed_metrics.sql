@@ -6,9 +6,12 @@ IF NOT EXISTS (
   WHERE name = N'PortfolioKPISnapshot' AND schema_id = SCHEMA_ID(N'dbo')
 )
 BEGIN
+  -- CalculationDate is the natural key and the only filter column used by queries.
+  -- Using it as the clustered PK avoids the random-GUID page fragmentation that
+  -- NEWID() causes, and removes the redundant UNIQUE constraint.
+  -- health_label has no DEFAULT — sp_RefreshPortfolioKPI always computes it.
   CREATE TABLE [dbo].[PortfolioKPISnapshot] (
-    SnapshotID      UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
-    CalculationDate VARCHAR(30) NOT NULL,
+    CalculationDate VARCHAR(30) NOT NULL PRIMARY KEY CLUSTERED,
     total_clients   INT NOT NULL DEFAULT 0,
     total_exposure  FLOAT NOT NULL DEFAULT 0,
     stage1_count    INT NOT NULL DEFAULT 0,
@@ -18,16 +21,57 @@ BEGIN
     stage2_pct      FLOAT NOT NULL DEFAULT 0,
     stage3_pct      FLOAT NOT NULL DEFAULT 0,
     health_score    INT NOT NULL DEFAULT 0,
-    health_label    NVARCHAR(20) NOT NULL DEFAULT N'Unknown',
+    health_label    NVARCHAR(20) NOT NULL,
     npl_ratio_pct   FLOAT NOT NULL DEFAULT 0,
     hhi_client      FLOAT NOT NULL DEFAULT 0,
     avg_ltv         FLOAT NOT NULL DEFAULT 0,
-    RefreshedAt     DATETIME NOT NULL DEFAULT GETDATE(),
-    CONSTRAINT UQ_PortfolioKPI_CalcDate UNIQUE (CalculationDate)
+    RefreshedAt     DATETIME NOT NULL DEFAULT GETDATE()
   );
   PRINT N'Created dbo.PortfolioKPISnapshot';
 END ELSE
   PRINT N'dbo.PortfolioKPISnapshot already exists -- skipping';
+
+-- ── Migration for existing deployments (NEWID-keyed schema → date-keyed) ──────
+-- Run this block once if the table was created before this fix.
+-- Skip if SnapshotID column does not exist (already on new schema).
+IF EXISTS (
+  SELECT 1 FROM sys.columns
+  WHERE object_id = OBJECT_ID(N'dbo.PortfolioKPISnapshot') AND name = N'SnapshotID'
+)
+BEGIN
+  -- 1. Drop the surrogate PK and the redundant UNIQUE constraint
+  DECLARE @pkName NVARCHAR(256);
+  SELECT @pkName = kc.name
+  FROM sys.key_constraints kc
+  JOIN sys.tables t ON t.object_id = kc.parent_object_id
+  WHERE t.name = N'PortfolioKPISnapshot' AND kc.type = 'PK';
+  IF @pkName IS NOT NULL
+    EXEC('ALTER TABLE [dbo].[PortfolioKPISnapshot] DROP CONSTRAINT [' + @pkName + ']');
+
+  IF EXISTS (
+    SELECT 1 FROM sys.key_constraints
+    WHERE name = N'UQ_PortfolioKPI_CalcDate' AND parent_object_id = OBJECT_ID(N'dbo.PortfolioKPISnapshot')
+  )
+    ALTER TABLE [dbo].[PortfolioKPISnapshot] DROP CONSTRAINT [UQ_PortfolioKPI_CalcDate];
+
+  -- 2. Drop the surrogate key column
+  ALTER TABLE [dbo].[PortfolioKPISnapshot] DROP COLUMN [SnapshotID];
+
+  -- 3. Add CalculationDate as the clustered PK
+  ALTER TABLE [dbo].[PortfolioKPISnapshot]
+    ADD CONSTRAINT PK_PortfolioKPISnapshot PRIMARY KEY CLUSTERED (CalculationDate);
+
+  -- 4. Remove the DEFAULT from health_label (stored proc always sets it explicitly)
+  DECLARE @dfName NVARCHAR(256);
+  SELECT @dfName = d.name
+  FROM sys.default_constraints d
+  JOIN sys.columns c ON c.object_id = d.parent_object_id AND c.column_id = d.parent_column_id
+  WHERE d.parent_object_id = OBJECT_ID(N'dbo.PortfolioKPISnapshot') AND c.name = N'health_label';
+  IF @dfName IS NOT NULL
+    EXEC('ALTER TABLE [dbo].[PortfolioKPISnapshot] DROP CONSTRAINT [' + @dfName + ']');
+
+  PRINT N'PortfolioKPISnapshot migrated: NEWID PK → CalculationDate PK';
+END
 GO
 
 IF NOT EXISTS (
@@ -81,11 +125,7 @@ BEGIN
            ELSE N'Critical' END AS health_label,
       d.npl_ratio_pct,
       0.0 AS avg_ltv,
-      (SELECT ROUND(SUM(POWER(100.0 * exp_c / NULLIF(d.total_exposure, 0.0), 2.0)), 0)
-       FROM (SELECT SUM(TRY_CAST(totalExposure AS FLOAT)) AS exp_c
-             FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
-             WHERE CalculationDate = @mcd AND TRY_CAST(totalExposure AS FLOAT) > 0
-             GROUP BY clientID) hhi_sub) AS hhi_client
+      hhi.hhi_client
     FROM (
       SELECT
         COUNT(*)                                                                      AS total_clients,
@@ -115,6 +155,20 @@ BEGIN
       FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
     ) d
+    CROSS JOIN (
+      SELECT ROUND(SUM(POWER(100.0 * exp_c / NULLIF(tot.total_exp, 0.0), 2.0)), 0) AS hhi_client
+      FROM (
+        SELECT SUM(TRY_CAST(totalExposure AS FLOAT)) AS exp_c
+        FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
+        WHERE CalculationDate = @mcd AND TRY_CAST(totalExposure AS FLOAT) > 0
+        GROUP BY clientID
+      ) hhi_sub
+      CROSS JOIN (
+        SELECT COALESCE(SUM(TRY_CAST(totalExposure AS FLOAT)), 0) AS total_exp
+        FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
+        WHERE CalculationDate = @mcd
+      ) tot
+    ) hhi
   ) AS src
   ON tgt.CalculationDate = src.CalculationDate
   WHEN MATCHED THEN UPDATE SET
@@ -197,9 +251,11 @@ AFTER INSERT
 AS
 BEGIN
   SET NOCOUNT ON;
-  IF CONTEXT_INFO() = 0x53504543545241 RETURN;
-  DECLARE @saved VARBINARY(128) = CONTEXT_INFO();
-  SET CONTEXT_INFO 0x53504543545241;
+  -- SESSION_CONTEXT re-entrancy guard (replaces deprecated CONTEXT_INFO).
+  -- sp_set_session_context is idempotent; the flag is automatically cleared
+  -- when the session ends or when we reset it below.
+  IF SESSION_CONTEXT(N'spectra_trigger') = CAST(1 AS SQL_VARIANT) RETURN;
+  EXEC sp_set_session_context N'spectra_trigger', 1;
   BEGIN TRY
     EXEC [dbo].[sp_RefreshPortfolioKPI];
     EXEC [dbo].[sp_RefreshClientMetrics];
@@ -207,7 +263,7 @@ BEGIN
   BEGIN CATCH
     PRINT N'SPECTRA trigger: refresh failed -- ' + ERROR_MESSAGE();
   END CATCH
-  IF @saved IS NULL SET CONTEXT_INFO 0x0; ELSE SET CONTEXT_INFO @saved;
+  EXEC sp_set_session_context N'spectra_trigger', 0;
 END
 GO
 

@@ -9,8 +9,9 @@ import ReactQueryProvider from '@/lib/queryClient'
 validateEnv()
 
 export const metadata: Metadata = {
-  title: 'SPECTRA — Credit Risk Intelligence',
+  title: 'SPECTRA',
   description: 'Portfolio monitoring and risk trend discovery',
+  icons: { icon: '/image.png', apple: '/image.png' },
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -42,6 +43,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <link rel="icon" href="/image.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/image.png" />
       </head>
       <body>
         <ReactQueryProvider>

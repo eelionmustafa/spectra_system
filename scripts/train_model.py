@@ -49,6 +49,8 @@ MODEL_NAMES = {
 # These DPD aggregate columns span full history and directly encode label_dpd_escalation
 # (e.g. DueTotal >= 30 ⟺ label = 1). Exclude them from that target to prevent leakage.
 _DPD_LEAKY_COLS = {"DueDays", "DueMax6M", "DueMax1Y", "DueMax2Y", "DueTotal"}
+# Raw transaction source columns should not be fed directly into the trained model.
+_RAW_SOURCE_COLS = {"NetAmount", "Ammount"}
 
 
 def _load_data():
@@ -61,25 +63,57 @@ def _load_data():
     return df
 
 
+def _skip_result(target, reason, feature_cols=None):
+    return {
+        "target": target,
+        "best_model": None,
+        "auc": None,
+        "cv_auc": None,
+        "feature_cols": [] if feature_cols is None else list(feature_cols),
+        "all_results": {},
+        "skipped": True,
+        "skip_reason": reason,
+    }
+
+
+def _remove_stale_model(target):
+    model_name = MODEL_NAMES.get(target)
+    if not model_name:
+        return
+    model_path = _MODELS_DIR / f"{model_name}.pkl"
+    if model_path.exists():
+        model_path.unlink()
+        log.info("Removed stale model artifact for skipped target: %s", model_path)
+
+
 def _train_target(df, target):
     log.info("=== Training models for target: %s ===", target)
+    if target not in df.columns:
+        log.warning("Skipping %s - target column is missing. Rebuild labels.parquet before retraining.", target)
+        _remove_stale_model(target)
+        return _skip_result(target, "missing_target_column")
+
     exclude = set(["clientID"] + TARGETS)
+    exclude |= _RAW_SOURCE_COLS
     if target == "label_dpd_escalation":
         exclude |= _DPD_LEAKY_COLS
     feature_cols = [c for c in df.columns if c not in exclude]
     X = df[feature_cols].select_dtypes(include=[np.number]).fillna(0)
+    if X.empty:
+        log.warning("Skipping %s - no numeric features remain after exclusions.", target)
+        _remove_stale_model(target)
+        return _skip_result(target, "no_numeric_features", feature_cols)
     y = df[target].astype(int)
 
     pos_rate = y.mean()
     log.info("Positive rate for %s: %.2f%%", target, pos_rate * 100)
 
     if pos_rate < 0.01:
-        log.warning("Skipping %s — positive rate %.3f%% is too low to train a reliable model "
+        log.warning("Skipping %s - positive rate %.3f%% is too low to train a reliable model "
                     "(need at least 1%%). Label has only %d positive cases.",
                     target, pos_rate * 100, int(y.sum()))
-        return {"target": target, "best_model": None, "auc": None, "cv_auc": None,
-                "feature_cols": list(X.columns), "all_results": {},
-                "skipped": True, "skip_reason": f"positive_rate={pos_rate:.4f}"}
+        _remove_stale_model(target)
+        return _skip_result(target, f"positive_rate={pos_rate:.4f}", X.columns)
 
     try:
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)

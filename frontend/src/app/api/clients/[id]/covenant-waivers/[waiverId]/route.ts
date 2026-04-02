@@ -29,8 +29,8 @@ export async function PATCH(
     const session = await verifyToken(token)
 
     // Only risk officers and admins can approve / reject waivers
-    if (session.role !== 'admin' && session.role !== 'risk_officer') {
-      return NextResponse.json({ error: 'Risk officer or admin role required' }, { status: 403 })
+    if (!['credit_risk_manager', 'senior_risk_manager'].includes(session.role)) {
+      return NextResponse.json({ error: 'Credit risk manager or senior risk manager role required' }, { status: 403 })
     }
 
     const { waiverId } = await params

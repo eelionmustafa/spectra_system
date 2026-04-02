@@ -69,7 +69,7 @@ export default function CaseManagement({ clientId, userRole, accountBalance, tot
   const [woReason,   setWoReason]   = useState('')
   const [unfreezeReason, setUnfreezeReason] = useState('')
 
-  const isOfficer = userRole === 'admin' || userRole === 'risk_officer'
+  const isOfficer = userRole === 'credit_risk_manager' || userRole === 'senior_risk_manager'
   const sweepEligible = accountBalance > 0 && currentDPD > 0
 
   const submit = useCallback(async (type: string, payload: Record<string, unknown>) => {
@@ -359,7 +359,7 @@ export default function CaseManagement({ clientId, userRole, accountBalance, tot
                 {/* WRITE-OFF */}
                 {panel === 'writeoff' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {userRole !== 'admin' ? (
+                    {userRole !== 'senior_risk_manager' ? (
                       <div style={{ fontSize: '11px', color: '#991B1B', textAlign: 'center', padding: '8px' }}>🔒 Admin access required to write off a debt.</div>
                     ) : (
                       <>

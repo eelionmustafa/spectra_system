@@ -15,7 +15,7 @@ IF NOT EXISTS (
   SELECT 1 FROM sys.tables
   WHERE name = 'ClientResolutions' AND schema_id = SCHEMA_ID('dbo')
 )
-CREATE TABLE [SPECTRA].[dbo].[ClientResolutions] (
+CREATE TABLE [dbo].[ClientResolutions] (
   id           UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID() PRIMARY KEY,
   client_id    NVARCHAR(50)     NOT NULL,
   resolved_by  NVARCHAR(100)    NOT NULL,
@@ -31,7 +31,7 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('SPECTRA.dbo.ClientResolutions')
 )
 CREATE UNIQUE INDEX IX_ClientResolutions_ClientID
-  ON [SPECTRA].[dbo].[ClientResolutions] (client_id)
+  ON [dbo].[ClientResolutions] (client_id)
 `
 
 // ─── One-time DDL guard ────────────────────────────────────────────────────
@@ -58,7 +58,7 @@ export async function resolveClient(
 ): Promise<void> {
   await ensureResolutionsTable()
   await query(
-    `MERGE [SPECTRA].[dbo].[ClientResolutions] AS target
+    `MERGE [dbo].[ClientResolutions] AS target
      USING (VALUES (@clientId, @resolvedBy, @notes))
        AS source (client_id, resolved_by, notes)
      ON target.client_id = source.client_id
@@ -75,7 +75,7 @@ export async function resolveClient(
 export async function unresolveClient(clientId: string): Promise<void> {
   await ensureResolutionsTable()
   await query(
-    `DELETE FROM [SPECTRA].[dbo].[ClientResolutions] WHERE client_id = @clientId`,
+    `DELETE FROM [dbo].[ClientResolutions] WHERE client_id = @clientId`,
     { clientId }
   )
 }
@@ -85,7 +85,7 @@ export async function unresolveClient(clientId: string): Promise<void> {
 export async function isClientResolved(clientId: string): Promise<boolean> {
   await ensureResolutionsTable()
   const rows = await query<{ cnt: number }>(
-    `SELECT COUNT(*) AS cnt FROM [SPECTRA].[dbo].[ClientResolutions] WITH (NOLOCK)
+    `SELECT COUNT(*) AS cnt FROM [dbo].[ClientResolutions] WITH (NOLOCK)
      WHERE client_id = @clientId`,
     { clientId }
   )

@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const token = cookieStore.get('spectra_session')?.value
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const session = await verifyToken(token)
-    if (session.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (session.role !== 'senior_risk_manager') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

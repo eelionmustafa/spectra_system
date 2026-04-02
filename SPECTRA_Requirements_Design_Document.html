@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPECTRA Credit Risk Intelligence Platform — Software Requirements &amp; Design Document</title>
+  <style>
+    body {
+      font-family: Calibri, 'Segoe UI', Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.6;
+      color: #1a1a1a;
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 25mm 20mm;
+    }
+    h1 {
+      font-size: 22pt;
+      color: #1a3557;
+      border-bottom: 3px solid #1a3557;
+      padding-bottom: 8px;
+      margin-top: 0;
+    }
+    h2 {
+      font-size: 16pt;
+      color: #1a3557;
+      border-bottom: 2px solid #c9a84c;
+      padding-bottom: 4px;
+      margin-top: 32px;
+      page-break-before: always;
+    }
+    h2:first-of-type {
+      page-break-before: avoid;
+    }
+    h3 {
+      font-size: 13pt;
+      color: #2c5282;
+      margin-top: 20px;
+    }
+    h4 {
+      font-size: 11pt;
+      color: #2d3748;
+      margin-top: 16px;
+    }
+    .cover {
+      text-align: center;
+      padding: 60px 0 40px 0;
+      border-bottom: 3px solid #1a3557;
+      margin-bottom: 40px;
+    }
+    .cover h1 {
+      font-size: 28pt;
+      border: none;
+      margin-bottom: 8px;
+    }
+    .cover .subtitle {
+      font-size: 16pt;
+      color: #2c5282;
+      margin-bottom: 24px;
+    }
+    .cover .meta {
+      font-size: 10pt;
+      color: #555;
+    }
+    .toc {
+      background: #f7fafc;
+      border: 1px solid #bee3f8;
+      border-radius: 4px;
+      padding: 20px 28px;
+      margin: 20px 0 32px 0;
+    }
+    .toc h2 {
+      font-size: 13pt;
+      border: none;
+      page-break-before: avoid;
+      margin-top: 0;
+      color: #1a3557;
+    }
+    .toc ol {
+      margin: 0;
+      padding-left: 20px;
+    }
+    .toc li {
+      margin: 4px 0;
+    }
+    .toc a {
+      color: #2c5282;
+      text-decoration: none;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px 0;
+      font-size: 10pt;
+    }
+    th {
+      background-color: #1a3557;
+      color: #ffffff;
+      padding: 8px 10px;
+      text-align: left;
+      font-weight: bold;
+    }
+    td {
+      padding: 7px 10px;
+      border: 1px solid #cbd5e0;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td {
+      background-color: #f7fafc;
+    }
+    code, pre {
+      font-family: 'Courier New', Consolas, monospace;
+      font-size: 9pt;
+      background-color: #f1f5f9;
+      border: 1px solid #e2e8f0;
+    }
+    pre {
+      padding: 12px 16px;
+      overflow-x: auto;
+      line-height: 1.4;
+      white-space: pre;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    code {
+      padding: 1px 4px;
+      border-radius: 2px;
+    }
+    ul, ol {
+      margin: 8px 0;
+      padding-left: 24px;
+    }
+    li {
+      margin: 4px 0;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 9pt;
+      font-weight: bold;
+    }
+    .badge-blue { background: #ebf8ff; color: #2b6cb0; border: 1px solid #90cdf4; }
+    .badge-gold { background: #fffaf0; color: #b7791f; border: 1px solid #f6c763; }
+    .badge-slate { background: #f7fafc; color: #4a5568; border: 1px solid #a0aec0; }
+    blockquote {
+      border-left: 4px solid #c9a84c;
+      margin: 12px 0;
+      padding: 8px 16px;
+      background: #fffdf0;
+      color: #555;
+      font-style: italic;
+    }
+    .section-intro {
+      background: #ebf8ff;
+      border-left: 4px solid #2c5282;
+      padding: 10px 16px;
+      margin-bottom: 16px;
+      font-size: 10.5pt;
+      color: #2d3748;
+    }
+    .page-break { page-break-before: always; }
+    hr { border: none; border-top: 1px solid #e2e8f0; margin: 24px 0; }
+  </style>
+</head>
+<body>
+
+<!-- COVER PAGE -->
+<div class="cover">
+  <div style="font-size:11pt; color:#c9a84c; font-weight:bold; letter-spacing:2px; text-transform:uppercase; margin-bottom:12px;">SPECTRA</div>
+  <h1>Credit Risk Intelligence Platform</h1>
+  <div class="subtitle">Software Requirements &amp; Design Document</div>
+  <hr style="width:200px; margin:20px auto; border-top:2px solid #c9a84c;">
+  <div class="meta">
+    <strong>Version:</strong> 1.0 &nbsp;|&nbsp;
+    <strong>Date:</strong> March 2026 &nbsp;|&nbsp;
+    <strong>Classification:</strong> Internal Confidential
+  </div>
+  <div class="meta" style="margin-top:8px;">
+    <strong>Platform:</strong> Next.js 14 + Azure SQL + Vercel
+  </div>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+<div class="toc">
+  <h2>Table of Contents</h2>
+  <ol>
+    <li><a href="#s1">Business Need</a></li>
+    <li><a href="#s2">Key Functionalities</a></li>
+    <li><a href="#s3">System Requirements Analysis — Functional &amp; Non-Functional</a></li>
+    <li><a href="#s4">User Stories</a></li>
+    <li><a href="#s5">Use Case Diagram</a></li>
+    <li><a href="#s6">Use Case Descriptions</a></li>
+    <li><a href="#s7">Activity Diagrams</a></li>
+    <li><a href="#s8">Class Diagram</a></li>
+    <li><a href="#s9">Rough High-Level Design</a></li>
+  </ol>
+</div>
+
+<!-- SECTION 1 -->
+<h2 id="s1">1. Business Need</h2>
+
+<h3>1.1 The Problem</h3>
+<p>Financial institutions managing large credit portfolios face a fundamental operational challenge: <strong>credit risk is dynamic, multi-dimensional, and time-sensitive</strong>, yet most banks still rely on fragmented, siloed systems — spreadsheets, disconnected core banking reports, and manual review cycles — to identify and act on deteriorating credit quality.</p>
+<p>This creates four compounding pain points:</p>
+<table>
+  <thead><tr><th>Pain Point</th><th>Consequence</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Late signal detection</strong></td><td>Risk officers learn of deteriorating accounts only when DPD thresholds are breached — weeks after the first warning signs appear</td></tr>
+    <tr><td><strong>Manual classification</strong></td><td>IFRS 9 stage assignment (Stage 1/2/3) is done manually, inconsistently, and often quarterly rather than continuously</td></tr>
+    <tr><td><strong>No unified risk view</strong></td><td>Portfolio health, concentration exposure, ECL provisions, and individual client signals live in separate systems with no single source of truth</td></tr>
+    <tr><td><strong>Compliance burden</strong></td><td>Generating audit trails, provision calculations, and regulatory reports for IFRS 9, Basel III, and internal credit committees requires significant manual effort</td></tr>
+  </tbody>
+</table>
+
+<h3>1.2 What SPECTRA Solves</h3>
+<p>SPECTRA is a <strong>real-time credit risk intelligence platform</strong> purpose-built for the credit risk function of a financial institution. It integrates portfolio analytics, machine learning–driven early warning indicators, IFRS 9 classification automation, and a full workflow layer (freeze, restructure, escalate, recover) into a single, role-governed web application.</p>
+<p><strong>Core value propositions:</strong></p>
+<ul>
+  <li><strong>Risk Officers</strong> get a live, prioritised action queue — knowing exactly which clients need attention today, why, and what action to take — instead of reviewing hundreds of accounts manually.</li>
+  <li><strong>Analysts</strong> can drill into any client's full risk profile, prediction history, engagement log, collateral valuation, and ECL provision without switching systems.</li>
+  <li><strong>Bank Administrators</strong> have full audit traceability, role-based access control, and system health visibility to satisfy both internal governance and external regulatory requirements.</li>
+  <li><strong>Credit Committees</strong> receive structured escalation dossiers with ML predictions, historical signals, and recommended dispositions — eliminating the preparation overhead that typically consumes analyst time.</li>
+</ul>
+
+<h3>1.3 Strategic Value</h3>
+<p>SPECTRA delivers measurable impact across four dimensions:</p>
+<ol>
+  <li><strong>Earlier intervention</strong> — EWI signals detect deterioration 30–90 days before DPD thresholds trigger, allowing proactive restructuring rather than reactive recovery.</li>
+  <li><strong>IFRS 9 compliance automation</strong> — Continuous, rules-engine–driven stage classification and ECL provision calculation eliminates quarterly manual reconciliation.</li>
+  <li><strong>Concentration risk governance</strong> — HHI index tracking and top-obligor watchlists prevent portfolio concentration from exceeding regulatory tolerances without visibility.</li>
+  <li><strong>Audit-ready operations</strong> — Every system action, stage change, and user decision is immutably logged, reducing regulatory examination preparation from weeks to hours.</li>
+</ol>
+
+<!-- SECTION 2 -->
+<h2 id="s2">2. Key Functionalities</h2>
+
+<h3>2.1 Dashboard</h3>
+<p>The home screen provides a real-time portfolio health summary. It displays KPI traffic lights (NPL ratio, Stage 2 rate, delinquency rate, total exposure), stage distribution across the portfolio (Stage 1/2/3 client counts and exposure), recent high-priority alerts, and quick-access navigation to flagged clients. KPIs use colour-coded thresholds (green/amber/red) derived from configurable regulatory benchmarks.</p>
+
+<h3>2.2 Portfolio Monitoring</h3>
+<p>A continuous-review module that tracks each client's assigned review cadence (Monthly for Stage 1, Weekly for Stage 2, Daily for Stage 3). Risk officers can view overdue reviews, update review frequency, log collateral revaluations, and request financial documents. Clients can be frozen (credit draw-down blocked) directly from this view.</p>
+
+<h3>2.3 Client Management</h3>
+<p>A full client risk profile accessible via search (name, ID, or account number). Each client profile presents seven information tabs: Overview (risk score, stage, PD, DPD), Actions (recommended and historical), EWI Predictions (ML signals and key risk drivers), Engagements (RM contact log), Documents (requested/received), Restructuring Plans, and Recovery Case history. Risk officers can execute all workflow actions from this single view.</p>
+
+<h3>2.4 Early Warning Alerts (EWI)</h3>
+<p>An AI-powered alert engine that continuously evaluates a configurable set of quantitative and qualitative signals (PD score, DPD trend, missed payments, salary inflow cessation, collateral LTV breach) to produce a deterioration risk rating (Low/Medium/High/Critical) and a prioritised list of recommended actions per client. Alerts are surfaced in the RM notification inbox and the Warnings page.</p>
+
+<h3>2.5 Watchlist</h3>
+<p>A curated list of clients under heightened scrutiny due to concentration risk or specific qualitative concerns. The system automatically flags clients whose single-obligor exposure exceeds 10% of the portfolio (EBA guideline). Risk officers can manually add or remove clients. The watchlist count is surfaced in the top navigation bar.</p>
+
+<h3>2.6 Risk Analytics</h3>
+<p>A suite of historical trend charts covering: NPL ratio over time, ECL provision balances, PD rating distribution, portfolio vintage analysis, and segment breakdown (retail vs corporate vs mortgage). Analysts use this module to identify portfolio-level deterioration trends and prepare management reports.</p>
+
+<h3>2.7 Concentration Analysis</h3>
+<p>Displays the top-N obligor exposures as a percentage of the total portfolio, an HHI (Herfindahl-Hirschman Index) concentration score, and sector/product concentration breakdowns. Flags portfolios as "highly concentrated" when HHI exceeds 2,500, triggering watchlist recommendations.</p>
+
+<h3>2.8 Stress Testing</h3>
+<p>A scenario modelling tool that applies PD shock multipliers to the current portfolio to calculate stressed ECL provisions and NPL projections under three scenarios: Baseline, Adverse (1.5× PD), and Severe (2.5× PD). Uses a fixed LGD assumption of 45%. Outputs include per-scenario provision impact and capital adequacy implications.</p>
+
+<h3>2.9 Audit Log</h3>
+<p>An immutable, append-only log of all system-initiated events (stage changes, risk score updates, EWI triggers) and user actions (freeze, escalate, document request, acknowledgement). Searchable by client, event type, date range, and performing user. Cannot be edited or deleted — satisfying regulatory requirements for audit trail integrity.</p>
+
+<h3>2.10 User Role Management</h3>
+<p>Three role tiers govern access: <strong>Admin</strong> (full system access, user configuration), <strong>Risk Officer</strong> (full workflow execution including freeze, escalate, restructure, legal referral), and <strong>Analyst</strong> (read access plus alert acknowledgement and engagement logging). Role assignment is enforced at both the API layer and UI layer to prevent privilege escalation.</p>
+
+<h3>2.11 Client Portal</h3>
+<p>A separate, lightweight self-service portal allowing end clients to log in, view their account notices, and exchange messages with their relationship manager. Portal access is isolated from the internal application via a separate authentication path and session context.</p>
+
+<h3>2.12 Notification Inbox</h3>
+<p>A real-time notification centre for risk officers that aggregates all system-generated alerts and stage-change events. Notifications are priority-ranked (Critical/High/Medium/Low) and support read/unread state, allowing risk officers to manage their daily alert queue. The inbox polls for new notifications every 60 seconds.</p>
+
+<!-- SECTION 3 -->
+<h2 id="s3">3. System Requirements Analysis</h2>
+
+<h3>3.1 Functional Requirements</h3>
+
+<h4>FR-AUTH: Authentication &amp; Session Management</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>FR-AUTH-01</td><td>The system shall authenticate users via username/password and issue a signed JWT stored as an HttpOnly cookie</td></tr>
+    <tr><td>FR-AUTH-02</td><td>Sessions shall expire after 8 hours of inactivity</td></tr>
+    <tr><td>FR-AUTH-03</td><td>The system shall enforce IP-based rate limiting: 5 failed login attempts triggers a 15-minute lockout</td></tr>
+    <tr><td>FR-AUTH-04</td><td>The system shall maintain separate authentication contexts for internal users and client portal users</td></tr>
+    <tr><td>FR-AUTH-05</td><td>All API routes (except <code>/api/auth/login</code> and <code>/api/portal/auth/login</code>) shall require a valid session token</td></tr>
+  </tbody>
+</table>
+
+<h4>FR-RBAC: Role-Based Access Control</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>FR-RBAC-01</td><td>The system shall support three roles: <code>admin</code>, <code>risk_officer</code>, and <code>analyst</code></td></tr>
+    <tr><td>FR-RBAC-02</td><td>Actions including Freeze Account, Legal Referral, Escalate, and Restructure shall be restricted to <code>risk_officer</code> and <code>admin</code> roles</td></tr>
+    <tr><td>FR-RBAC-03</td><td>The <code>analyst</code> role shall have read access to all client data and may log engagements and acknowledge alerts</td></tr>
+    <tr><td>FR-RBAC-04</td><td>The <code>admin</code> role shall have access to all system functions including user configuration and audit log management</td></tr>
+    <tr><td>FR-RBAC-05</td><td>Role restrictions shall be enforced server-side on every API call, not only in the UI</td></tr>
+  </tbody>
+</table>
+
+<h4>FR-RISK: Risk Classification &amp; Scoring</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>FR-RISK-01</td><td>The system shall derive an IFRS 9 stage (1, 2, or 3) for each credit facility continuously, based on quantitative SICR criteria (PD ≥ 0.2, DPD ≥ 30) and qualitative signals</td></tr>
+    <tr><td>FR-RISK-02</td><td>The system shall compute a composite risk score: <code>(PD × 60) + (DPD score × 25) + (EWI flags × 15)</code>, capped at 100</td></tr>
+    <tr><td>FR-RISK-03</td><td>Product-type–specific DPD thresholds shall be applied: 90 days for consumer credit, 60 days for mortgages</td></tr>
+    <tr><td>FR-RISK-04</td><td>Stage classification shall support single-pass escalation (Stage 1 → Stage 3 if NPL criteria met)</td></tr>
+    <tr><td>FR-RISK-05</td><td>The system shall record an ECL provision entry on every stage reclassification: 1% (Stage 1), 5% (Stage 2), 20% (Stage 3)</td></tr>
+  </tbody>
+</table>
+
+<h4>FR-EWI: Early Warning Indicators</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>FR-EWI-01</td><td>The system shall evaluate EWI signals including PD score, DPD trend, missed payment count, salary inflow cessation, and collateral LTV ratio</td></tr>
+    <tr><td>FR-EWI-02</td><td>Each client shall receive a deterioration risk rating: Low, Medium, High, or Critical</td></tr>
+    <tr><td>FR-EWI-03</td><td>The system shall generate a ranked list of up to 5 recommended actions per client, ordered by urgency</td></tr>
+    <tr><td>FR-EWI-04</td><td>EWI signals shall be triggerable manually by a risk officer or automatically on a scheduled basis</td></tr>
+    <tr><td>FR-EWI-05</td><td>Recommendation actions shall be tracked (actioned / not actioned) and attributed to the user who actioned them</td></tr>
+  </tbody>
+</table>
+
+<h4>FR-WORKFLOW: Credit Workflow Actions</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>FR-WF-01</td><td>The system shall support credit freeze: blocking draw-down on a client's facilities with a mandatory reason field</td></tr>
+    <tr><td>FR-WF-02</td><td>The system shall support restructuring plan creation with five plan types: LoanExtension, PaymentHoliday, RateReduction, DebtConsolidation, PartialWriteOff</td></tr>
+    <tr><td>FR-WF-03</td><td>Restructuring plans shall follow a lifecycle: Proposed → Approved/Rejected → Active → Completed</td></tr>
+    <tr><td>FR-WF-04</td><td>The system shall support credit committee escalation with a formal decision log (Restructure, LegalAction, WriteOff, Pending)</td></tr>
+    <tr><td>FR-WF-05</td><td>Recovery cases shall track a four-stage process: DebtCollection → CollateralEnforcement → LegalProceedings → DebtSale/WriteOff</td></tr>
+    <tr><td>FR-WF-06</td><td>Written-off clients shall be excluded from KPI calculations</td></tr>
+    <tr><td>FR-WF-07</td><td>The system shall support salary sweep automation: detecting resumption of salary inflow and automatically triggering a recovery sweep</td></tr>
+  </tbody>
+</table>
+
+<h4>FR-MONITOR: Portfolio Monitoring</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>FR-MON-01</td><td>Each client shall have an assigned review cadence automatically set from their IFRS stage</td></tr>
+    <tr><td>FR-MON-02</td><td>The system shall track collateral revaluations with before/after values and LTV recalculation</td></tr>
+    <tr><td>FR-MON-03</td><td>Risk officers shall be able to request specific document types from clients (financial statement, bank statement, tax return)</td></tr>
+    <tr><td>FR-MON-04</td><td>Document requests shall track status (Pending/Received) and receipt timestamps</td></tr>
+  </tbody>
+</table>
+
+<h4>FR-NOTIF: Notifications &amp; Alerts</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>FR-NOTIF-01</td><td>The system shall generate notifications for stage changes, EWI alerts, and risk escalations</td></tr>
+    <tr><td>FR-NOTIF-02</td><td>Notifications shall carry a priority level (Critical, High, Medium, Low)</td></tr>
+    <tr><td>FR-NOTIF-03</td><td>Broadcast notifications (assigned_rm = NULL) shall be visible to all risk officers</td></tr>
+    <tr><td>FR-NOTIF-04</td><td>Users shall be able to acknowledge alerts with one of three dispositions: reviewed, actioned, false_positive</td></tr>
+    <tr><td>FR-NOTIF-05</td><td>The notification inbox shall poll for new alerts every 60 seconds</td></tr>
+  </tbody>
+</table>
+
+<h4>FR-ANALYTICS: Analytics &amp; Reporting</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>FR-ANA-01</td><td>The system shall provide portfolio-level KPIs: NPL ratio, Stage 2 rate, delinquency rate, total exposure</td></tr>
+    <tr><td>FR-ANA-02</td><td>The system shall provide historical trend data for NPL ratio, ECL provision, and PD rating distribution</td></tr>
+    <tr><td>FR-ANA-03</td><td>The system shall compute HHI concentration index and flag portfolios with HHI &gt; 2,500</td></tr>
+    <tr><td>FR-ANA-04</td><td>The system shall provide stress test outputs for three scenarios (Baseline, Adverse 1.5×, Severe 2.5×)</td></tr>
+    <tr><td>FR-ANA-05</td><td>All analytics pages shall support export to PDF/CSV format</td></tr>
+  </tbody>
+</table>
+
+<h4>FR-AUDIT: Audit &amp; Compliance</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>FR-AUD-01</td><td>All system-initiated events (stage change, risk score update, EWI trigger) shall be written to an immutable audit log</td></tr>
+    <tr><td>FR-AUD-02</td><td>The audit log shall record: event type, client ID, old/new values, trigger reason, performing user, and timestamp</td></tr>
+    <tr><td>FR-AUD-03</td><td>Audit log entries shall never be updated or deleted</td></tr>
+    <tr><td>FR-AUD-04</td><td>The audit log shall be searchable by client, event type, date range, and user</td></tr>
+  </tbody>
+</table>
+
+<h3>3.2 Non-Functional Requirements</h3>
+
+<h4>NFR-SEC: Security</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>NFR-SEC-01</td><td>All passwords shall be stored as scrypt hashes — never in plaintext</td></tr>
+    <tr><td>NFR-SEC-02</td><td>JWT secrets shall be stored as environment variables, never hardcoded</td></tr>
+    <tr><td>NFR-SEC-03</td><td>All API responses shall include appropriate security headers (X-Frame-Options, CSP, HSTS)</td></tr>
+    <tr><td>NFR-SEC-04</td><td>All database queries shall use parameterised statements to prevent SQL injection</td></tr>
+    <tr><td>NFR-SEC-05</td><td>Session cookies shall be HttpOnly, Secure, and SameSite=Strict</td></tr>
+    <tr><td>NFR-SEC-06</td><td>The client portal shall be completely isolated from the internal application in terms of session context and data scope</td></tr>
+  </tbody>
+</table>
+
+<h4>NFR-PERF: Performance</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>NFR-PERF-01</td><td>Dashboard KPI queries shall return within 2 seconds under normal load</td></tr>
+    <tr><td>NFR-PERF-02</td><td>All database read queries shall use <code>WITH (NOLOCK)</code> hints to avoid blocking contention</td></tr>
+    <tr><td>NFR-PERF-03</td><td>Alert polling (60-second interval) shall use lightweight count queries, not full result sets</td></tr>
+    <tr><td>NFR-PERF-04</td><td>The system shall support connection pooling to the Azure SQL database</td></tr>
+  </tbody>
+</table>
+
+<h4>NFR-SCALE: Scalability</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>NFR-SCALE-01</td><td>The application shall be stateless to allow horizontal scaling via Vercel serverless functions</td></tr>
+    <tr><td>NFR-SCALE-02</td><td>The database shall support up to 10,000 active client records without query degradation</td></tr>
+    <tr><td>NFR-SCALE-03</td><td>All high-traffic tables shall have appropriate indexes on foreign keys and date columns</td></tr>
+  </tbody>
+</table>
+
+<h4>NFR-AVAIL: Availability</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>NFR-AVAIL-01</td><td>The system shall target 99.5% uptime during business hours (07:00–20:00 local time)</td></tr>
+    <tr><td>NFR-AVAIL-02</td><td>A <code>/api/db/ping</code> health-check endpoint shall be available for uptime monitoring</td></tr>
+    <tr><td>NFR-AVAIL-03</td><td>Database connection failures shall be surfaced via error states in the UI, not silent failures</td></tr>
+  </tbody>
+</table>
+
+<h4>NFR-USE: Usability</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>NFR-USE-01</td><td>The application shall be fully responsive for desktop and tablet viewports</td></tr>
+    <tr><td>NFR-USE-02</td><td>Risk-critical information (stage, DPD, risk score) shall use consistent colour coding throughout the application</td></tr>
+    <tr><td>NFR-USE-03</td><td>All data tables shall support sorting and filtering without a full page reload</td></tr>
+    <tr><td>NFR-USE-04</td><td>The application shall include a mobile sidebar for navigation on smaller screens</td></tr>
+  </tbody>
+</table>
+
+<h4>NFR-COMP: Regulatory Compliance</h4>
+<table>
+  <thead><tr><th style="width:130px;">ID</th><th>Requirement</th></tr></thead>
+  <tbody>
+    <tr><td>NFR-COMP-01</td><td>ECL provision rates and IFRS 9 stage classification logic shall be configurable to adapt to bank-specific regulatory requirements</td></tr>
+    <tr><td>NFR-COMP-02</td><td>The audit log shall satisfy Central Bank audit trail requirements (immutable, timestamped, attributed)</td></tr>
+    <tr><td>NFR-COMP-03</td><td>Concentration risk thresholds shall align with EBA Large Exposures guidelines (single obligor ≤ 25% of capital, internal watchlist at 10%)</td></tr>
+    <tr><td>NFR-COMP-04</td><td>DPD thresholds for NPL classification shall be configurable per product type</td></tr>
+  </tbody>
+</table>
+
+<!-- SECTION 4 -->
+<h2 id="s4">4. User Stories</h2>
+
+<h3>Admin Role <span class="badge badge-gold">admin</span></h3>
+<table>
+  <thead><tr><th style="width:60px;">ID</th><th>User Story</th></tr></thead>
+  <tbody>
+    <tr><td>US-01</td><td>As an <strong>admin</strong>, I want to view all system users and their assigned roles, so that I can ensure appropriate access governance and identify any privilege misconfigurations.</td></tr>
+    <tr><td>US-02</td><td>As an <strong>admin</strong>, I want to access the complete audit log filtered by user, event type, or date range, so that I can produce evidence of system activity for regulatory examination or internal investigation.</td></tr>
+    <tr><td>US-03</td><td>As an <strong>admin</strong>, I want to configure EWI thresholds (PD cutoff, DPD limits, provision rates) via environment variables, so that I can tune the system to changing regulatory guidelines without code changes.</td></tr>
+    <tr><td>US-04</td><td>As an <strong>admin</strong>, I want to view system health via the database ping endpoint and connection pool status, so that I can detect and escalate infrastructure issues before they impact risk officers.</td></tr>
+  </tbody>
+</table>
+
+<h3>Risk Officer Role <span class="badge badge-blue">risk_officer</span></h3>
+<table>
+  <thead><tr><th style="width:60px;">ID</th><th>User Story</th></tr></thead>
+  <tbody>
+    <tr><td>US-05</td><td>As a <strong>risk officer</strong>, I want to see a dashboard that shows my portfolio's NPL ratio, Stage 2 client count, and top critical alerts the moment I log in, so that I can immediately prioritise my workday without manually pulling reports.</td></tr>
+    <tr><td>US-06</td><td>As a <strong>risk officer</strong>, I want to freeze a client's credit facilities with a documented reason, so that no further draw-downs occur while I investigate a deterioration signal, and the action is logged for compliance purposes.</td></tr>
+    <tr><td>US-07</td><td>As a <strong>risk officer</strong>, I want to create and submit a restructuring plan for an at-risk client, so that I can offer a formal loan modification and track it through the approval lifecycle from proposal to completion.</td></tr>
+    <tr><td>US-08</td><td>As a <strong>risk officer</strong>, I want to escalate a client to the Credit Committee with supporting notes, so that decisions requiring committee authority (legal action, write-off) are formally documented and tracked.</td></tr>
+    <tr><td>US-09</td><td>As a <strong>risk officer</strong>, I want to acknowledge an EWI alert and record my disposition (actioned, reviewed, or false positive), so that the team maintains a clear record of which signals have been investigated and what was done.</td></tr>
+    <tr><td>US-10</td><td>As a <strong>risk officer</strong>, I want to request a financial statement or bank statement from a client directly in the system, so that the request, follow-up, and receipt are all tracked without relying on email.</td></tr>
+    <tr><td>US-11</td><td>As a <strong>risk officer</strong>, I want to run a stress test showing adverse (1.5×) and severe (2.5×) PD shock scenarios, so that I can quantify capital requirements under stressed conditions and present findings to senior management.</td></tr>
+    <tr><td>US-12</td><td>As a <strong>risk officer</strong>, I want to view the top-10 obligor concentration list with their HHI contribution, so that I can monitor portfolio concentration risk and take action before EBA thresholds are breached.</td></tr>
+  </tbody>
+</table>
+
+<h3>Analyst Role <span class="badge badge-slate">analyst</span></h3>
+<table>
+  <thead><tr><th style="width:60px;">ID</th><th>User Story</th></tr></thead>
+  <tbody>
+    <tr><td>US-13</td><td>As an <strong>analyst</strong>, I want to view a client's full risk profile including their EWI predictions, DPD history, collateral valuations, and ECL provision history, so that I can build a comprehensive credit dossier for committee presentation without requesting data from multiple teams.</td></tr>
+    <tr><td>US-14</td><td>As an <strong>analyst</strong>, I want to view historical NPL and ECL trends across the portfolio, so that I can identify whether the portfolio is improving or deteriorating and support strategic risk reporting.</td></tr>
+    <tr><td>US-15</td><td>As an <strong>analyst</strong>, I want to log a client engagement (phone call, site visit, email exchange) in the system, so that there is a complete, searchable record of all RM–client contact for audit and handover purposes.</td></tr>
+  </tbody>
+</table>
+
+<!-- SECTION 5 -->
+<h2 id="s5">5. Use Case Diagram</h2>
+<div class="section-intro">The diagram below describes all actors and their interactions with SPECTRA's major use cases. Actors include internal users (Admin, Risk Officer, Analyst), the end client via the portal, and two automated system actors (EWI Scheduler and AI/ML Engine).</div>
+
+<pre>
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    SPECTRA — UML Use Case Diagram                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ┌─────────────┐
+  │             │──────────────────────────── (UC-01) Login
+  │   Admin     │──────────────────────────── (UC-10) Manage Users &amp; Roles
+  │             │──────────────────────────── (UC-11) View Audit Log
+  └─────────────┘                             (UC-02) View Dashboard ─────────┐
+        │                                                                      │
+        │ (inherits all Risk Officer                                           │
+        │  and Analyst privileges)                                             │
+        │                                                                      │
+  ┌─────────────────┐                                                          │
+  │                 │──────────────────────── (UC-01) Login                   │
+  │  Risk Officer   │──────────────────────── (UC-02) View Dashboard ─────────┤
+  │                 │──────────────────────── (UC-03) Manage Client           │
+  │                 │──────────────────────── (UC-04) Generate EWI Alert      │
+  │                 │──────────────────────── (UC-05) Add to Watchlist        │
+  │                 │──────────────────────── (UC-06) Freeze Credit           │
+  │                 │──────────────────────── (UC-07) Create Restructuring Plan│
+  │                 │──────────────────────── (UC-08) Escalate to Committee   │
+  │                 │──────────────────────── (UC-09) Run Stress Test         │
+  │                 │──────────────────────── (UC-12) Export Report           │
+  │                 │──────────────────────── (UC-13) Manage Notifications    │
+  │                 │──────────────────────── (UC-14) Request Document        │
+  │                 │──────────────────────── (UC-15) Open Recovery Case      │
+  └─────────────────┘
+        │
+        │ (subset of Risk Officer privileges)
+        │
+  ┌─────────────┐
+  │             │──────────────────────────── (UC-01) Login
+  │  Analyst    │──────────────────────────── (UC-02) View Dashboard
+  │             │──────────────────────────── (UC-03) View Client Profile
+  │             │──────────────────────────── (UC-16) Log Engagement
+  │             │──────────────────────────── (UC-17) View Analytics
+  │             │──────────────────────────── (UC-18) Acknowledge Alert
+  └─────────────┘
+
+  ┌─────────────────┐
+  │                 │──────────────────────── (UC-19) Client Portal Login
+  │  Client         │──────────────────────── (UC-20) View Notices
+  │  (Portal)       │──────────────────────── (UC-21) Send/Receive Messages
+  └─────────────────┘
+
+  ┌─────────────────────┐
+  │                     │──── «triggers» ────── (UC-04) Generate EWI Alert
+  │  EWI Scheduler      │──── «triggers» ────── (UC-22) Run Salary Sweep
+  │  (Automated Actor)  │
+  └─────────────────────┘
+
+  ┌─────────────────────┐
+  │                     │──── «uses» ─────────── (UC-04) Generate EWI Alert
+  │  AI/ML Engine       │──── «uses» ─────────── (UC-09) Run Stress Test
+  │  (Claude API +      │
+  │   sklearn models)   │
+  └─────────────────────┘
+
+  ─────────────────── «include» relationships ───────────────────
+  (UC-03) Manage Client          «include» (UC-AUTH) Verify Session
+  (UC-06) Freeze Credit          «include» (UC-AUD)  Write Audit Log
+  (UC-07) Create Restructuring   «include» (UC-AUD)  Write Audit Log
+  (UC-08) Escalate to Committee  «include» (UC-AUD)  Write Audit Log
+  (UC-04) Generate EWI Alert     «include» (UC-NOTIF) Create Notification
+  (UC-05) Add to Watchlist       «include» (UC-NOTIF) Create Notification
+</pre>
+
+<!-- SECTION 6 -->
+<h2 id="s6">6. Use Case Descriptions</h2>
+
+<h3>UC-01: Login</h3>
+<table>
+  <tbody>
+    <tr><td style="width:160px;"><strong>Use Case Name</strong></td><td>Login</td></tr>
+    <tr><td><strong>Actor</strong></td><td>Admin, Risk Officer, Analyst</td></tr>
+    <tr><td><strong>Preconditions</strong></td><td>User has valid credentials. System database is reachable.</td></tr>
+    <tr><td><strong>Trigger</strong></td><td>User navigates to <code>/</code> and is redirected to the login page, or directly visits <code>/login</code>.</td></tr>
+  </tbody>
+</table>
+<p><strong>Main Flow:</strong></p>
+<ol>
+  <li>User enters username and password on the login form.</li>
+  <li>System validates that the IP has not exceeded the rate limit (5 failed attempts / 15 min).</li>
+  <li>System looks up the user record from the in-memory user store.</li>
+  <li>System verifies the submitted password against the stored scrypt hash.</li>
+  <li>System generates a JWT containing <code>{ userId, username, name, role, department, initials }</code> with an 8-hour TTL.</li>
+  <li>System writes the JWT to an HttpOnly Secure cookie (<code>spectra_session</code>).</li>
+  <li>System redirects the user to the Dashboard (<code>/</code>).</li>
+</ol>
+<p><strong>Alternative Flows:</strong></p>
+<ul>
+  <li><strong>A1 — Invalid credentials:</strong> System returns HTTP 401. Increments failed-attempt counter for the IP. Displays generic "Invalid credentials" message (no username enumeration).</li>
+  <li><strong>A2 — Rate limit exceeded:</strong> System returns HTTP 429. Displays lockout message with remaining lockout time.</li>
+  <li><strong>A3 — Database unreachable:</strong> System returns HTTP 503. Displays system error; login not blocked (auth is stateless).</li>
+</ul>
+<p><strong>Postconditions:</strong> User has an active session cookie and is redirected to the Dashboard.</p>
+
+<hr>
+
+<h3>UC-02: View Dashboard</h3>
+<table>
+  <tbody>
+    <tr><td style="width:160px;"><strong>Use Case Name</strong></td><td>View Dashboard</td></tr>
+    <tr><td><strong>Actor</strong></td><td>Admin, Risk Officer, Analyst</td></tr>
+    <tr><td><strong>Preconditions</strong></td><td>User is authenticated.</td></tr>
+    <tr><td><strong>Trigger</strong></td><td>User navigates to <code>/</code>.</td></tr>
+  </tbody>
+</table>
+<p><strong>Main Flow:</strong></p>
+<ol>
+  <li>System validates the session cookie and extracts the user role.</li>
+  <li>System executes the <code>getPortfolioKPIs()</code> query (excluding written-off clients).</li>
+  <li>System fetches the top 8 critical alerts via <code>getActiveAlerts()</code>.</li>
+  <li>System retrieves the stage distribution (Stage 1/2/3 client count and exposure totals).</li>
+  <li>System evaluates each KPI against configured traffic light thresholds (e.g., NPL ≥ 5% → red).</li>
+  <li>Dashboard renders: KPI cards with colour indicators, stage distribution chart, alert feed, and quick-action shortcuts.</li>
+  <li>Alert feed auto-refreshes every 60 seconds via polling.</li>
+</ol>
+<p><strong>Alternative Flows:</strong></p>
+<ul>
+  <li><strong>A1 — No alerts:</strong> Alert feed displays "No active alerts" state.</li>
+  <li><strong>A2 — Database latency:</strong> KPI cards display loading skeletons; error state shown if timeout exceeded.</li>
+</ul>
+<p><strong>Postconditions:</strong> User has a current, colour-coded snapshot of portfolio health. No data modifications occur.</p>
+
+<hr>
+
+<h3>UC-03: Manage Client</h3>
+<table>
+  <tbody>
+    <tr><td style="width:160px;"><strong>Use Case Name</strong></td><td>Manage Client</td></tr>
+    <tr><td><strong>Actor</strong></td><td>Risk Officer, Admin (write); Analyst (read-only)</td></tr>
+    <tr><td><strong>Preconditions</strong></td><td>User is authenticated. Client exists in the system.</td></tr>
+    <tr><td><strong>Trigger</strong></td><td>User searches for a client by name, ID, or account number and selects a result.</td></tr>
+  </tbody>
+</table>
+<p><strong>Main Flow:</strong></p>
+<ol>
+  <li>User enters a search term in the client search bar.</li>
+  <li>System queries <code>Customer</code>, <code>Credits</code>, and <code>RiskPortfolio</code> tables for matching records.</li>
+  <li>System renders a results list; user selects a client.</li>
+  <li>System loads the full client profile via <code>getClientProfile()</code>, including risk score, IFRS stage, DPD, PD, total exposure, and facility list.</li>
+  <li>System renders the client profile with seven tabs: Overview, Actions, EWI, Engagements, Documents, Restructuring, Recovery.</li>
+  <li>Risk Officer selects a workflow action (e.g., Freeze, Escalate) from the Actions tab.</li>
+  <li>System checks the user's role against the action's <code>requiresRole</code> restriction.</li>
+  <li>System executes the action (e.g., <code>POST /api/clients/[id]/freeze</code>).</li>
+  <li>System writes an immutable entry to <code>SystemActions</code> (audit log).</li>
+  <li>System creates a <code>Notification</code> entry for the relevant RM.</li>
+</ol>
+<p><strong>Alternative Flows:</strong></p>
+<ul>
+  <li><strong>A1 — Analyst attempts restricted action:</strong> System returns HTTP 403. UI suppresses or disables restricted action buttons for the <code>analyst</code> role.</li>
+  <li><strong>A2 — Client not found:</strong> Search returns empty state; user prompted to check the ID.</li>
+</ul>
+<p><strong>Postconditions:</strong> Workflow action is executed, audit logged, and notification created. Client profile reflects updated state.</p>
+
+<hr>
+
+<h3>UC-04: Generate Early Warning Alert</h3>
+<table>
+  <tbody>
+    <tr><td style="width:160px;"><strong>Use Case Name</strong></td><td>Generate Early Warning Alert</td></tr>
+    <tr><td><strong>Actor</strong></td><td>Risk Officer (manual trigger); EWI Scheduler (automated)</td></tr>
+    <tr><td><strong>Preconditions</strong></td><td>Client exists. ML models are loaded.</td></tr>
+    <tr><td><strong>Trigger</strong></td><td>Risk officer clicks "Run EWI" on a client profile, or the automated scheduler fires <code>POST /api/ewi/fire</code>.</td></tr>
+  </tbody>
+</table>
+<p><strong>Main Flow:</strong></p>
+<ol>
+  <li>System retrieves the client's current financial signals: PD score, DPD, missed payments, salary inflow, collateral LTV.</li>
+  <li>System passes signals to the ML inference pipeline (sklearn models: <code>model_90d.pkl</code>, <code>model_dpd_escalation.pkl</code>, <code>model_stage_migration.pkl</code>).</li>
+  <li>ML pipeline outputs: composite risk score (0–100), deterioration risk (Low/Medium/High/Critical), key signals list, AI reasoning text.</li>
+  <li>System calls the Claude API to generate a human-readable risk narrative for the client.</li>
+  <li>System writes a new <code>EWIPredictions</code> record with the ML outputs and run timestamp.</li>
+  <li>System generates up to 5 ranked <code>EWIRecommendations</code> (e.g., "Contact Client", "Restructure", "Escalate").</li>
+  <li>System creates a <code>Notification</code> entry (priority mapped from deterioration risk) targeting the assigned RM.</li>
+  <li>System writes a <code>SystemActions</code> audit entry with <code>event_type = 'ewi_trigger'</code>.</li>
+</ol>
+<p><strong>Alternative Flows:</strong></p>
+<ul>
+  <li><strong>A1 — ML model unavailable:</strong> System falls back to rule-based signal scoring without ML outputs. Flags prediction as "rule-based" in the record.</li>
+  <li><strong>A2 — No deterioration detected:</strong> No notification created. EWIPrediction recorded with <code>deterioration_risk = 'Low'</code>.</li>
+</ul>
+<p><strong>Postconditions:</strong> EWI prediction is persisted. Recommendations are generated. RM is notified if risk level is Medium or above.</p>
+
+<hr>
+
+<h3>UC-05: Add to Watchlist</h3>
+<table>
+  <tbody>
+    <tr><td style="width:160px;"><strong>Use Case Name</strong></td><td>Add to Watchlist</td></tr>
+    <tr><td><strong>Actor</strong></td><td>Risk Officer, Admin</td></tr>
+    <tr><td><strong>Preconditions</strong></td><td>User is authenticated as Risk Officer or Admin. Client exists.</td></tr>
+    <tr><td><strong>Trigger</strong></td><td>User clicks "Add to Watchlist" on a client profile, or concentration analysis flags the client automatically (exposure &gt; 10%).</td></tr>
+  </tbody>
+</table>
+<p><strong>Main Flow:</strong></p>
+<ol>
+  <li>System checks whether the client is already on the watchlist.</li>
+  <li>System evaluates the client's concentration exposure percentage (client exposure / total portfolio exposure).</li>
+  <li>If exposure &gt; 10% of portfolio: system automatically adds to watchlist and logs the trigger reason as "Concentration threshold breach."</li>
+  <li>If manually added: Risk Officer provides an optional note; system saves the entry with <code>added_by</code> = current user.</li>
+  <li>System creates a <code>Notification</code> for the RM with <code>priority = 'high'</code> if auto-triggered.</li>
+  <li>System writes a <code>SystemActions</code> audit entry.</li>
+  <li>Watchlist count in the top navigation bar updates on next poll.</li>
+</ol>
+<p><strong>Alternative Flows:</strong></p>
+<ul>
+  <li><strong>A1 — Client already on watchlist:</strong> System returns HTTP 409. UI displays "Already on watchlist" message.</li>
+</ul>
+<p><strong>Postconditions:</strong> Client appears on the Watchlist page. Notification created if auto-triggered by concentration threshold.</p>
+
+<hr>
+
+<h3>UC-06: Run Stress Test</h3>
+<table>
+  <tbody>
+    <tr><td style="width:160px;"><strong>Use Case Name</strong></td><td>Run Stress Test</td></tr>
+    <tr><td><strong>Actor</strong></td><td>Risk Officer, Analyst (view only), Admin</td></tr>
+    <tr><td><strong>Preconditions</strong></td><td>User is authenticated. Portfolio data is available.</td></tr>
+    <tr><td><strong>Trigger</strong></td><td>User navigates to <code>/stress</code> and selects a scenario.</td></tr>
+  </tbody>
+</table>
+<p><strong>Main Flow:</strong></p>
+<ol>
+  <li>User navigates to the Stress Testing module.</li>
+  <li>System loads current portfolio PD scores, outstanding balances, and IFRS stages from <code>RiskPortfolio</code>.</li>
+  <li>User selects a scenario: Baseline (1.0×), Adverse (1.5×), or Severe (2.5×).</li>
+  <li>System applies the PD shock multiplier to each facility's PD score, capped at 1.0.</li>
+  <li>System recalculates ECL provisions per facility using stressed PD × LGD (45%) × EAD.</li>
+  <li>System aggregates results: total stressed ECL, delta vs. baseline, projected NPL ratio, capital impact estimate.</li>
+  <li>System renders a comparison table and bar chart across the three scenarios.</li>
+  <li>User may export the results as a PDF or CSV.</li>
+</ol>
+<p><strong>Alternative Flows:</strong></p>
+<ul>
+  <li><strong>A1 — No portfolio data:</strong> System displays an error state indicating no qualifying facilities are found.</li>
+  <li><strong>A2 — Export fails:</strong> System displays an error toast; raw data remains on screen.</li>
+</ul>
+<p><strong>Postconditions:</strong> Stress test results are displayed. An optional export file is generated. No database writes occur (read-only operation).</p>
+
+<hr>
+
+<h3>UC-07: Export Report</h3>
+<table>
+  <tbody>
+    <tr><td style="width:160px;"><strong>Use Case Name</strong></td><td>Export Report</td></tr>
+    <tr><td><strong>Actor</strong></td><td>Risk Officer, Analyst, Admin</td></tr>
+    <tr><td><strong>Preconditions</strong></td><td>User is authenticated. Target data exists (analytics, audit log, stress test).</td></tr>
+    <tr><td><strong>Trigger</strong></td><td>User clicks "Export" on an analytics page, the audit log, or the stress test results.</td></tr>
+  </tbody>
+</table>
+<p><strong>Main Flow:</strong></p>
+<ol>
+  <li>User clicks the Export button on a supported page.</li>
+  <li>User selects format: PDF or CSV.</li>
+  <li>System serialises the currently displayed dataset into the selected format (client-side rendering for PDF, server-side generation for CSV).</li>
+  <li>System delivers the file as a browser download with a timestamped filename.</li>
+  <li>System writes a <code>SystemActions</code> audit entry: <code>event_type = 'report_export'</code>, noting the export scope and format.</li>
+</ol>
+<p><strong>Alternative Flows:</strong></p>
+<ul>
+  <li><strong>A1 — Large dataset:</strong> System displays a loading indicator. If generation exceeds 30 seconds, user is notified that the export will be emailed (future enhancement; currently returns a timeout error).</li>
+</ul>
+<p><strong>Postconditions:</strong> File is downloaded to the user's device. Export action is recorded in the audit log.</p>
+
+<!-- SECTION 7 -->
+<h2 id="s7">7. Activity Diagrams</h2>
+<div class="section-intro">Each diagram below uses a swim-lane UML Activity notation showing the step-by-step flow, decision points, and outcomes for each major use case.</div>
+
+<h3>AD-01: Login</h3>
+<pre>
+┌────────────────────────────────────────────────────────────────────────┐
+│                         LOGIN ACTIVITY DIAGRAM                         │
+├────────────────┬─────────────────────────────┬──────────────────────┤
+│   USER         │   AUTH MIDDLEWARE            │   SESSION SERVICE    │
+├────────────────┼─────────────────────────────┼──────────────────────┤
+│                │                             │                      │
+│  ●             │                             │                      │
+│  │             │                             │                      │
+│  ▼             │                             │                      │
+│ [Enter         │                             │                      │
+│  credentials]  │                             │                      │
+│  │             │                             │                      │
+│  ├────────────►│                             │                      │
+│                │  [Check rate limit]         │                      │
+│                │       │                     │                      │
+│                │   ◇ Limit exceeded?         │                      │
+│                │   │ Yes                     │                      │
+│                │   ▼                         │                      │
+│  ◄─────────────│ [Return 429]                │                      │
+│ [Show lockout] │                             │                      │
+│                │   │ No                      │                      │
+│                │   ▼                         │                      │
+│                │ [Lookup user record]        │                      │
+│                │       │                     │                      │
+│                │   ◇ User found?             │                      │
+│                │   │ No                      │                      │
+│                │   ▼                         │                      │
+│  ◄─────────────│ [Return 401]                │                      │
+│ [Show error]   │ [Increment fail counter]    │                      │
+│                │   │ Yes                     │                      │
+│                │   ▼                         │                      │
+│                │ [Verify scrypt hash]        │                      │
+│                │       │                     │                      │
+│                │   ◇ Password valid?         │                      │
+│                │   │ No → [Return 401]       │                      │
+│                │   │ Yes                     │                      │
+│                │   ├───────────────────────► │                      │
+│                │                             │ [Sign JWT]           │
+│                │                             │ [Set cookie]         │
+│                │                             │ [Return 200]         │
+│                │   ◄─────────────────────────│                      │
+│  ◄─────────────│                             │                      │
+│ [Redirect to   │                             │                      │
+│  Dashboard]    │                             │                      │
+│  │             │                             │                      │
+│  ◉             │                             │                      │
+└────────────────┴─────────────────────────────┴──────────────────────┘
+</pre>
+
+<h3>AD-02: View Dashboard</h3>
+<pre>
+┌──────────────────────────────────────────────────────────────────────┐
+│                    VIEW DASHBOARD ACTIVITY DIAGRAM                   │
+├───────────────────┬──────────────────────────┬──────────────────────┤
+│  USER             │  NEXT.JS SERVER           │  DATABASE            │
+├───────────────────┼──────────────────────────┼──────────────────────┤
+│  ●                │                          │                      │
+│  │                │                          │                      │
+│  ▼                │                          │                      │
+│ [Navigate to /]   │                          │                      │
+│  ├───────────────►│                          │                      │
+│                   │ [Verify JWT cookie]      │                      │
+│                   │       │                  │                      │
+│                   │  ◇ Valid session?        │                      │
+│                   │  │ No                    │                      │
+│                   │  ▼                       │                      │
+│  ◄────────────────│ [Redirect /login]        │                      │
+│                   │  │ Yes                   │                      │
+│                   │  ▼                       │                      │
+│                   │ [Fetch KPIs]────────────►│                      │
+│                   │ [Fetch alerts]           │ [getPortfolioKPIs()] │
+│                   │ [Fetch stage dist.]      │ [getActiveAlerts()]  │
+│                   │                          │ [getStageDistrib()]  │
+│                   │  ◄───────────────────────│ [Return data]        │
+│                   │                          │                      │
+│                   │ [Apply traffic light     │                      │
+│                   │  thresholds to KPIs]     │                      │
+│                   │       │                  │                      │
+│  ◄────────────────│ [Render dashboard]       │                      │
+│ [View KPIs +      │                          │                      │
+│  alerts + chart]  │                          │                      │
+│       │           │                          │                      │
+│  [Every 60s]      │                          │                      │
+│       ├──────────►│ [Poll /api/alerts/count] │                      │
+│                   │  ├──────────────────────►│                      │
+│                   │  ◄─────────────────────┤ │ [Return count]       │
+│                   │       │                  │                      │
+│                   │  ◇ New alerts?           │                      │
+│                   │  │ Yes                   │                      │
+│  ◄────────────────│ [Refresh alert feed]     │                      │
+│ [Updated alerts]  │  │ No → No-op            │                      │
+│  ◉                │                          │                      │
+└───────────────────┴──────────────────────────┴──────────────────────┘
+</pre>
+
+<h3>AD-03: Manage Client</h3>
+<pre>
+┌─────────────────────────────────────────────────────────────────────────┐
+│                   MANAGE CLIENT ACTIVITY DIAGRAM                        │
+├────────────────┬──────────────────────────┬───────────────────────────┤
+│  RISK OFFICER  │  API LAYER               │  DATABASE / AUDIT SERVICE │
+├────────────────┼──────────────────────────┼───────────────────────────┤
+│  ●             │                          │                           │
+│  ▼             │                          │                           │
+│ [Search client]│                          │                           │
+│  ├────────────►│ [Query Customer+Credits] │                           │
+│                │  ├──────────────────────►│                           │
+│  ◄─────────────│ [Return results]         │                           │
+│ [Select client]│                          │                           │
+│  ├────────────►│ [Load full profile]      │                           │
+│                │  ├──────────────────────►│ [getClientProfile()]      │
+│  ◄─────────────│ [Render 7-tab profile]   │                           │
+│ [Select action │                          │                           │
+│  e.g. Freeze)] │                          │                           │
+│  ├────────────►│ [Check role permission]  │                           │
+│                │       │                  │                           │
+│                │  ◇ Authorised?           │                           │
+│                │  │ No                    │                           │
+│  ◄─────────────│ [Return 403]             │                           │
+│ [Show denied]  │  │ Yes                   │                           │
+│                │  ▼                       │                           │
+│                │ [Execute action          │                           │
+│                │  e.g. POST .../freeze]   │                           │
+│                │  ├──────────────────────►│ [Write to action table]   │
+│                │  ├──────────────────────►│ [recordSystemAction()]    │
+│                │                          │ [createNotification()]    │
+│                │  ◄─────────────────────┤ │                           │
+│  ◄─────────────│ [Return success]         │                           │
+│ [UI updated,   │                          │                           │
+│  toast shown]  │                          │                           │
+│  ◉             │                          │                           │
+└────────────────┴──────────────────────────┴───────────────────────────┘
+</pre>
+
+<h3>AD-04: Generate Early Warning Alert</h3>
+<pre>
+┌──────────────────────────────────────────────────────────────────────────┐
+│               GENERATE EWI ALERT ACTIVITY DIAGRAM                       │
+├───────────────┬─────────────────────┬──────────────────┬───────────────┤
+│  TRIGGER      │  EWI ENGINE         │  ML / AI SERVICE │  DATABASE     │
+├───────────────┼─────────────────────┼──────────────────┼───────────────┤
+│  ●            │                     │                  │               │
+│  ▼            │                     │                  │               │
+│ [Manual click │                     │                  │               │
+│  or Scheduler]│                     │                  │               │
+│  ├───────────►│                     │                  │               │
+│               │ [Fetch signals:     │                  │               │
+│               │  PD, DPD, payments, ├─────────────────►│               │
+│               │  salary, LTV]       │                  │ [Query risk   │
+│               │                     │ ◄────────────────│  portfolio]   │
+│               │ [Pass to ML pipeline├─────────────────►│               │
+│               │  3 sklearn models]  │ [Infer risk]     │               │
+│               │                     │  risk_score      │               │
+│               │                     │  deterioration   │               │
+│               │                     │  key_signals     │               │
+│               │ ◄───────────────────│                  │               │
+│               │ [Call Claude API for│                  │               │
+│               │  risk narrative]    ├─────────────────►│               │
+│               │                     │ [Generate text]  │               │
+│               │ ◄───────────────────│                  │               │
+│               │ ◇ Deterioration ≥ Medium?              │               │
+│               │ │ No → Record prediction only          │               │
+│               │ │ Yes                                  │               │
+│               │ ▼                                      │               │
+│               │ [Generate ≤5 recommendations]          │               │
+│               │ [Write EWIPredictions] ───────────────────────────────►│
+│               │ [Write EWIRecommendations] ───────────────────────────►│
+│               │ [createNotification()]  ──────────────────────────────►│
+│               │ [recordSystemAction()]  ──────────────────────────────►│
+│               │                                        │               │
+│  ◄────────────│ [Return prediction result]             │               │
+│ [Alert shown  │                     │                  │               │
+│  in inbox]    │                     │                  │               │
+│  ◉            │                     │                  │               │
+└───────────────┴─────────────────────┴──────────────────┴───────────────┘
+</pre>
+
+<h3>AD-05: Add to Watchlist</h3>
+<pre>
+┌─────────────────────────────────────────────────────────┐
+│            ADD TO WATCHLIST ACTIVITY DIAGRAM            │
+├──────────────────┬──────────────────┬───────────────────┤
+│  RISK OFFICER    │  API LAYER       │  DATABASE         │
+├──────────────────┼──────────────────┼───────────────────┤
+│  ●               │                  │                   │
+│  ▼               │                  │                   │
+│ [Click "Add to   │                  │                   │
+│  Watchlist" OR   │                  │                   │
+│  Auto-triggered] │                  │                   │
+│  ├──────────────►│                  │                   │
+│                  │ [Check if client │                   │
+│                  │  already on list]├─────────────────► │
+│                  │                  │ [Query watchlist] │
+│                  │ ◄────────────────│                   │
+│                  │  ◇ Already exists?                   │
+│                  │  │ Yes           │                   │
+│  ◄───────────────│ [Return 409]     │                   │
+│ [Show "Already   │  │ No            │                   │
+│  on watchlist"]  │  ▼               │                   │
+│                  │ [Calculate       │                   │
+│                  │  exposure %]     ├─────────────────► │
+│                  │                  │ [getPortfolioKPIs]│
+│                  │ ◄────────────────│                   │
+│                  │  ◇ Exposure > 10%?                   │
+│                  │  │ Yes: reason = "Concentration"     │
+│                  │  │ No:  reason = "Manual"            │
+│                  │  ▼               │                   │
+│                  │ [Insert watchlist├─────────────────► │
+│                  │  entry]          │ [Write record]    │
+│                  │ [createNotif.]   │ [Write notif.]    │
+│                  │ [recordAction]   │ [Write audit]     │
+│                  │ ◄────────────────│                   │
+│  ◄───────────────│ [Return success] │                   │
+│ [Watchlist count │                  │                   │
+│  updated in nav] │                  │                   │
+│  ◉               │                  │                   │
+└──────────────────┴──────────────────┴───────────────────┘
+</pre>
+
+<h3>AD-06: Run Stress Test</h3>
+<pre>
+┌───────────────────────────────────────────────────────────┐
+│             RUN STRESS TEST ACTIVITY DIAGRAM              │
+├─────────────────┬─────────────────────┬───────────────────┤
+│  USER           │  STRESS ENGINE      │  DATABASE         │
+├─────────────────┼─────────────────────┼───────────────────┤
+│  ●              │                     │                   │
+│  ▼              │                     │                   │
+│ [Navigate to    │                     │                   │
+│  /stress]       │                     │                   │
+│  ├─────────────►│ [Load portfolio PD  │                   │
+│                 │  scores + balances]─├──────────────────►│
+│                 │                     │ [Query Portfolio] │
+│                 │ ◄───────────────────│                   │
+│  ◄──────────────│ [Render 3-scenario  │                   │
+│ [Select scenario│  selector]          │                   │
+│  e.g. Adverse]  │                     │                   │
+│  ├─────────────►│                     │                   │
+│                 │ [Apply shock        │                   │
+│                 │  multiplier (1.5×)  │                   │
+│                 │  to all PD scores]  │                   │
+│                 │  ◇ Stressed PD > 1.0?                   │
+│                 │  │ Yes → Cap at 1.0 │                   │
+│                 │  │ No → Use as-is   │                   │
+│                 │  ▼                  │                   │
+│                 │ [Compute ECL per    │                   │
+│                 │  facility:          │                   │
+│                 │  PD × LGD × EAD]   │                   │
+│                 │ [Aggregate results] │                   │
+│                 │ [Calculate delta vs │                   │
+│                 │  baseline]          │                   │
+│  ◄──────────────│ [Render table +     │                   │
+│ [View results]  │  charts]            │                   │
+│  ◇ Export?      │                     │                   │
+│  │ Yes          │                     │                   │
+│  ├─────────────►│ [Serialise PDF/CSV] │                   │
+│  ◄──────────────│ [Trigger download]  │                   │
+│ [File downloaded│                     │                   │
+│  to device]     │                     │                   │
+│  │ No → End     │                     │                   │
+│  ◉              │                     │                   │
+└─────────────────┴─────────────────────┴───────────────────┘
+</pre>
+
+<h3>AD-07: Export Report</h3>
+<pre>
+┌───────────────────────────────────────────────────────────┐
+│              EXPORT REPORT ACTIVITY DIAGRAM               │
+├─────────────────┬─────────────────────┬───────────────────┤
+│  USER           │  EXPORT SERVICE     │  AUDIT SERVICE    │
+├─────────────────┼─────────────────────┼───────────────────┤
+│  ●              │                     │                   │
+│  ▼              │                     │                   │
+│ [Click Export   │                     │                   │
+│  on page]       │                     │                   │
+│  ├─────────────►│ [Present format     │                   │
+│                 │  selector]          │                   │
+│  ◄──────────────│                     │                   │
+│ [Select PDF/CSV]│                     │                   │
+│  ├─────────────►│ [Serialise current  │                   │
+│                 │  dataset]           │                   │
+│                 │  ◇ Format = PDF?    │                   │
+│                 │  │ Yes              │                   │
+│                 │  ▼                  │                   │
+│                 │ [Client-side PDF    │                   │
+│                 │  render via         │                   │
+│                 │  browser print API] │                   │
+│                 │  │ No (CSV)         │                   │
+│                 │  ▼                  │                   │
+│                 │ [Server: stream CSV │                   │
+│                 │  with headers]      │                   │
+│                 │  ◇ Success?         │                   │
+│                 │  │ No               │                   │
+│  ◄──────────────│ [Show error toast]  │                   │
+│                 │  │ Yes              │                   │
+│                 │  ├────────────────► │                   │
+│                 │                     │ [recordSystemAction│
+│                 │                     │  'report_export'] │
+│  ◄──────────────│ [Trigger browser    │                   │
+│ [File download  │  download]          │                   │
+│  initiated]     │                     │                   │
+│  ◉              │                     │                   │
+└─────────────────┴─────────────────────┴───────────────────┘
+</pre>
+
+<!-- SECTION 8 -->
+<h2 id="s8">8. Class Diagram</h2>
+<div class="section-intro">The class diagram below shows all major domain entities, their attributes, methods, and relationships. Relationships include association (──), composition (◆──), and dependency (- - -►).</div>
+<pre>
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                     SPECTRA — UML CLASS DIAGRAM                                ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────┐
+│           &lt;&lt;entity&gt;&gt;        │
+│            User             │
+├─────────────────────────────┤
+│ - userId: string            │
+│ - username: string          │
+│ - name: string              │
+│ - role: UserRole            │
+│ - department: string        │
+│ - initials: string          │
+│ - passwordHash: string      │
+├─────────────────────────────┤
+│ + authenticate(): boolean   │
+│ + hasPermission(           │
+│    action: string): boolean │
+│ + generateSession(): JWT   │
+└──────────────┬──────────────┘
+               │ 1
+               │ performs
+               │ *
+               ▼
+┌─────────────────────────────┐         ┌──────────────────────────────┐
+│           &lt;&lt;entity&gt;&gt;        │         │          &lt;&lt;entity&gt;&gt;           │
+│          SystemAction       │         │           Client              │
+│         (Audit Log)         │         │         (Customer)            │
+├─────────────────────────────┤         ├──────────────────────────────┤
+│ - id: int                   │         │ - personalId: string          │
+│ - clientId: string          │    1    │ - fullName: string            │
+│ - creditId: string          │◄────────│ - dateOfBirth: Date           │
+│ - eventType: EventType      │         │ - occupation: string          │
+│ - oldStage: int             │         │ - segment: string             │
+│ - newStage: int             │         │ - assignedRM: string          │
+│ - oldRiskScore: decimal     │         ├──────────────────────────────┤
+│ - newRiskScore: decimal     │         │ + getFullProfile(): Profile  │
+│ - triggerReason: string     │         │ + getCurrentStage(): int     │
+│ - performedBy: string       │         │ + getRiskScore(): decimal    │
+│ - createdAt: DateTime       │         └────────────┬─────────────────┘
+├─────────────────────────────┤                      │ 1
+│ + record(): void            │                      │ has
+└─────────────────────────────┘                      │ 1..*
+                                                      ▼
+┌─────────────────────────────┐         ┌──────────────────────────────┐
+│           &lt;&lt;entity&gt;&gt;        │         │          &lt;&lt;entity&gt;&gt;           │
+│         Notification        │         │        CreditFacility         │
+│        (RM Inbox)           │         │          (Credits)            │
+├─────────────────────────────┤         ├──────────────────────────────┤
+│ - id: int                   │         │ - creditAccount: string       │
+│ - clientId: string          │    *    │ - productType: string         │
+│ - creditId: string          │◄────────│ - originalAmount: decimal     │
+│ - notificationType: string  │    1    │ - outstandingBalance: decimal │
+│ - priority: Priority        │         │ - interestRate: decimal       │
+│ - title: string             │         │ - maturityDate: Date          │
+│ - message: string           │         │ - status: string              │
+│ - assignedRM: string        │         │ - dpd: int                    │
+│ - createdAt: DateTime       │         │ - pd: decimal                 │
+│ - readAt: DateTime          │         ├──────────────────────────────┤
+├─────────────────────────────┤         │ + computeECL(): decimal      │
+│ + markRead(): void          │         │ + deriveStage(): int         │
+│ + isUnread(): boolean       │         │ + isNPL(): boolean           │
+└─────────────────────────────┘         └────────────┬─────────────────┘
+                                                      │ 1 has 0..*
+                                                      ▼
+┌─────────────────────────────┐         ┌──────────────────────────────┐
+│           &lt;&lt;entity&gt;&gt;        │         │          &lt;&lt;entity&gt;&gt;           │
+│          RiskScore          │         │         ECLProvision          │
+│       (ClientProfile)       │         ├──────────────────────────────┤
+├─────────────────────────────┤         │ - id: int                    │
+│ - clientId: string          │    1    │ - clientId: string            │
+│ - stage: int (1|2|3)        │◄────────│ - creditId: string           │
+│ - riskScore: decimal (0-100)│    1    │ - stage: int                  │
+│ - deteriorationRisk: string │         │ - eclType: ECLType            │
+│ - pdScore: decimal          │         │ - outstandingBalance: decimal │
+│ - dpd: int                  │         │ - provisionRate: decimal      │
+│ - totalExposure: decimal    │         │ - provisionAmount: decimal    │
+│ - missedPayments: int       │         │ - calculatedAt: DateTime      │
+│ - sicrFlag: boolean         │         ├──────────────────────────────┤
+├─────────────────────────────┤         │ + compute(                   │
+│ + computeScore(): decimal   │         │    balance, rate): decimal   │
+│ + evaluateSICR(): boolean   │         └──────────────────────────────┘
+│ + deriveActions(): Action[] │
+└─────────────────────────────┘
+
+┌─────────────────────────────┐         ┌──────────────────────────────┐
+│           &lt;&lt;entity&gt;&gt;        │         │          &lt;&lt;entity&gt;&gt;           │
+│        EWIPrediction        │         │       EWIRecommendation       │
+├─────────────────────────────┤         ├──────────────────────────────┤
+│ - id: int                   │    1    │ - id: int                    │
+│ - clientId: string          │◄────────│ - clientId: string           │
+│ - riskScore: decimal        │  0..*   │ - creditId: string           │
+│ - deteriorationRisk: string │         │ - priority: Priority         │
+│ - keySignals: string[]      │         │ - recommendationType: string │
+│ - aiReasoning: string       │         │ - description: string        │
+│ - runDate: DateTime         │         │ - isActioned: boolean        │
+├─────────────────────────────┤         │ - actionedBy: string        │
+│ + getLatest(): EWIPrediction│         │ - actionedAt: DateTime       │
+│ + toDeteriorationRisk():str │         ├──────────────────────────────┤
+└─────────────────────────────┘         │ + markActioned(userId): void │
+                                         └──────────────────────────────┘
+
+┌─────────────────────────────┐         ┌──────────────────────────────┐
+│           &lt;&lt;entity&gt;&gt;        │         │          &lt;&lt;entity&gt;&gt;           │
+│         WatchlistEntry      │         │      RestructuringPlan        │
+├─────────────────────────────┤         ├──────────────────────────────┤
+│ - id: int                   │         │ - id: int                    │
+│ - clientId: string          │         │ - clientId: string           │
+│ - exposurePct: decimal      │         │ - creditId: string           │
+│ - triggerReason: string     │         │ - type: PlanType             │
+│ - addedBy: string           │         │ - newMaturityDate: Date      │
+│ - addedAt: DateTime         │         │ - holidayDuration: int       │
+│ - notes: string             │         │ - newInterestRate: decimal   │
+├─────────────────────────────┤         │ - forgivenAmount: decimal    │
+│ + isAutoTriggered(): boolean│         │ - status: PlanStatus         │
+│ + remove(): void            │         │ - approvedBy: string         │
+└─────────────────────────────┘         ├──────────────────────────────┤
+                                         │ + approve(userId): void     │
+                                         │ + reject(userId): void      │
+                                         │ + activate(): void          │
+                                         └──────────────────────────────┘
+
+┌─────────────────────────────┐         ┌──────────────────────────────┐
+│           &lt;&lt;entity&gt;&gt;        │         │          &lt;&lt;entity&gt;&gt;           │
+│          RecoveryCase       │         │     CreditCommitteeLog        │
+├─────────────────────────────┤         ├──────────────────────────────┤
+│ - id: int                   │         │ - id: int                    │
+│ - clientId: string          │         │ - clientId: string           │
+│ - creditId: string          │         │ - creditId: string           │
+│ - stage: RecoveryStage      │         │ - escalatedBy: string        │
+│ - assignedTo: string        │         │ - escalatedAt: DateTime      │
+│ - status: CaseStatus        │         │ - decision: DecisionType     │
+│ - notes: string             │         │ - decisionDate: Date         │
+│ - openedAt: DateTime        │         │ - decidedBy: string          │
+├─────────────────────────────┤         │ - notes: string              │
+│ + advanceStage(): void      │         ├──────────────────────────────┤
+│ + close(): void             │         │ + record(): void             │
+│ + assignTo(user): void      │         │ + updateDecision(): void     │
+└─────────────────────────────┘         └──────────────────────────────┘
+
+┌─────────────────────────────┐         ┌──────────────────────────────┐
+│           &lt;&lt;entity&gt;&gt;        │         │       &lt;&lt;value object&gt;&gt;        │
+│          Portfolio          │         │         StressScenario        │
+│         (computed)          │         ├──────────────────────────────┤
+├─────────────────────────────┤         │ - name: string               │
+│ - totalClients: int         │         │ - pdMultiplier: decimal      │
+│ - totalExposure: decimal    │         │ - lgdAssumption: decimal     │
+│ - stage1Count: int          │         │ - stressedECL: decimal       │
+│ - stage2Count: int          │         │ - baselineECL: decimal       │
+│ - stage3Count: int          │         │ - delta: decimal             │
+│ - nplRatio: decimal         │         ├──────────────────────────────┤
+│ - stage2Rate: decimal       │         │ + apply(portfolio):          │
+│ - delinquencyRate: decimal  │         │    StressResult              │
+│ - hhi: decimal              │         └──────────────────────────────┘
+├─────────────────────────────┤
+│ + getKPIs(): PortfolioKPIs  │
+│ + getConcentration(): Data  │
+│ + getHHI(): decimal         │
+└─────────────────────────────┘
+
+────────────────────────── ENUMERATIONS ──────────────────────────────
+
+&lt;&lt;enumeration&gt;&gt; UserRole        &lt;&lt;enumeration&gt;&gt; Priority
+  admin                           Critical
+  risk_officer                    High
+  analyst                         Medium
+                                  Low
+&lt;&lt;enumeration&gt;&gt; IFRSStage
+  Stage1 (1)                    &lt;&lt;enumeration&gt;&gt; ECLType
+  Stage2 (2)                      TwelveMonth
+  Stage3 (3)                      Lifetime
+
+&lt;&lt;enumeration&gt;&gt; RecoveryStage   &lt;&lt;enumeration&gt;&gt; PlanType
+  DebtCollection                  LoanExtension
+  CollateralEnforcement           PaymentHoliday
+  LegalProceedings                RateReduction
+  DebtSale                        DebtConsolidation
+  WriteOff                        PartialWriteOff
+
+&lt;&lt;enumeration&gt;&gt; DecisionType   &lt;&lt;enumeration&gt;&gt; PlanStatus
+  Restructure                     Proposed
+  LegalAction                     Approved
+  WriteOff                        Rejected
+  Pending                         Active
+                                  Completed
+</pre>
+
+<!-- SECTION 9 -->
+<h2 id="s9">9. Rough High-Level Design</h2>
+
+<h3>9.1 Architecture Overview</h3>
+<p>SPECTRA is a <strong>Next.js full-stack web application</strong> deployed on <strong>Vercel</strong>, backed by an <strong>Azure SQL</strong> (MSSQL) relational database. It follows a <strong>server-side rendering + API routes</strong> architecture, where all sensitive business logic, database access, and ML inference runs on the server and no raw database credentials or business rules are exposed to the client.</p>
+
+<pre>
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    SPECTRA — SYSTEM ARCHITECTURE                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+ ┌───────────────────────────────────────────────────────────────────────────┐
+ │                           CLIENT LAYER                                    │
+ │                                                                           │
+ │   ┌──────────────────────┐         ┌──────────────────────────────────┐  │
+ │   │   Internal Web App   │         │       Client Portal              │  │
+ │   │   (Risk Officers,    │         │   (End Clients)                  │  │
+ │   │    Analysts, Admin)  │         │   /portal/[id]                   │  │
+ │   │   Browser / Desktop  │         │   Browser                        │  │
+ │   └──────────┬───────────┘         └───────────────┬──────────────────┘  │
+ └──────────────│─────────────────────────────────────│─────────────────────┘
+                │ HTTPS                                │ HTTPS
+                ▼                                      ▼
+ ┌───────────────────────────────────────────────────────────────────────────┐
+ │                      VERCEL EDGE / CDN LAYER                              │
+ │   Static assets (JS, CSS, images) served from Vercel CDN                 │
+ │   Edge middleware: cookie validation, redirect to /login if unauth.      │
+ └───────────────────────────────────┬───────────────────────────────────────┘
+                                     │
+                                     ▼
+ ┌───────────────────────────────────────────────────────────────────────────┐
+ │                    NEXT.JS APPLICATION SERVER (Vercel)                    │
+ │                                                                           │
+ │  ┌─────────────────────────────────────────────────────────────────────┐ │
+ │  │                     FRONTEND (React / Next.js 14)                   │ │
+ │  │                                                                     │ │
+ │  │  Pages: Dashboard · Portfolio · Clients · Warnings · Analytics      │ │
+ │  │         Watchlist · Concentration · Stress Test · Audit · Portal    │ │
+ │  │                                                                     │ │
+ │  │  Components: NotificationBell · Topbar · MobileSidebar             │ │
+ │  │              ClientProfileTabs · MessagingPanel                    │ │
+ │  └──────────────────────────────┬──────────────────────────────────────┘ │
+ │                                 │ (Server Actions / API fetch)            │
+ │  ┌──────────────────────────────▼──────────────────────────────────────┐ │
+ │  │                     API ROUTE LAYER (Next.js App Router)            │ │
+ │  │                                                                     │ │
+ │  │  /api/auth/login · /api/auth/me                                     │ │
+ │  │  /api/alerts/* · /api/notifications/*                              │ │
+ │  │  /api/clients/[id]/* (freeze, resolve, committee, restructuring,   │ │
+ │  │                        recovery, engagements, documents,           │ │
+ │  │                        messages, notify)                           │ │
+ │  │  /api/ewi/* · /api/predictions/*                                   │ │
+ │  │  /api/monitoring/* · /api/analytics/*                              │ │
+ │  │  /api/portal/auth/* · /api/portal/[id]/*                          │ │
+ │  └──────────────────────────────┬──────────────────────────────────────┘ │
+ │                                 │                                         │
+ │  ┌──────────────────────────────▼──────────────────────────────────────┐ │
+ │  │                     SERVICE LAYER (lib/)                             │ │
+ │  │                                                                     │ │
+ │  │  classificationEngine  actionEngine    eclProvisionService          │ │
+ │  │  monitoringService     notificationService  committeeService        │ │
+ │  │  recoveryService       restructuringService  engagementService      │ │
+ │  │  ewiPredictionsService ewiRecommendationsService  messagingService  │ │
+ │  │  documentRequestService  frozenLimitService  salarySweepService     │ │
+ │  │  writtenOffService     resolutionService  eventBus                  │ │
+ │  └──────────────────────────────┬──────────────────────────────────────┘ │
+ │                                 │                                         │
+ │  ┌──────────────────────────────▼──────────────────────────────────────┐ │
+ │  │                    DATA ACCESS LAYER (lib/)                          │ │
+ │  │                                                                     │ │
+ │  │  db.server.ts  ─── MSSQL Connection Pool (node-mssql)              │ │
+ │  │  queries.ts    ─── 50+ parameterised read queries                   │ │
+ │  │                    (WITH NOLOCK for performance)                    │ │
+ │  └──────────────────────────────┬──────────────────────────────────────┘ │
+ └─────────────────────────────────│────────────────────────────────────────┘
+                                   │ TDS Protocol (port 1433)
+                                   ▼
+ ┌─────────────────────────────────────────────────────────────────────────┐
+ │                       AZURE SQL DATABASE                                │
+ │                                                                         │
+ │  Core Banking (read-only source):                                      │
+ │  ┌────────────────┐  ┌──────────────┐  ┌─────────────────────────┐   │
+ │  │   Customer     │  │   Credits    │  │      RiskPortfolio       │   │
+ │  └────────────────┘  └──────────────┘  └─────────────────────────┘   │
+ │  ┌────────────────┐  ┌──────────────┐  ┌─────────────────────────┐   │
+ │  │ DueDaysDaily   │  │AmortizationPl│  │       SalaryInfo         │   │
+ │  └────────────────┘  └──────────────┘  └─────────────────────────┘   │
+ │                                                                         │
+ │  SPECTRA-managed (read/write):                                         │
+ │  ┌──────────────┐  ┌───────────────┐  ┌────────────────────────┐     │
+ │  │SystemActions │  │ Notifications │  │   ClientMonitoring     │     │
+ │  └──────────────┘  └───────────────┘  └────────────────────────┘     │
+ │  ┌──────────────┐  ┌───────────────┐  ┌────────────────────────┐     │
+ │  │ECLProvisions │  │  RecoveryCases│  │  RestructuringPlans    │     │
+ │  └──────────────┘  └───────────────┘  └────────────────────────┘     │
+ │  ┌──────────────┐  ┌───────────────┐  ┌────────────────────────┐     │
+ │  │EWIPredictions│  │EWIRecommends  │  │  CreditCommitteeLog    │     │
+ │  └──────────────┘  └───────────────┘  └────────────────────────┘     │
+ │  ┌──────────────┐  ┌───────────────┐  ┌────────────────────────┐     │
+ │  │CollateralRev.│  │DocumentReqs   │  │  AlertAcknowledgements │     │
+ │  └──────────────┘  └───────────────┘  └────────────────────────┘     │
+ │  ┌──────────────┐                                                       │
+ │  │WrittenOffCls │                                                       │
+ │  └──────────────┘                                                       │
+ └─────────────────────────────────────────────────────────────────────────┘
+
+             ┌──────────────────────────────────┐
+             │      EXTERNAL INTEGRATIONS        │
+             ├──────────────────────────────────┤
+             │  ┌──────────────────────────┐    │
+             │  │   Anthropic Claude API    │    │
+             │  │  - Risk narrative gen.   │    │
+             │  │  - EWI signal reasoning  │    │
+             │  │  Model: claude-sonnet-4-6│    │
+             │  └──────────────────────────┘    │
+             │  ┌──────────────────────────┐    │
+             │  │   Python ML Pipeline      │    │
+             │  │  (sklearn models)         │    │
+             │  │  - model_90d.pkl          │    │
+             │  │  - model_dpd_escalation   │    │
+             │  │  - model_stage_migration  │    │
+             │  └──────────────────────────┘    │
+             └──────────────────────────────────┘
+</pre>
+
+<h3>9.2 Authentication Architecture</h3>
+<pre>
+  Browser                Vercel Edge           Auth Service
+     │                       │                     │
+     │  POST /api/auth/login  │                     │
+     ├──────────────────────►│                     │
+     │                       │  Validate rate limit │
+     │                       │  Verify scrypt hash  │
+     │                       ├────────────────────►│
+     │                       │                     │ Sign JWT (HS256)
+     │                       │◄────────────────────│ {userId, role, 8h TTL}
+     │  Set-Cookie:          │                     │
+     │  spectra_session=JWT  │                     │
+     │  (HttpOnly, Secure,   │                     │
+     │   SameSite=Strict)    │                     │
+     │◄──────────────────────│                     │
+     │                       │                     │
+     │  Subsequent requests  │                     │
+     │  Cookie: spectra_session=JWT                │
+     ├──────────────────────►│                     │
+     │                       │  Edge middleware:    │
+     │                       │  verify JWT →        │
+     │                       │  inject user context │
+     │                       │  into req headers    │
+     │                       ├────────────────────►│
+     │  Protected response   │                     │
+     │◄──────────────────────│                     │
+</pre>
+
+<h3>9.3 Database Schema Overview</h3>
+<p><strong>Core Banking Tables (read-only, sourced from CBS):</strong></p>
+<table>
+  <thead><tr><th>Table</th><th>Purpose</th><th>Key Columns</th></tr></thead>
+  <tbody>
+    <tr><td><code>Customer</code></td><td>Client master data</td><td>PersonalID, FullName, DOB, Occupation</td></tr>
+    <tr><td><code>Credits</code></td><td>Loan facility details</td><td>CreditAccount, Amount, Interes, STATUS, StartDate</td></tr>
+    <tr><td><code>RiskPortfolio</code></td><td>Live risk signals</td><td>PersonalID, Stage, BankCurrentRating, DPD, PD</td></tr>
+    <tr><td><code>DueDaysDaily</code></td><td>DPD daily history</td><td>CreditAccount, DueDays, AsOf</td></tr>
+    <tr><td><code>AmortizationPlan</code></td><td>Payment schedule</td><td>CreditAccount, DueDate, Amount, Paid</td></tr>
+    <tr><td><code>SalaryInfo</code></td><td>Income data</td><td>PersonalID, NetSalary, Employer, LastCreditDate</td></tr>
+  </tbody>
+</table>
+
+<p><strong>SPECTRA-Managed Tables (full read/write):</strong></p>
+<table>
+  <thead><tr><th>Table</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>SystemActions</code></td><td>Immutable audit log</td></tr>
+    <tr><td><code>Notifications</code></td><td>RM notification inbox</td></tr>
+    <tr><td><code>ClientMonitoring</code></td><td>Review cadence and freeze state</td></tr>
+    <tr><td><code>ECLProvisions</code></td><td>IFRS 9 provision snapshots</td></tr>
+    <tr><td><code>RecoveryCases</code></td><td>Formal recovery case lifecycle</td></tr>
+    <tr><td><code>RestructuringPlans</code></td><td>Loan modification plans</td></tr>
+    <tr><td><code>EWIPredictions</code></td><td>ML risk prediction history</td></tr>
+    <tr><td><code>EWIRecommendations</code></td><td>Actionable alert recommendations</td></tr>
+    <tr><td><code>CollateralReview</code></td><td>Collateral revaluation log</td></tr>
+    <tr><td><code>DocumentRequests</code></td><td>RM document request tracking</td></tr>
+    <tr><td><code>AlertAcknowledgements</code></td><td>Alert disposition log</td></tr>
+    <tr><td><code>CreditCommitteeLog</code></td><td>Committee escalation decisions</td></tr>
+    <tr><td><code>WrittenOffClients</code></td><td>KPI exclusion list</td></tr>
+  </tbody>
+</table>
+
+<h3>9.4 Deployment Infrastructure</h3>
+<pre>
+ ┌──────────────────────────────────────────────────────────┐
+ │                 DEPLOYMENT TOPOLOGY                      │
+ ├──────────────────────────────────────────────────────────┤
+ │                                                          │
+ │  GitHub Repository (spectra_system)                      │
+ │         │                                                │
+ │         │ git push → Vercel CI/CD                        │
+ │         ▼                                                │
+ │  Vercel Platform                                         │
+ │  ┌──────────────────────────────────────────────────┐   │
+ │  │  Next.js Build (frontend/)                       │   │
+ │  │  - Static pages → Vercel CDN (global edge)       │   │
+ │  │  - API Routes  → Vercel Serverless Functions     │   │
+ │  │                  (Node.js 18 runtime)            │   │
+ │  │  - Environment variables managed in Vercel UI    │   │
+ │  │    DB_SERVER, DB_USER, DB_PASS, JWT_SECRET,      │   │
+ │  │    ANTHROPIC_API_KEY, etc.                       │   │
+ │  └──────────────────────────────────────────────────┘   │
+ │         │                                                │
+ │         │ TDS / SQL over TLS (port 1433)                 │
+ │         ▼                                                │
+ │  Azure SQL Database                                      │
+ │  ┌──────────────────────────────────────────────────┐   │
+ │  │  - Azure SQL (MSSQL-compatible)                  │   │
+ │  │  - Connection pool via node-mssql                │   │
+ │  │  - Firewall: whitelist Vercel egress IPs         │   │
+ │  │  - Backups: Azure automated backup (7-day RTR)   │   │
+ │  └──────────────────────────────────────────────────┘   │
+ └──────────────────────────────────────────────────────────┘
+</pre>
+
+<h3>9.5 Key Design Decisions &amp; Trade-Offs</h3>
+<table>
+  <thead><tr><th>Decision</th><th>Choice</th><th>Rationale</th></tr></thead>
+  <tbody>
+    <tr><td><strong>ORM vs raw SQL</strong></td><td>Raw SQL (node-mssql)</td><td>Full control over query plans; <code>WITH (NOLOCK)</code> hints; no ORM overhead for complex analytical queries</td></tr>
+    <tr><td><strong>Auth mechanism</strong></td><td>JWT + HttpOnly cookie</td><td>Stateless (scales horizontally on Vercel serverless); HttpOnly prevents XSS token theft</td></tr>
+    <tr><td><strong>Table creation</strong></td><td>DDL-on-first-use</td><td>Eliminates separate migration tooling for a SaaS deployment; idempotent guards prevent duplication</td></tr>
+    <tr><td><strong>Credential storage</strong></td><td>In-memory (users.ts)</td><td>Appropriate for a controlled bank deployment; avoids database dependency for auth</td></tr>
+    <tr><td><strong>Config management</strong></td><td>Central config.ts + env vars</td><td>Business thresholds are auditable in code; overridable per bank without code changes</td></tr>
+    <tr><td><strong>ML integration</strong></td><td>External Python pipeline</td><td>Separates model training/deployment from the web app; sklearn models are loaded at inference time</td></tr>
+    <tr><td><strong>AI narrative</strong></td><td>Claude API (claude-sonnet-4-6)</td><td>Structured JSON prompts for consistent risk summaries; model upgrade path without code change</td></tr>
+    <tr><td><strong>Real-time alerts</strong></td><td>Polling (60s)</td><td>Simpler than WebSockets on a serverless platform; acceptable latency for credit risk operations</td></tr>
+    <tr><td><strong>SSE</strong></td><td>Server-Sent Events for portal</td><td>One-directional push for client notifications; lightweight alternative to WebSocket</td></tr>
+  </tbody>
+</table>
+
+<hr>
+<p style="text-align:center; color:#888; font-size:9pt; margin-top:40px;">
+  <em>SPECTRA Credit Risk Intelligence Platform — Software Requirements &amp; Design Document v1.0</em><br>
+  <em>Generated: March 2026 | Internal Confidential</em>
+</p>
+
+</body>
+</html>

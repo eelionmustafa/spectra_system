@@ -18,7 +18,7 @@ WITH latest_risk AS (
         r.CalculatedProvision,
         r.CalculationDate,
         ROW_NUMBER() OVER (PARTITION BY r.arrangementID ORDER BY r.CalculationDate DESC) AS rn
-    FROM [SPECTRA].[dbo].[RiskPortfolio] r WITH (NOLOCK)
+    FROM [dbo].[RiskPortfolio] r WITH (NOLOCK)
 ),
 customer_geo AS (
     SELECT
@@ -27,7 +27,7 @@ customer_geo AS (
         c.Branch,
         c.CustomerType,
         c.Occupation
-    FROM [SPECTRA].[dbo].[Customer] c WITH (NOLOCK)
+    FROM [dbo].[Customer] c WITH (NOLOCK)
 )
 SELECT
     lr.product_type,
@@ -40,12 +40,12 @@ SELECT
     cg.CustomerType                                                         AS customer_type,
     COUNT(DISTINCT lr.clientID)                                             AS client_count,
     COUNT(DISTINCT lr.arrangementID)                                        AS arrangement_count,
-    SUM(lr.totalExposure)                                                   AS total_exposure,
-    SUM(lr.onBalanceExposure)                                               AS on_balance_exposure,
-    SUM(lr.TotalOffBalance)                                                 AS off_balance_exposure,
-    SUM(lr.CalculatedProvision)                                             AS total_provision,
-    CAST(SUM(lr.CalculatedProvision) AS FLOAT) /
-        NULLIF(SUM(lr.onBalanceExposure), 0) * 100                         AS provision_coverage_pct
+    SUM(TRY_CAST(lr.totalExposure AS FLOAT))                                                   AS total_exposure,
+    SUM(TRY_CAST(lr.onBalanceExposure AS FLOAT))                                               AS on_balance_exposure,
+    SUM(TRY_CAST(lr.TotalOffBalance AS FLOAT))                                                 AS off_balance_exposure,
+    SUM(TRY_CAST(lr.CalculatedProvision AS FLOAT))                                             AS total_provision,
+    CAST(SUM(TRY_CAST(lr.CalculatedProvision AS FLOAT)) AS FLOAT) /
+        NULLIF(SUM(TRY_CAST(lr.onBalanceExposure AS FLOAT)), 0) * 100                         AS provision_coverage_pct
 FROM latest_risk lr
 LEFT JOIN customer_geo cg ON lr.clientID = cg.PersonalID
 WHERE lr.rn = 1

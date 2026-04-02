@@ -21,10 +21,12 @@ import { getActiveFreezeLimit } from '@/lib/frozenLimitService'
 import { getDocumentRequests } from '@/lib/documentRequestService'
 import { getEngagements } from '@/lib/engagementService'
 import { getActiveRestructuringPlan } from '@/lib/restructuringService'
+import { isClientResolved } from '@/lib/resolutionService'
 import type { FreezeRow } from '@/lib/frozenLimitService'
 import type { DocumentRequestRow } from '@/lib/documentRequestService'
 import type { EngagementRow } from '@/lib/engagementService'
 import type { PlanRow } from '@/lib/restructuringService'
+import PortalMessaging from './PortalMessaging'
 
 /* ─── helpers ────────────────────────────────────────────────────────────────── */
 function fmtAmt(n: number, always = false) {
@@ -135,6 +137,11 @@ const IconCalendar = () => (
     <path d="M2 9h16" stroke="currentColor" strokeWidth="1.5"/>
     <path d="M6 2v4M14 2v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
     <path d="M6 13h2M10 13h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+)
+const IconChat = () => (
+  <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+    <path d="M2 3h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H6l-4 3V4a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
   </svg>
 )
 const IconLock = () => (
@@ -480,6 +487,7 @@ export default async function ClientPortal({
   let pendingDocs: DocumentRequestRow[] = []
   let upcomingEngagements: EngagementRow[] = []
   let activePlan: PlanRow | null = null
+  let isResolved = false
 
   try {
     const [profileResult, baseResults] = await Promise.all([
@@ -524,16 +532,18 @@ export default async function ClientPortal({
       amortization = await getClientAmortization(id)
     }
 
-    const [freeze, docs, engagements, plan] = await Promise.allSettled([
+    const [freeze, docs, engagements, plan, resolved] = await Promise.allSettled([
       getActiveFreezeLimit(id),
       getDocumentRequests(id, 10),
       getEngagements(id, 10),
       getActiveRestructuringPlan(id),
+      isClientResolved(id),
     ])
     if (freeze.status === 'fulfilled')       activeFreeze        = freeze.value
     if (docs.status === 'fulfilled')         pendingDocs         = docs.value.filter(d => d.status === 'Pending')
     if (engagements.status === 'fulfilled')  upcomingEngagements = engagements.value.filter(e => e.status === 'scheduled' && new Date(e.scheduled_at) > new Date())
     if (plan.status === 'fulfilled')         activePlan          = plan.value
+    if (resolved.status === 'fulfilled')     isResolved          = resolved.value
   } catch {
     return (
       <div style={{ minHeight: '100vh', background: '#F0F4F8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -548,7 +558,7 @@ export default async function ClientPortal({
     )
   }
 
-  const isFrozen = (activeActions ?? []).some(a => a.action === 'Freeze Account' || a.action === 'Freeze account')
+  const isFrozen = !!(activeFreeze) || (activeActions ?? []).some(a => a.action === 'Freeze Account' || a.action === 'Freeze account')
   if (isFrozen && isClientSession) {
     return <FrozenWall name={profile?.full_name || id} clientId={id} />
   }
@@ -661,8 +671,13 @@ export default async function ClientPortal({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
             {/* Notices */}
-            {(isFrozen || overdue.length > 0 || notices.length > 0 || activeFreeze || pendingDocs.length > 0 || upcomingEngagements.length > 0 || activePlan) && (
+            {(isFrozen || isResolved || overdue.length > 0 || notices.length > 0 || activeFreeze || pendingDocs.length > 0 || upcomingEngagements.length > 0 || activePlan) && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {isResolved && (
+                  <NoticeBanner variant="green" Icon={IconCheck} title="Case Resolved">
+                    Your account is in good standing — all concerns have been reviewed and resolved by our risk team. No further action is required on your end.
+                  </NoticeBanner>
+                )}
                 {isFrozen && (
                   <NoticeBanner variant="red" Icon={IconLock} title="Account Restricted">
                     Transactions are currently blocked. Please contact your advisor immediately.
@@ -1202,6 +1217,7 @@ export default async function ClientPortal({
           </div>
         </div>
       </div>
+      <PortalMessaging clientId={id} />
     </div>
   )
 }

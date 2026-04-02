@@ -33,7 +33,6 @@ BEGIN
     client_id         NVARCHAR(50)  NOT NULL PRIMARY KEY,
     review_frequency  NVARCHAR(20)  NOT NULL DEFAULT 'Monthly',
     is_freezed        BIT           NOT NULL DEFAULT 0,
-    freeze_reason     NVARCHAR(500) NULL,
     frozen_at         DATETIME      NULL,
     updated_at        DATETIME      NOT NULL DEFAULT GETDATE()
   );
@@ -117,8 +116,6 @@ BEGIN
     new_value           FLOAT            NOT NULL,
     -- Outstanding loan balance at time of review
     current_exposure    FLOAT            NULL,
-    -- Loan-to-value = current_exposure / new_value * 100
-    ltv_recalculated    FLOAT            NULL,
     reviewed_by         NVARCHAR(100)    NOT NULL,
     notes               NVARCHAR(MAX)    NULL,
     created_at          DATETIME         NOT NULL DEFAULT GETDATE()
@@ -138,11 +135,44 @@ IF NOT EXISTS (
 BEGIN
   CREATE INDEX IX_CollateralReview_ClientID_RevalDate
     ON [dbo].[CollateralReview] (client_id, revaluation_date DESC)
-    INCLUDE (new_value, ltv_recalculated);
+    INCLUDE (new_value, current_exposure);
   PRINT 'Created index: IX_CollateralReview_ClientID_RevalDate';
 END
 GO
 
+
+-- ── Migration: drop dead columns (existing deployments) ───────────────────────
+IF EXISTS (
+  SELECT 1 FROM sys.columns
+  WHERE object_id = OBJECT_ID(N'dbo.ClientMonitoring') AND name = N'freeze_reason'
+)
+BEGIN
+  ALTER TABLE [dbo].[ClientMonitoring] DROP COLUMN [freeze_reason];
+  PRINT N'Dropped dead column: ClientMonitoring.freeze_reason';
+END
+GO
+
+IF EXISTS (
+  SELECT 1 FROM sys.columns
+  WHERE object_id = OBJECT_ID(N'dbo.CollateralReview') AND name = N'ltv_recalculated'
+)
+BEGIN
+  -- Rebuild the index without the dropped column first
+  IF EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID(N'dbo.CollateralReview') AND name = N'IX_CollateralReview_ClientID_RevalDate'
+  )
+    DROP INDEX [IX_CollateralReview_ClientID_RevalDate] ON [dbo].[CollateralReview];
+
+  ALTER TABLE [dbo].[CollateralReview] DROP COLUMN [ltv_recalculated];
+
+  CREATE INDEX [IX_CollateralReview_ClientID_RevalDate]
+    ON [dbo].[CollateralReview] (client_id, revaluation_date DESC)
+    INCLUDE (new_value, current_exposure);
+
+  PRINT N'Dropped dead column: CollateralReview.ltv_recalculated';
+END
+GO
 
 -- ─── Sample verification queries ──────────────────────────────────────────────
 
