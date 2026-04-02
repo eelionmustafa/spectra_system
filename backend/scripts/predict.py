@@ -12,6 +12,7 @@ predictions.csv columns:
   risk_label                — derived from pd_90d (primary horizon for portfolio management)
   stage_migration_prob, dpd_escalation_prob, recommended_action
 """
+import hashlib
 import logging
 from datetime import date
 from pathlib import Path
@@ -32,9 +33,31 @@ _MODELS_DIR   = _PROJECT_ROOT / "models"
 def _load_model(name):
     path = _MODELS_DIR / (name + ".pkl")
     if not path.exists():
-        log.warning("Model not found: %s", path)
-        return None
+        raise FileNotFoundError(
+            f"Model file not found: {path}. Run train_model.py first."
+        )
     return joblib.load(path)
+
+
+def _validate_feature_hash(bundle, name: str) -> None:
+    """Raise if the bundle's stored feature_hash doesn't match its feature_cols.
+
+    A mismatch means the .pkl file is corrupted or was hand-edited. A missing
+    feature_hash key means the model was trained with an older version of
+    train_model.py — log a warning so operators know to retrain.
+    """
+    stored_hash = bundle.get("feature_hash")
+    if stored_hash is None:
+        log.warning("[%s] No feature_hash in bundle — model may have been trained "
+                    "with an older pipeline version. Retrain recommended.", name)
+        return
+    computed = hashlib.md5(",".join(sorted(bundle["feature_cols"])).encode()).hexdigest()
+    if computed != stored_hash:
+        raise ValueError(
+            f"[{name}] feature_hash mismatch: bundle reports {stored_hash!r} but "
+            f"recomputed {computed!r}. The .pkl file may be corrupted. "
+            "Delete it and retrain with train_model.py."
+        )
 
 
 def _predict_proba(bundle, X):
@@ -44,6 +67,10 @@ def _predict_proba(bundle, X):
     scaler = bundle["scaler"]
     feat = bundle["feature_cols"]
     x_sub = X.reindex(columns=feat, fill_value=0)
+    missing_cols = [c for c in feat if c not in X.columns]
+    if missing_cols:
+        import warnings as _warnings
+        _warnings.warn(f"[SPECTRA] Missing features in prediction data, zero-filled: {missing_cols}")
     if scaler is not None:
         x_sub = pd.DataFrame(scaler.transform(x_sub), columns=feat, index=x_sub.index)
     return model.predict_proba(x_sub)[:, 1]
@@ -62,6 +89,16 @@ def predict() -> pd.DataFrame:
     m_def90 = _load_model("model_default_90d")
     m_mig   = _load_model("model_stage_migration")
     m_dpd   = _load_model("model_dpd_escalation")
+
+    log.info("Validating feature hashes...")
+    for bundle, name in [
+        (m_def30, "model_default_30d"),
+        (m_def60, "model_default_60d"),
+        (m_def90, "model_default_90d"),
+        (m_mig,   "model_stage_migration"),
+        (m_dpd,   "model_dpd_escalation"),
+    ]:
+        _validate_feature_hash(bundle, name)
 
     log.info("Scoring %d clients across 3 horizons (30d, 60d, 90d)...", len(X))
     pd_30_scores = _predict_proba(m_def30, X)
@@ -109,9 +146,15 @@ if __name__ == "__main__":
 
     # Auto-run SHAP explanations immediately after scoring
     try:
-        from explain import explain_all
+        from explain import explain_all  # noqa: PLC0415
         log.info("Running SHAP explanations...")
         shap_df = explain_all()
         print("SHAP explanations shape:", shap_df.shape)
+    except ImportError as e:
+        log.warning(
+            "SHAP explanations skipped — explain.py not found or missing dependency: %s. "
+            "Make sure you run predict.py from the backend/scripts/ directory.",
+            e,
+        )
     except Exception as e:
-        log.warning("SHAP explanations skipped: %s", e)
+        log.warning("SHAP explanations failed: %s", e)

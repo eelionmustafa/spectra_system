@@ -53,14 +53,12 @@ const NAV_ICON = {
 export default function Sidebar({ session }: Props) {
   const path   = usePathname()
   const router = useRouter()
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('sb-collapsed') === '1' } catch { return false }
+  })
   const [alertCount, setAlertCount]             = useState<number | null>(null)
   const [watchlistCount, setWatchlistCount]     = useState<number | null>(null)
   const [notifCount, setNotifCount]             = useState<number | null>(null)
-
-  useEffect(() => {
-    try { if (localStorage.getItem('sb-collapsed') === '1') setCollapsed(true) } catch {}
-  }, [])
 
   const toggle = useCallback(() => {
     setCollapsed(c => {
@@ -90,9 +88,7 @@ export default function Sidebar({ session }: Props) {
       {/* Logo */}
       <div className="logo">
         <div className="logo-mark">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 8h4l2-6 2 12 2-6h2" stroke="#0D1B2A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <img src="/logo.png" alt="SPECTRA" width={22} height={22} style={{ objectFit: 'contain' }} />
         </div>
         {!collapsed && (
           <div>

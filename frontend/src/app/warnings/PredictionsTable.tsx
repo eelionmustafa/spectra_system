@@ -47,7 +47,7 @@ function SignalTags({ raw }: { raw: string | null }) {
   return (
     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
       {signals.slice(0, 3).map((s, i) => (
-        <span key={i} style={{ fontSize: '9px', padding: '2px 7px', borderRadius: '4px', background: '#F1F5F9', color: 'var(--text)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
+        <span key={i} style={{ fontSize: '9px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(255,255,255,0.07)', color: 'var(--text)', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
           {s}
         </span>
       ))}
@@ -116,7 +116,7 @@ function PredictionDrawer({ row, onClose }: { row: EWIPredictionRow; onClose: ()
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,42,0.45)', zIndex: 50, animation: 'ew-fade 0.15s ease' }} />
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(440px,100vw)',
-        background: 'white', zIndex: 51, boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
+        background: 'var(--card)', zIndex: 51, boxShadow: '-8px 0 32px rgba(0,0,0,0.25)',
         display: 'flex', flexDirection: 'column', overflowY: 'auto',
         animation: 'ew-slide 0.22s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
         <style>{`
@@ -140,13 +140,13 @@ function PredictionDrawer({ row, onClose }: { row: EWIPredictionRow; onClose: ()
         </div>
 
         {/* Body */}
-        <div style={{ padding: '20px 22px', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ padding: '20px 22px', flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {signals.length > 0 && (
             <div>
               <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Key Signals</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {signals.map((s, i) => (
-                  <span key={i} style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '5px', background: '#F1F5F9', color: 'var(--text)', border: '1px solid var(--border)' }}>{s}</span>
+                  <span key={i} style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '5px', background: 'rgba(255,255,255,0.07)', color: 'var(--text)', border: '1px solid var(--border)' }}>{s}</span>
                 ))}
               </div>
             </div>
@@ -155,7 +155,7 @@ function PredictionDrawer({ row, onClose }: { row: EWIPredictionRow; onClose: ()
           {row.ai_reasoning && (
             <div>
               <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>AI Analysis</div>
-              <div style={{ padding: '12px 14px', background: '#F8FAFC', borderRadius: '7px', borderLeft: `3px solid ${m.color}`, fontSize: '12px', color: 'var(--text)', lineHeight: '1.6' }}>
+              <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '7px', borderLeft: `3px solid ${m.color}`, fontSize: '12px', color: 'var(--text)', lineHeight: '1.6' }}>
                 {row.ai_reasoning}
               </div>
             </div>
@@ -240,7 +240,7 @@ export default function PredictionsTable({ initialRows, initialTotal, initialQ, 
         <button className="ew-pg-btn" disabled={page <= 1 || loading}
           onClick={() => { setPage(p => p - 1); pushParams(q.trim(), page - 1, risk) }}>‹</button>
         {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
-          let p = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i
+          const p = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i
           return <button key={p} className={`ew-pg-btn${p === page ? ' active' : ''}`} disabled={loading}
             onClick={() => { setPage(p); pushParams(q.trim(), p, risk) }}>{p}</button>
         })}
@@ -254,12 +254,12 @@ export default function PredictionsTable({ initialRows, initialTotal, initialQ, 
     <>
       <style>{`
         .ew-search:focus{border-color:var(--navy)!important;box-shadow:0 0 0 3px rgba(29,43,78,0.08)!important;}
-        .ew-row{cursor:pointer;transition:background 0.1s;} .ew-row:hover td{background:#F7F9FC;}
+        .ew-row{cursor:pointer;transition:background 0.1s;} .ew-row:hover td{background:rgba(255,255,255,0.04) !important;}
         .ew-row td{border-bottom:1px solid var(--border);}
-        .ew-pg-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:white;cursor:pointer;font-size:12px;font-family:var(--mono);color:var(--text);display:flex;align-items:center;justify-content:center;transition:background 0.1s;}
+        .ew-pg-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-family:var(--mono);color:var(--text);display:flex;align-items:center;justify-content:center;transition:background 0.1s;}
         .ew-pg-btn:hover:not(:disabled){background:#EEF2F7;} .ew-pg-btn:disabled{opacity:0.4;cursor:not-allowed;}
         .ew-pg-btn.active{background:var(--navy);color:white;border-color:var(--navy);font-weight:700;}
-        .ew-fb{padding:4px 10px;border-radius:5px;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--muted);font-family:var(--font);white-space:nowrap;line-height:1.4;transition:all 0.1s;}
+        .ew-fb{padding:4px 10px;border-radius:5px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:11px;font-weight:600;color:var(--muted);font-family:var(--font);white-space:nowrap;line-height:1.4;transition:all 0.1s;}
         .ew-fb:hover{background:#EEF2F7;color:var(--text);} .ew-fb.active{background:var(--navy);color:white;border-color:var(--navy);}
         .ew-flbl{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
       `}</style>
@@ -275,12 +275,12 @@ export default function PredictionsTable({ initialRows, initialTotal, initialQ, 
           placeholder="Search by client ID…"
           style={{ width: '100%', boxSizing: 'border-box', padding: '11px 38px 11px 40px', fontSize: '14px',
             border: '1.5px solid var(--border)', borderRadius: '8px', outline: 'none', fontFamily: 'var(--font)',
-            background: 'white', color: 'var(--text)', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }} />
+            background: 'var(--card)', color: 'var(--text)', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }} />
         {q && <button onClick={() => setQ('')} style={{ position: 'absolute', right: '11px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '18px', padding: '2px 6px' }}>×</button>}
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', padding: '10px 14px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <span className="ew-flbl" style={{ marginRight: '2px' }}>Risk Level</span>
           {RISK_OPTIONS.map(([v, label]) => (
@@ -295,7 +295,7 @@ export default function PredictionsTable({ initialRows, initialTotal, initialQ, 
           onClick={handleSeed}
           disabled={seeding}
           style={{ marginLeft: 'auto', padding: '4px 12px', borderRadius: '5px', border: '1.5px solid var(--border)',
-            background: seeding ? '#F1F5F9' : 'white', cursor: seeding ? 'not-allowed' : 'pointer',
+            background: seeding ? 'rgba(255,255,255,0.04)' : 'var(--card)', cursor: seeding ? 'not-allowed' : 'pointer',
             fontSize: '11px', fontWeight: 600, color: seeding ? 'var(--muted)' : 'var(--navy)', fontFamily: 'var(--font)' }}
         >
           {seeding ? 'Generating…' : '↻ Generate from DB'}
@@ -332,7 +332,7 @@ export default function PredictionsTable({ initialRows, initialTotal, initialQ, 
                   {hg.headers.map(h => (
                     <th key={h.id} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 700,
                       color: 'var(--muted)', letterSpacing: '1px', textTransform: 'uppercase',
-                      background: '#F8FAFC', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', width: h.getSize() }}>
+                      background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', width: h.getSize() }}>
                       {flexRender(h.column.columnDef.header, h.getContext())}
                     </th>
                   ))}
@@ -377,7 +377,7 @@ export default function PredictionsTable({ initialRows, initialTotal, initialQ, 
             </tbody>
           </table>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid var(--border)', background: '#FAFBFC' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'rgba(255,255,255,0.03)' }}>
           <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Page {page} of {totalPages}</span>
           <div style={{ display: 'flex', gap: '4px' }}>{PgBtns()}</div>
         </div>

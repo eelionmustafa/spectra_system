@@ -19,7 +19,7 @@ export default function StageBreakdownDonut({ data, total }: { data: StageSlice[
               {slices.map((s, i) => <Cell key={i} fill={s.color} />)}
             </Pie>
             <Tooltip
-              formatter={(v: any, _: any, props: any) => [
+              formatter={(v: unknown, _: string, props: { payload?: { label?: string } }) => [
                 `${v} (${total ? ((Number(v) / total) * 100).toFixed(1) : 0}%)`,
                 props.payload?.label,
               ]}

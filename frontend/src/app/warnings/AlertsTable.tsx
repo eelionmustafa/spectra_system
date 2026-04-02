@@ -37,7 +37,7 @@ function StageBadge({ stage }: { stage: string }) {
 
 function AlertAvatar({ row }: { row: AlertTableRow }) {
   const initials = row.name || row.surname
-    ? [(row.name[0] ?? ''), (row.surname[0] ?? '')].join('').toUpperCase()
+    ? [((row.name ?? '')[0] ?? ''), ((row.surname ?? '')[0] ?? '')].join('').toUpperCase()
     : row.personal_id.slice(0, 2).toUpperCase()
   const color = row.severity === 'critical' ? '#E85757' : '#F0A04B'
   return (
@@ -153,7 +153,7 @@ function AlertDrawer({ row, onClose }: { row: AlertTableRow; onClose: () => void
   }
 
   const initials = row.name || row.surname
-    ? [(row.name[0] ?? ''), (row.surname[0] ?? '')].join('').toUpperCase()
+    ? [((row.name ?? '')[0] ?? ''), ((row.surname ?? '')[0] ?? '')].join('').toUpperCase()
     : row.personal_id.slice(0, 2).toUpperCase()
   const color = row.severity === 'critical' ? '#E85757' : '#F0A04B'
   const bg    = row.severity === 'critical' ? 'rgba(232,87,87,0.10)' : 'rgba(240,160,75,0.10)'
@@ -163,7 +163,7 @@ function AlertDrawer({ row, onClose }: { row: AlertTableRow; onClose: () => void
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,42,0.45)', zIndex: 50, animation: 'ew-fade 0.15s ease' }} />
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(440px,100vw)',
-        background: 'white', zIndex: 51, boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
+        background: 'var(--card)', zIndex: 51, boxShadow: '-8px 0 32px rgba(0,0,0,0.25)',
         display: 'flex', flexDirection: 'column', overflowY: 'auto',
         animation: 'ew-slide 0.22s cubic-bezier(0.25,0.46,0.45,0.94)',
       }}>
@@ -192,7 +192,7 @@ function AlertDrawer({ row, onClose }: { row: AlertTableRow; onClose: () => void
         </div>
 
         {/* Body */}
-        <div style={{ padding: '20px 22px', flex: 1 }}>
+        <div style={{ padding: '20px 22px', flex: 1, minHeight: 0, overflowY: 'auto' }}>
           {/* KPI cards */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
             {[
@@ -200,7 +200,7 @@ function AlertDrawer({ row, onClose }: { row: AlertTableRow; onClose: () => void
               { label: 'Exposure',  value: fmt(row.exposure),         bad: false },
               { label: 'Triggered', value: fmtDate(row.triggered_date) || '—', bad: false },
             ].map(({ label, value, bad }) => (
-              <div key={label} style={{ background: bad ? 'rgba(232,87,87,0.06)' : '#F8FAFC', borderRadius: '7px', padding: '10px 12px',
+              <div key={label} style={{ background: bad ? 'rgba(232,87,87,0.08)' : 'rgba(255,255,255,0.05)', borderRadius: '7px', padding: '10px 12px',
                 border: `1px solid ${bad ? 'rgba(232,87,87,0.2)' : 'var(--border)'}` }}>
                 <div style={{ fontSize: '9px', color: bad ? color : 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>{label}</div>
                 <div style={{ fontSize: '12px', fontWeight: 700, color: bad ? color : 'var(--text)', fontFamily: 'var(--mono)' }}>{value}</div>
@@ -209,7 +209,7 @@ function AlertDrawer({ row, onClose }: { row: AlertTableRow; onClose: () => void
           </div>
 
           <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Alert Details</div>
-          <div style={{ background: '#F8FAFC', borderRadius: '7px', padding: '12px 14px', border: `1px solid ${border}`, marginBottom: '20px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '7px', padding: '12px 14px', border: `1px solid ${border}`, marginBottom: '20px' }}>
             <div style={{ fontSize: '13px', fontWeight: 600, color, marginBottom: '4px' }}>{row.alert_type}</div>
             <div style={{ fontSize: '11px', color: 'var(--muted)' }}>Credit Account: <span style={{ fontFamily: 'var(--mono)', color: 'var(--text)' }}>{row.credit_id}</span></div>
           </div>
@@ -220,10 +220,10 @@ function AlertDrawer({ row, onClose }: { row: AlertTableRow; onClose: () => void
 
             {/* Flag for Review */}
             {flagState === 'done'
-              ? <div style={{ padding: '8px 12px', background: '#EAF9F2', borderRadius: '6px', border: '1px solid #A7F3D0', fontSize: '11px', color: '#065F46', fontWeight: 600 }}>✓ Flagged for Review</div>
+              ? <div style={{ padding: '8px 12px', background: 'rgba(20,83,45,0.25)', borderRadius: '6px', border: '1px solid rgba(74,222,128,0.3)', fontSize: '11px', color: 'var(--green)', fontWeight: 600 }}>✓ Flagged for Review</div>
               : <button onClick={() => logQuickAction('Flag for Review', setFlagState)} disabled={flagState === 'error'} style={{
                   padding: '9px 14px', borderRadius: '6px', border: '1px solid #BFDBFE',
-                  background: '#EFF6FF', color: '#1D4ED8', fontSize: '11px', fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+                  background: 'rgba(59,130,246,0.12)', color: 'var(--blue)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', textAlign: 'left',
                 }}>
                   Flag for Review — log this alert for follow-up
                 </button>
@@ -231,10 +231,10 @@ function AlertDrawer({ row, onClose }: { row: AlertTableRow; onClose: () => void
 
             {/* Add to Watchlist */}
             {watchState === 'done'
-              ? <div style={{ padding: '8px 12px', background: '#EAF9F2', borderRadius: '6px', border: '1px solid #A7F3D0', fontSize: '11px', color: '#065F46', fontWeight: 600 }}>✓ Added to Watchlist</div>
+              ? <div style={{ padding: '8px 12px', background: 'rgba(20,83,45,0.25)', borderRadius: '6px', border: '1px solid rgba(74,222,128,0.3)', fontSize: '11px', color: 'var(--green)', fontWeight: 600 }}>✓ Added to Watchlist</div>
               : <button onClick={() => logQuickAction('Add to Watchlist', setWatchState)} disabled={watchState === 'error'} style={{
                   padding: '9px 14px', borderRadius: '6px', border: '1px solid #FDE68A',
-                  background: '#FFFBEB', color: '#92400E', fontSize: '11px', fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+                  background: 'rgba(245,158,11,0.12)', color: 'var(--amber)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', textAlign: 'left',
                 }}>
                   Add to Watchlist — place client under formal monitoring
                 </button>
@@ -242,18 +242,18 @@ function AlertDrawer({ row, onClose }: { row: AlertTableRow; onClose: () => void
 
             {/* Freeze Account */}
             {freezeState === 'done'
-              ? <div style={{ padding: '8px 12px', background: '#EAF9F2', borderRadius: '6px', border: '1px solid #A7F3D0', fontSize: '11px', color: '#065F46', fontWeight: 600 }}>✓ Credit Limit Frozen</div>
+              ? <div style={{ padding: '8px 12px', background: 'rgba(20,83,45,0.25)', borderRadius: '6px', border: '1px solid rgba(74,222,128,0.3)', fontSize: '11px', color: 'var(--green)', fontWeight: 600 }}>✓ Credit Limit Frozen</div>
               : freezeState === 'confirming'
-              ? <div style={{ padding: '10px 12px', background: '#FEF2F2', borderRadius: '6px', border: '1px solid #FECACA' }}>
-                  <div style={{ fontSize: '11px', color: '#7F1D1D', marginBottom: '8px', fontWeight: 600 }}>Confirm freeze? This will suspend the client&apos;s credit limit.</div>
+              ? <div style={{ padding: '10px 12px', background: 'rgba(127,29,29,0.2)', borderRadius: '6px', border: '1px solid rgba(252,165,165,0.3)' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--red)', marginBottom: '8px', fontWeight: 600 }}>Confirm freeze? This will suspend the client&apos;s credit limit.</div>
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <button onClick={doFreeze} style={{ fontSize: '11px', padding: '5px 14px', borderRadius: '5px', background: '#C43A3A', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Confirm Freeze</button>
-                    <button onClick={() => setFreezeState('idle')} style={{ fontSize: '11px', padding: '5px 10px', borderRadius: '5px', background: 'white', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={() => setFreezeState('idle')} style={{ fontSize: '11px', padding: '5px 10px', borderRadius: '5px', background: 'rgba(255,255,255,0.07)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>Cancel</button>
                   </div>
                 </div>
               : <button onClick={() => setFreezeState('confirming')} style={{
                   padding: '9px 14px', borderRadius: '6px', border: '1px solid #FECACA',
-                  background: '#FEF2F2', color: '#C43A3A', fontSize: '11px', fontWeight: 600, cursor: 'pointer', textAlign: 'left',
+                  background: 'rgba(127,29,29,0.2)', color: 'var(--red)', fontSize: '11px', fontWeight: 600, cursor: 'pointer', textAlign: 'left',
                 }}>
                   Freeze Account — suspend credit limit immediately
                 </button>
@@ -328,7 +328,7 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
         <button className="ew-pg-btn" disabled={page <= 1 || loading}
           onClick={() => { setPage(p => p - 1); pushParams(q.trim(), page - 1, sev, stage) }}>‹</button>
         {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
-          let p = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i
+          const p = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i
           return <button key={p} className={`ew-pg-btn${p === page ? ' active' : ''}`} disabled={loading}
             onClick={() => { setPage(p); pushParams(q.trim(), p, sev, stage) }}>{p}</button>
         })}
@@ -342,12 +342,12 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
     <>
       <style>{`
         .ew-search:focus{border-color:var(--navy)!important;box-shadow:0 0 0 3px rgba(29,43,78,0.08)!important;}
-        .ew-row{cursor:pointer;transition:background 0.1s;} .ew-row:hover td{background:#F7F9FC;}
+        .ew-row{cursor:pointer;transition:background 0.1s;} .ew-row:hover td{background:rgba(255,255,255,0.04) !important;}
         .ew-row td{border-bottom:1px solid var(--border);}
-        .ew-pg-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:white;cursor:pointer;font-size:12px;font-family:var(--mono);color:var(--text);display:flex;align-items:center;justify-content:center;transition:background 0.1s;}
+        .ew-pg-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-family:var(--mono);color:var(--text);display:flex;align-items:center;justify-content:center;transition:background 0.1s;}
         .ew-pg-btn:hover:not(:disabled){background:#EEF2F7;} .ew-pg-btn:disabled{opacity:0.4;cursor:not-allowed;}
         .ew-pg-btn.active{background:var(--navy);color:white;border-color:var(--navy);font-weight:700;}
-        .ew-fb{padding:4px 10px;border-radius:5px;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--muted);font-family:var(--font);white-space:nowrap;line-height:1.4;transition:all 0.1s;}
+        .ew-fb{padding:4px 10px;border-radius:5px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:11px;font-weight:600;color:var(--muted);font-family:var(--font);white-space:nowrap;line-height:1.4;transition:all 0.1s;}
         .ew-fb:hover{background:#EEF2F7;color:var(--text);} .ew-fb.active{background:var(--navy);color:white;border-color:var(--navy);}
         .ew-flbl{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
       `}</style>
@@ -363,12 +363,12 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
           placeholder="Search by client ID or name…"
           style={{ width: '100%', boxSizing: 'border-box', padding: '11px 38px 11px 40px', fontSize: '14px',
             border: '1.5px solid var(--border)', borderRadius: '8px', outline: 'none', fontFamily: 'var(--font)',
-            background: 'white', color: 'var(--text)', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }} />
+            background: 'var(--card)', color: 'var(--text)', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }} />
         {q && <button onClick={() => setQ('')} style={{ position: 'absolute', right: '11px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '18px', padding: '2px 6px' }}>×</button>}
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', padding: '10px 14px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <span className="ew-flbl" style={{ marginRight: '2px' }}>Severity</span>
           {SEV_OPTIONS.map(([v, label]) => (
@@ -407,7 +407,7 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
                   {hg.headers.map(h => (
                     <th key={h.id} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 700,
                       color: 'var(--muted)', letterSpacing: '1px', textTransform: 'uppercase',
-                      background: '#F8FAFC', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', width: h.getSize() }}>
+                      background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', width: h.getSize() }}>
                       {flexRender(h.column.columnDef.header, h.getContext())}
                     </th>
                   ))}
@@ -440,7 +440,7 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
             </tbody>
           </table>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid var(--border)', background: '#FAFBFC' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'rgba(255,255,255,0.03)' }}>
           <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Page {page} of {totalPages}</span>
           <div style={{ display: 'flex', gap: '4px' }}>{PgBtns()}</div>
         </div>

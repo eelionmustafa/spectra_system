@@ -15,7 +15,7 @@ export default function ShockSensitivityChart({ data }: { data: ScenarioBar[] })
         <XAxis dataKey="name" tick={{ fontSize: 11, fill: C.muted }} tickLine={false} axisLine={false} />
         <YAxis tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: C.muted }} tickLine={false} axisLine={false} width={34} />
         <Tooltip
-          formatter={(v: any, name: any) => [`${v}%`, name === 'avgPD' ? 'Avg PD' : 'Exp. Loss Rate']}
+          formatter={(v: unknown, name: string) => [`${v}%`, name === 'avgPD' ? 'Avg PD' : 'Exp. Loss Rate']}
           contentStyle={tipStyle}
         />
         <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }}

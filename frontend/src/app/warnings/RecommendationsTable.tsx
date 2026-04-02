@@ -103,7 +103,7 @@ function RecDrawer({ row, onClose }: { row: EWIRecommendationRow; onClose: () =>
     <>
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(13,27,42,0.45)', zIndex: 50, animation: 'ew-fade 0.15s ease' }} />
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(440px,100vw)',
-        background: 'white', zIndex: 51, boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
+        background: 'var(--card)', zIndex: 51, boxShadow: '-8px 0 32px rgba(0,0,0,0.25)',
         display: 'flex', flexDirection: 'column', overflowY: 'auto',
         animation: 'ew-slide 0.22s cubic-bezier(0.25,0.46,0.45,0.94)' }}>
         <style>{`
@@ -125,11 +125,11 @@ function RecDrawer({ row, onClose }: { row: EWIRecommendationRow; onClose: () =>
         </div>
 
         {/* Body */}
-        <div style={{ padding: '20px 22px', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ padding: '20px 22px', flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {row.description && (
             <div>
               <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Description</div>
-              <div style={{ padding: '12px 14px', background: '#F8FAFC', borderRadius: '7px', borderLeft: `3px solid ${m.color}`, fontSize: '12px', color: 'var(--text)', lineHeight: '1.6' }}>
+              <div style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.05)', borderRadius: '7px', borderLeft: `3px solid ${m.color}`, fontSize: '12px', color: 'var(--text)', lineHeight: '1.6' }}>
                 {row.description}
               </div>
             </div>
@@ -142,7 +142,7 @@ function RecDrawer({ row, onClose }: { row: EWIRecommendationRow; onClose: () =>
               { label: 'Credit ID', value: row.credit_id || '—' },
               { label: 'Actioned By', value: row.actioned_by || '—' },
             ].map(({ label, value }) => (
-              <div key={label} style={{ background: '#F8FAFC', borderRadius: '6px', padding: '8px 10px', border: '1px solid var(--border)' }}>
+              <div key={label} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '6px', padding: '8px 10px', border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: '9px', color: 'var(--muted)', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '2px' }}>{label}</div>
                 <div style={{ fontSize: '11px', color: 'var(--text)', fontFamily: 'var(--mono)' }}>{value}</div>
               </div>
@@ -152,7 +152,7 @@ function RecDrawer({ row, onClose }: { row: EWIRecommendationRow; onClose: () =>
           {!row.is_actioned && (
             <div>
               <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--muted)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '8px' }}>Action</div>
-              <EWIActionButton recommendationId={row.id} initialActioned={row.is_actioned} />
+              <EWIActionButton recommendationId={row.id} initialActioned={!!row.is_actioned} />
             </div>
           )}
 
@@ -223,7 +223,7 @@ export default function RecommendationsTable({ initialRows, initialTotal, initia
         <button className="ew-pg-btn" disabled={page <= 1 || loading}
           onClick={() => { setPage(p => p - 1); pushParams(q.trim(), page - 1, priority, showAll) }}>‹</button>
         {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
-          let p = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i
+          const p = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i
           return <button key={p} className={`ew-pg-btn${p === page ? ' active' : ''}`} disabled={loading}
             onClick={() => { setPage(p); pushParams(q.trim(), p, priority, showAll) }}>{p}</button>
         })}
@@ -237,12 +237,12 @@ export default function RecommendationsTable({ initialRows, initialTotal, initia
     <>
       <style>{`
         .ew-search:focus{border-color:var(--navy)!important;box-shadow:0 0 0 3px rgba(29,43,78,0.08)!important;}
-        .ew-row{cursor:pointer;transition:background 0.1s;} .ew-row:hover td{background:#F7F9FC;}
+        .ew-row{cursor:pointer;transition:background 0.1s;} .ew-row:hover td{background:rgba(255,255,255,0.04) !important;}
         .ew-row td{border-bottom:1px solid var(--border);}
-        .ew-pg-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:white;cursor:pointer;font-size:12px;font-family:var(--mono);color:var(--text);display:flex;align-items:center;justify-content:center;transition:background 0.1s;}
+        .ew-pg-btn{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:var(--card);cursor:pointer;font-size:12px;font-family:var(--mono);color:var(--text);display:flex;align-items:center;justify-content:center;transition:background 0.1s;}
         .ew-pg-btn:hover:not(:disabled){background:#EEF2F7;} .ew-pg-btn:disabled{opacity:0.4;cursor:not-allowed;}
         .ew-pg-btn.active{background:var(--navy);color:white;border-color:var(--navy);font-weight:700;}
-        .ew-fb{padding:4px 10px;border-radius:5px;border:1.5px solid var(--border);background:white;cursor:pointer;font-size:11px;font-weight:600;color:var(--muted);font-family:var(--font);white-space:nowrap;line-height:1.4;transition:all 0.1s;}
+        .ew-fb{padding:4px 10px;border-radius:5px;border:1.5px solid var(--border);background:var(--card);cursor:pointer;font-size:11px;font-weight:600;color:var(--muted);font-family:var(--font);white-space:nowrap;line-height:1.4;transition:all 0.1s;}
         .ew-fb:hover{background:#EEF2F7;color:var(--text);} .ew-fb.active{background:var(--navy);color:white;border-color:var(--navy);}
         .ew-flbl{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
         .ew-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;font-weight:600;color:var(--muted);}
@@ -260,12 +260,12 @@ export default function RecommendationsTable({ initialRows, initialTotal, initia
           placeholder="Search by client ID…"
           style={{ width: '100%', boxSizing: 'border-box', padding: '11px 38px 11px 40px', fontSize: '14px',
             border: '1.5px solid var(--border)', borderRadius: '8px', outline: 'none', fontFamily: 'var(--font)',
-            background: 'white', color: 'var(--text)', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }} />
+            background: 'var(--card)', color: 'var(--text)', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }} />
         {q && <button onClick={() => setQ('')} style={{ position: 'absolute', right: '11px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '18px', padding: '2px 6px' }}>×</button>}
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', padding: '10px 14px', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <span className="ew-flbl" style={{ marginRight: '2px' }}>Priority</span>
           {PRI_OPTIONS.map(([v, label]) => (
@@ -302,7 +302,7 @@ export default function RecommendationsTable({ initialRows, initialTotal, initia
                   {hg.headers.map(h => (
                     <th key={h.id} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 700,
                       color: 'var(--muted)', letterSpacing: '1px', textTransform: 'uppercase',
-                      background: '#F8FAFC', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', width: h.getSize() }}>
+                      background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', width: h.getSize() }}>
                       {flexRender(h.column.columnDef.header, h.getContext())}
                     </th>
                   ))}
@@ -337,7 +337,7 @@ export default function RecommendationsTable({ initialRows, initialTotal, initia
             </tbody>
           </table>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid var(--border)', background: '#FAFBFC' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'rgba(255,255,255,0.03)' }}>
           <span style={{ fontSize: '11px', color: 'var(--muted)' }}>Page {page} of {totalPages}</span>
           <div style={{ display: 'flex', gap: '4px' }}>{PgBtns()}</div>
         </div>
