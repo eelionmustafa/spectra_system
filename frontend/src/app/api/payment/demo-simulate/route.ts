@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       priority:         'high',
       title:            'Payment Received',
       message:          `Client ${personalId} made a payment and cleared their overdue balance (was ${previousDueDays ?? 0} DPD). Account is now up to date.`,
-      assignedRm:       null,
+      assignedRM:       null,
     }).catch(() => { /* non-fatal */ })
 
     // 5. Log to DemoPaymentEvents for live toast on /warnings
