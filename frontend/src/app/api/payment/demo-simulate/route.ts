@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
     // 4. Write to Notifications — appears in /notifications page under Payments filter
     await createNotification({
       clientId:         personalId,
+      creditId:         resolvedAccount,
       notificationType: 'payment_received',
       priority:         'high',
       title:            'Payment Received',
