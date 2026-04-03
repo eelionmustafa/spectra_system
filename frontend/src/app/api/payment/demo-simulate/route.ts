@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { query } from '@/lib/db.server'
 import { clearAllCaches, recordRichClientAction } from '@/lib/queries'
+import { createNotification } from '@/lib/notificationService'
 
 export async function POST(req: NextRequest) {
   try {
@@ -84,7 +85,17 @@ export async function POST(req: NextRequest) {
       }
     )
 
-    // 4. Log to DemoPaymentEvents for live toast on /warnings
+    // 4. Write to Notifications — appears in /notifications page under Payments filter
+    await createNotification({
+      clientId:         personalId,
+      notificationType: 'payment_received',
+      priority:         'high',
+      title:            'Payment Received',
+      message:          `Client ${personalId} made a payment and cleared their overdue balance (was ${previousDueDays ?? 0} DPD). Account is now up to date.`,
+      assignedRm:       null,
+    }).catch(() => { /* non-fatal */ })
+
+    // 5. Log to DemoPaymentEvents for live toast on /warnings
     await query(`
       IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'DemoPaymentEvents' AND schema_id = SCHEMA_ID('dbo'))
         CREATE TABLE [dbo].[DemoPaymentEvents] (

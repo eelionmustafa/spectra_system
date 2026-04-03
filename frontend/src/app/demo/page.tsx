@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import DemoQRCode from '../warnings/DemoQRCode'
 import ResetButton from './ResetButton'
+import SeedSalaryButton from './SeedSalaryButton'
 
 export default async function DemoControlPage() {
   const payUrl = `https://spectrarsk.vercel.app/demo/pay`
@@ -36,6 +37,7 @@ export default async function DemoControlPage() {
       </div>
 
       <ResetButton />
+      <SeedSalaryButton />
 
       <div style={{
         background: 'rgba(201,168,76,0.08)',

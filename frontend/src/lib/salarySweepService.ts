@@ -17,6 +17,7 @@
 import { query } from '@/lib/db.server'
 import { recordRichClientAction } from '@/lib/queries'
 import { createNotification } from '@/lib/notificationService'
+import { detectScheduledSalaryCredit } from '@/lib/scheduledSalaryService'
 
 const MIN_SALARY_AMOUNT = 300
 const LOOKBACK_DAYS     = 5
@@ -73,13 +74,16 @@ export async function detectSalaryCredit(clientId: string): Promise<SalaryCredit
      ORDER BY TRY_CAST(ta.Amount AS FLOAT) DESC`,
     { clientId, minAmount: MIN_SALARY_AMOUNT, lookback: LOOKBACK_DAYS }
   )
-  if (!rows[0]) return null
+  if (!rows[0]) {
+    // Fallback: check ScheduledSalaryCredits (demo/scheduled entries)
+    return detectScheduledSalaryCredit(clientId)
+  }
   return {
     accountNo:   rows[0].account_no,
     amount:      rows[0].amount,
     date:        rows[0].date,
     description: rows[0].description,
-}
+  }
 }
 
 export async function getOverdueInstalments(clientId: string): Promise<OverdueInstalment[]> {

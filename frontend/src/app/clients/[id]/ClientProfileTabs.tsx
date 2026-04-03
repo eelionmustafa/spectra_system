@@ -40,6 +40,7 @@ interface Props {
   recoveryHistory: RecoveryCaseRow[]
   isWrittenOff: boolean
   isResolved: boolean
+  scheduledSalary?: { id: string; personalId: string; accountNo: string | null; amount: number; description: string; scheduledDate: string } | null
 }
 
 interface RecoveryMutationResponse {
@@ -140,6 +141,7 @@ export default function ClientProfileTabs({
   recoveryHistory: recoveryHistoryProp,
   isWrittenOff,
   isResolved: isResolvedProp,
+  scheduledSalary,
 }: Props) {
   const [activeTab, setActiveTab] = useState<'overview' | 'ewi' | 'alerts' | 'ai' | 'log'>('overview')
   const [insights, setInsights] = useState<AIInsights | null>(null)
@@ -2078,6 +2080,18 @@ export default function ClientProfileTabs({
                 <span style={{ marginRight: '6px' }}>{activeRecovery ? '⚠️' : '⚖️'}</span>
                 {recoverySubmitting ? 'Saving…' : activeRecovery ? 'Update Recovery' : 'Initiate Recovery'}
               </button>
+            )}
+            {/* Upcoming scheduled salary */}
+            {scheduledSalary && (
+              <div style={{
+                padding: '8px 12px', borderRadius: 8, marginBottom: 4,
+                background: '#F0FDF4', border: '1px solid #86EFAC',
+                fontSize: '11px', color: '#166534', lineHeight: 1.5,
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 2 }}>💰 Salary scheduled</div>
+                <div>€{scheduledSalary.amount.toLocaleString()} · {new Date(scheduledSalary.scheduledDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
+                <div style={{ color: '#16A34A', fontSize: '10px' }}>{scheduledSalary.description}</div>
+              </div>
             )}
             {/* Salary Sweep */}
             {(profile.stage === 'Stage 2' || profile.stage === 'Stage 3') && profile.current_due_days > 0 && (

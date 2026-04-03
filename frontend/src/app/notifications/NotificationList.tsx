@@ -16,7 +16,7 @@ export type NotificationRow = {
   read_at:           string | null
 }
 
-type PriorityFilter = 'all' | 'critical' | 'high' | 'medium' | 'low'
+type PriorityFilter = 'all' | 'critical' | 'high' | 'medium' | 'low' | 'payments'
 
 const PRIORITY_CONFIG: Record<string, { color: string; bg: string; border: string; label: string }> = {
   critical: { color: '#991B1B', bg: '#FEF2F2', border: '#FECACA', label: 'Critical' },
@@ -31,6 +31,7 @@ const TYPE_LABELS: Record<string, string> = {
   risk_escalation:   'Risk Escalation',
   recovery_opened:   'Recovery Opened',
   committee_request: 'Committee Request',
+  payment_received:  'Payment Received',
 }
 
 function fmtDateTime(iso: string) {
@@ -72,7 +73,11 @@ export default function NotificationList({ initialNotifications }: { initialNoti
     }
   }
 
-  const filtered = filter === 'all' ? notifications : notifications.filter(n => n.priority === filter)
+  const filtered = filter === 'all'
+    ? notifications
+    : filter === 'payments'
+      ? notifications.filter(n => n.notification_type === 'payment_received')
+      : notifications.filter(n => n.priority === filter && n.notification_type !== 'payment_received')
   const unread   = notifications.filter(n => !n.read_at)
 
   return (
@@ -123,7 +128,9 @@ export default function NotificationList({ initialNotifications }: { initialNoti
         borderBottom: '1px solid var(--border)', flexShrink: 0,
       }}>
         {(['all', 'critical', 'high', 'medium', 'low'] as PriorityFilter[]).map(f => {
-          const count  = f === 'all' ? notifications.length : notifications.filter(n => n.priority === f).length
+          const count  = f === 'all'
+            ? notifications.filter(n => n.notification_type !== 'payment_received').length
+            : notifications.filter(n => n.priority === f && n.notification_type !== 'payment_received').length
           const active = filter === f
           const cfg    = f !== 'all' ? PRIORITY_CONFIG[f] : null
           return (
@@ -150,6 +157,33 @@ export default function NotificationList({ initialNotifications }: { initialNoti
             </button>
           )
         })}
+        {/* Payments filter — separated from client notifications */}
+        {(() => {
+          const count  = notifications.filter(n => n.notification_type === 'payment_received').length
+          const active = filter === 'payments'
+          return (
+            <button
+              onClick={() => setFilter('payments')}
+              style={{
+                padding: '5px 12px', borderRadius: 6, marginLeft: 6,
+                border: `1px solid ${active ? '#6EE7B7' : 'var(--border)'}`,
+                background: active ? '#ECFDF5' : 'white',
+                color: active ? '#065F46' : 'var(--muted)',
+                fontSize: '11px', fontWeight: active ? 700 : 500, cursor: 'pointer',
+                fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: 5,
+              }}
+            >
+              💳 Payments
+              <span style={{
+                fontSize: '9px', fontWeight: 700, padding: '1px 5px', borderRadius: 10,
+                background: active ? '#BBF7D0' : '#F1F5F9',
+                color: active ? '#065F46' : 'var(--muted)',
+              }}>
+                {count}
+              </span>
+            </button>
+          )
+        })()}
         <div style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--muted)' }}>
           {unread.length > 0 ? `${unread.length} unread` : 'All caught up'}
         </div>

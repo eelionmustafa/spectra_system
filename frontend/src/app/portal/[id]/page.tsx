@@ -488,6 +488,7 @@ export default async function ClientPortal({
   let upcomingEngagements: EngagementRow[] = []
   let activePlan: PlanRow | null = null
   let isResolved = false
+  let scheduledSalary: { amount: number; scheduledDate: string; description: string } | null = null
 
   try {
     const [profileResult, baseResults] = await Promise.all([
@@ -544,6 +545,10 @@ export default async function ClientPortal({
     if (engagements.status === 'fulfilled')  upcomingEngagements = engagements.value.filter(e => e.status === 'scheduled' && new Date(e.scheduled_at) > new Date())
     if (plan.status === 'fulfilled')         activePlan          = plan.value
     if (resolved.status === 'fulfilled')     isResolved          = resolved.value
+
+    // Scheduled salary — show upcoming credit to client
+    const { getScheduledSalary } = await import('@/lib/scheduledSalaryService')
+    scheduledSalary = await getScheduledSalary(id).catch(() => null)
   } catch {
     return (
       <div style={{ minHeight: '100vh', background: '#F0F4F8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -837,6 +842,25 @@ export default async function ClientPortal({
                 })}
                 <div style={{ padding: '10px 20px', borderTop: '1px solid #F8FAFC' }}>
                   <Link href={`/portal/${id}?tab=accounts`} style={{ fontSize: '11px', color: '#1E3A5F', textDecoration: 'none', fontWeight: 600 }}>View all transactions →</Link>
+                </div>
+              </Section>
+            )}
+
+            {/* Upcoming salary credit */}
+            {scheduledSalary && (
+              <Section title="Upcoming Salary Credit">
+                <div style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', flexShrink: 0, border: '1px solid #BBF7D0' }}>💰</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#065F46' }}>{scheduledSalary.description}</div>
+                    <div style={{ fontSize: '11px', color: '#16A34A', marginTop: '3px' }}>
+                      Expected: {new Date(scheduledSalary.scheduledDate).toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#065F46', fontFamily: 'monospace' }}>+€{scheduledSalary.amount.toLocaleString('en', { minimumFractionDigits: 2 })}</div>
+                    <div style={{ fontSize: '10px', color: '#16A34A', marginTop: '2px' }}>Incoming credit</div>
+                  </div>
                 </div>
               </Section>
             )}

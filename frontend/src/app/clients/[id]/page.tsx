@@ -17,6 +17,8 @@ import { getCommitteeLog } from '@/lib/committeeService'
 import { getActiveRecoveryCase, getRecoveryCaseHistory } from '@/lib/recoveryService'
 import { isClientWrittenOff } from '@/lib/writtenOffService'
 import { isClientResolved } from '@/lib/resolutionService'
+import { getScheduledSalary } from '@/lib/scheduledSalaryService'
+import type { ScheduledSalary } from '@/lib/scheduledSalaryService'
 import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 
@@ -45,6 +47,7 @@ async function ClientProfileContent({
     writtenOff,
     resolved,
     predictionSnapshot,
+    scheduledSalary,
   ] = await Promise.all([
     getClientDPDHistory(id).catch((): DPDHistory[]                                 => []),
     getClientEWI(id).catch((): ClientEWI | null                                    => null),
@@ -58,6 +61,7 @@ async function ClientProfileContent({
     isClientWrittenOff(id).catch(()                                                => false),
     isClientResolved(id).catch(()                                                  => false),
     getPredictionSnapshot(id).catch(()                                             => null),
+    getScheduledSalary(id).catch((): ScheduledSalary | null                        => null),
   ])
 
   const prediction  = predictionSnapshot?.prediction ?? null
@@ -83,6 +87,7 @@ async function ClientProfileContent({
       recoveryHistory={recoveryHistory}
       isWrittenOff={writtenOff}
       isResolved={resolved}
+      scheduledSalary={scheduledSalary}
     />
   )
 }
