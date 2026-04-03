@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import DemoQRCode from '../warnings/DemoQRCode'
+import ResetButton from './ResetButton'
 
 export default async function DemoControlPage() {
   const payUrl = `https://spectrarsk.vercel.app/demo/pay`
@@ -33,6 +34,8 @@ export default async function DemoControlPage() {
       <div style={{ fontSize: 11, color: '#4A6A8A', fontFamily: 'IBM Plex Mono, monospace' }}>
         {payUrl}
       </div>
+
+      <ResetButton />
 
       <div style={{
         background: 'rgba(201,168,76,0.08)',
