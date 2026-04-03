@@ -6,15 +6,16 @@ interface Toast { id: number; personalId: string }
 
 export default function PaymentToast() {
   const [toasts, setToasts]   = useState<Toast[]>([])
-  const lastSeenRef            = useRef(new Date().toISOString())
+  const lastPollRef            = useRef(Date.now())
 
   useEffect(() => {
     async function poll() {
       try {
-        const res  = await fetch(`/api/payment/recent?since=${encodeURIComponent(lastSeenRef.current)}`)
+        const sinceSeconds = Math.ceil((Date.now() - lastPollRef.current) / 1000) + 2
+        lastPollRef.current = Date.now()
+        const res  = await fetch(`/api/payment/recent?since=${sinceSeconds}`)
         const data = await res.json()
         if (data.events?.length) {
-          lastSeenRef.current = data.events[0].paid_at
           const newToasts: Toast[] = data.events.map((e: { id: number; personalId: string }) => ({
             id: e.id,
             personalId: e.personalId,
