@@ -1,8 +1,6 @@
 export const dynamic = 'force-dynamic'
 
 import { query } from '@/lib/db.server'
-import { ensureEWIPredictionsTable } from '@/lib/ewiPredictionsService'
-import { seedPredictions } from '@/app/warnings/actions'
 import PayButton from './PayButton'
 
 interface DemoClient {
@@ -15,36 +13,40 @@ interface DemoClient {
 
 async function getHighRiskClients(): Promise<DemoClient[]> {
   try {
-    await ensureEWIPredictionsTable()
-
-    // Auto-seed if EWIPredictions is empty so the demo always has data
-    const countRows = await query<{ n: number }>(`SELECT COUNT(*) AS n FROM [dbo].[EWIPredictions] WITH (NOLOCK)`, {})
-    if ((countRows[0]?.n ?? 0) === 0) {
-      await seedPredictions()
-    }
-
+    // Query directly from RiskPortfolio + DueDaysDaily — no dependency on EWIPredictions
     return await query<DemoClient>(
       `SELECT TOP 6
-         e.client_id,
-         e.risk_score,
-         e.risk_label,
-         rp.Stage           AS stage,
-         dd.DueDays         AS due_days
+         rp.clientID AS client_id,
+         CAST(
+           CASE rp.Stage WHEN 3 THEN 0.65 WHEN 2 THEN 0.40 ELSE 0.20 END
+           + CASE
+               WHEN COALESCE(TRY_CAST(dd.DueDays AS FLOAT), 0) >= 90 THEN 0.25
+               WHEN COALESCE(TRY_CAST(dd.DueDays AS FLOAT), 0) >= 60 THEN 0.18
+               WHEN COALESCE(TRY_CAST(dd.DueDays AS FLOAT), 0) >= 30 THEN 0.10
+               WHEN COALESCE(TRY_CAST(dd.DueDays AS FLOAT), 0) >  0  THEN 0.04
+               ELSE 0.0
+             END
+         AS FLOAT) AS risk_score,
+         CASE
+           WHEN rp.Stage = 3 THEN 'Critical'
+           WHEN rp.Stage = 2 THEN 'High'
+           ELSE 'Medium'
+         END AS risk_label,
+         rp.Stage AS stage,
+         TRY_CAST(dd.DueDays AS INT) AS due_days
        FROM (
-         SELECT *,
-           ROW_NUMBER() OVER (PARTITION BY client_id ORDER BY run_date DESC) AS rn
-         FROM [dbo].[EWIPredictions] WITH (NOLOCK)
-       ) e
-       LEFT JOIN [dbo].[RiskPortfolio] rp WITH (NOLOCK)
-         ON rp.PersonalID = e.client_id
+         SELECT clientID, MAX(Stage) AS Stage
+         FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
+         WHERE CalculationDate = (SELECT MAX(CalculationDate) FROM [dbo].[RiskPortfolio] WITH (NOLOCK))
+         GROUP BY clientID
+       ) rp
        OUTER APPLY (
          SELECT TOP 1 DueDays
          FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
-         WHERE PersonalID = e.client_id
+         WHERE PersonalID = rp.clientID
          ORDER BY dateID DESC
        ) dd
-       WHERE e.rn = 1
-       ORDER BY e.risk_score DESC`,
+       ORDER BY risk_score DESC`,
       {}
     )
   } catch {
