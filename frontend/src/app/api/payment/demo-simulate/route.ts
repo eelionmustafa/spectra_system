@@ -46,6 +46,17 @@ export async function POST(req: NextRequest) {
 
     clearAllCaches()
 
+    // Log to DemoPaymentEvents for live toast notifications on /warnings
+    await query(`
+      IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'DemoPaymentEvents' AND schema_id = SCHEMA_ID('dbo'))
+        CREATE TABLE [dbo].[DemoPaymentEvents] (
+          id         INT IDENTITY PRIMARY KEY,
+          personalId NVARCHAR(50) NOT NULL,
+          paid_at    DATETIME NOT NULL DEFAULT GETDATE()
+        );
+      INSERT INTO [dbo].[DemoPaymentEvents] (personalId, paid_at) VALUES (@personalId, GETDATE())
+    `, { personalId })
+
     return NextResponse.json({ ok: true, personalId, creditAccount: resolvedAccount, newDueDays, previousDueDays })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })

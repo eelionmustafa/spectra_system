@@ -28,6 +28,7 @@ import PredictionsTable from './PredictionsTable'
 import RecommendationsTable from './RecommendationsTable'
 import ReloadButton from './ReloadButton'
 import LiveRefreshBanner from './LiveRefreshBanner'
+import PaymentToast from './PaymentToast'
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -615,6 +616,7 @@ export default async function Warnings({
     <>
       <Topbar title="Early Warnings" sub="EWI Monitor" />
       <LiveRefreshBanner />
+      <PaymentToast />
       <div className="content">
         <Suspense fallback={<WarningSkeleton />}>
           <WarningsContent
