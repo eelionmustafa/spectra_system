@@ -37,12 +37,28 @@ export async function POST(req: NextRequest) {
     )
     const previousDueDays = prevRows[0]?.DueDays ?? null
 
-    const todayStr = new Date().toISOString().slice(0, 10)
-    await query(
-      `INSERT INTO [dbo].[DueDaysDaily] (CreditAccount, PersonalID, dateID, DueDays)
-       VALUES (@creditAccount, @personalId, @todayStr, @newDueDays)`,
-      { personalId, creditAccount: resolvedAccount, todayStr, newDueDays }
-    )
+    const latestDateID = prevRows[0] ? (await query<{ dateID: string }>(
+      `SELECT TOP 1 dateID FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
+       WHERE CreditAccount = @creditAccount AND PersonalID = @personalId
+       ORDER BY dateID DESC`,
+      { personalId, creditAccount: resolvedAccount }
+    ))[0]?.dateID : null
+
+    if (latestDateID) {
+      await query(
+        `UPDATE [dbo].[DueDaysDaily]
+         SET DueDays = @newDueDays
+         WHERE CreditAccount = @creditAccount AND PersonalID = @personalId AND dateID = @dateID`,
+        { personalId, creditAccount: resolvedAccount, newDueDays, dateID: latestDateID }
+      )
+    } else {
+      const todayStr = new Date().toISOString().slice(0, 10)
+      await query(
+        `INSERT INTO [dbo].[DueDaysDaily] (CreditAccount, PersonalID, dateID, DueDays)
+         VALUES (@creditAccount, @personalId, @todayStr, @newDueDays)`,
+        { personalId, creditAccount: resolvedAccount, todayStr, newDueDays }
+      )
+    }
 
     clearAllCaches()
 
