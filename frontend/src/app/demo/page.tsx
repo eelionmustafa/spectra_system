@@ -1,13 +1,9 @@
 export const dynamic = 'force-dynamic'
 
 import DemoQRCode from '../warnings/DemoQRCode'
-import { headers } from 'next/headers'
 
 export default async function DemoControlPage() {
-  const headersList = await headers()
-  const host = headersList.get('host') ?? 'localhost:3000'
-  const protocol = host.startsWith('localhost') ? 'http' : 'https'
-  const payUrl = `${protocol}://${host}/demo/pay`
+  const payUrl = `https://spectrarsk.vercel.app/demo/pay`
 
   return (
     <div style={{
