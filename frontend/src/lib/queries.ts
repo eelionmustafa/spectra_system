@@ -117,11 +117,11 @@ export interface MonthlyExposure {
 
 export interface PortfolioKPIs {
   total_exposure: number
+  stage1_pct: number
   stage2_pct: number
   stage3_pct: number
+  npl_ratio_pct: number
   avg_ltv: number
-  // Computed in SQL:
-  stage1_pct: number
   total_clients: number
   health_score: number
   health_label: string
@@ -219,7 +219,7 @@ export interface ClientProfile {
   max_due_days_24m: number
   missed_payments: number
   total_payments: number
-  dti_ratio: number
+  dti_ratio: number | null
   repayment_rate_pct: number
   tenure_years: number
   stage: string
@@ -362,29 +362,50 @@ export interface ECLGapRow {
 /** Returns top-level portfolio KPIs (total clients, delinquency rate, NPL ratio, health score). */
 export async function getDashboardKPIs(): Promise<DashboardKPIs> {
   const cached = rc<DashboardKPIs>('dashboardKPIs'); if (cached) return cached
-  const [mcd, mdid] = await Promise.all([maxCalcDate(), maxDateID()])
+  const [mcd] = await Promise.all([maxCalcDate()])
   const rows = await query<DashboardKPIs>(`
-    WITH dpd_base AS (
-      SELECT
-        ROUND(100.0 * COUNT(DISTINCT CASE WHEN TRY_CAST(DueDays AS FLOAT) >= 30 THEN PersonalID END)
-              / NULLIF(COUNT(DISTINCT PersonalID), 0), 1)                            AS delinquency_rate_pct,
-        ROUND(AVG(TRY_CAST(DueDays AS FLOAT)), 1)                                   AS avg_due_days
+    WITH latest_dpd_per_client AS (
+      -- Take each client's most recent DueDays regardless of which snapshot date it came from.
+      -- Using MAX(dateID) per PersonalID avoids the problem of a single global MAX(dateID)
+      -- returning a near-empty partial snapshot (e.g. only 7 rows on 2026-04-03 vs 1300 rows on 2025-12-21).
+      SELECT PersonalID,
+        MAX(TRY_CAST(DueDays AS FLOAT)) OVER (PARTITION BY PersonalID) AS max_dpd,
+        ROW_NUMBER() OVER (PARTITION BY PersonalID ORDER BY dateID DESC) AS rn
       FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
-      WHERE dateID = @mdid
+    ),
+    dpd_deduped AS (
+      SELECT PersonalID, max_dpd FROM latest_dpd_per_client WHERE rn = 1
+    ),
+    dpd_base AS (
+      -- Denominator = active clients in RiskPortfolio, not just those in DueDaysDaily
+      SELECT
+        ROUND(100.0 * COUNT(DISTINCT CASE WHEN COALESCE(d.max_dpd, 0) >= 30 THEN rp.clientID END)
+              / NULLIF(COUNT(DISTINCT rp.clientID), 0), 1)                           AS delinquency_rate_pct,
+        ROUND(AVG(COALESCE(d.max_dpd, 0)), 1)                                        AS avg_due_days
+      FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
+      LEFT JOIN dpd_deduped d ON d.PersonalID = rp.clientID
+      WHERE rp.CalculationDate = @mcd
+    ),
+    client_worst_stage AS (
+      -- Each client at their highest (worst) stage — IFRS 9 principle
+      SELECT clientID,
+        MAX(COALESCE(Stage, 1)) AS worst_stage,
+        SUM(TRY_CAST(totalExposure AS FLOAT)) AS client_exposure
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
+      WHERE CalculationDate = @mcd
+      GROUP BY clientID
     ),
     rp_base AS (
       SELECT
-        -- total_clients from RiskPortfolio so it matches the stage distribution donut
         COUNT(*)                                                                     AS total_clients,
-        COALESCE(SUM(TRY_CAST(totalExposure AS FLOAT)), 0)                          AS total_exposure,
-        ROUND(100.0 * SUM(CASE WHEN Stage = 2 THEN 1 ELSE 0 END)
+        COALESCE(SUM(client_exposure), 0)                                           AS total_exposure,
+        ROUND(100.0 * SUM(CASE WHEN worst_stage = 2 THEN 1 ELSE 0 END)
               / NULLIF(COUNT(*), 0), 1)                                              AS stage2_pct,
-        ROUND(100.0 * SUM(CASE WHEN Stage = 3 THEN 1 ELSE 0 END)
+        ROUND(100.0 * SUM(CASE WHEN worst_stage = 3 THEN 1 ELSE 0 END)
               / NULLIF(COUNT(*), 0), 1)                                              AS stage3_pct,
-        ROUND(100.0 * SUM(CASE WHEN Stage = 3 THEN TRY_CAST(totalExposure AS FLOAT) ELSE 0 END)
-              / NULLIF(SUM(TRY_CAST(totalExposure AS FLOAT)), 0), 1)                AS npl_ratio_pct
-      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
-      WHERE CalculationDate = @mcd
+        ROUND(100.0 * SUM(CASE WHEN worst_stage = 3 THEN client_exposure ELSE 0 END)
+              / NULLIF(SUM(client_exposure), 0), 1)                                 AS npl_ratio_pct
+      FROM client_worst_stage
     )
     SELECT
       r.total_clients, d.delinquency_rate_pct, d.avg_due_days,
@@ -400,7 +421,7 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
         ELSE 'Critical'
       END                                                                            AS health_label
     FROM dpd_base d, rp_base r
-  `, { mcd, mdid })
+  `, { mcd })
   const result = rows[0] ?? {
     total_clients: 0, delinquency_rate_pct: 0, avg_due_days: 0, total_exposure: 0,
     health_score: 0, health_label: 'Unknown', npl_ratio_pct: 0,
@@ -412,10 +433,29 @@ export async function getStageDistribution(): Promise<StageDistribution[]> {
   const cached = rc<StageDistribution[]>('stageDistribution'); if (cached) return cached
   const mcd = await maxCalcDate()
   const result = await query<StageDistribution>(`
-    SELECT 'Stage ' + CAST(Stage AS VARCHAR) AS stage, COUNT(*) AS count, SUM(TRY_CAST(totalExposure AS FLOAT)) AS exposure
-    FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
-    WHERE CalculationDate = @mcd
-    GROUP BY Stage ORDER BY Stage
+    -- Client count: each client assigned to their HIGHEST (worst) stage (IFRS 9 principle).
+    -- Exposure: summed per loan stage (correct for ECL provisioning — each facility is staged independently).
+    WITH client_worst_stage AS (
+      SELECT clientID,
+        MAX(COALESCE(Stage, 1)) AS worst_stage
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
+      WHERE CalculationDate = @mcd
+      GROUP BY clientID
+    ),
+    stage_exposure AS (
+      SELECT COALESCE(Stage, 1) AS stage, SUM(TRY_CAST(totalExposure AS FLOAT)) AS exposure
+      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
+      WHERE CalculationDate = @mcd
+      GROUP BY COALESCE(Stage, 1)
+    )
+    SELECT
+      'Stage ' + CAST(c.worst_stage AS VARCHAR) AS stage,
+      COUNT(*)                                   AS count,
+      e.exposure
+    FROM client_worst_stage c
+    JOIN stage_exposure e ON e.stage = c.worst_stage
+    GROUP BY c.worst_stage, e.exposure
+    ORDER BY c.worst_stage
   `, { mcd })
   sc('stageDistribution', result, TTL); return result
 }
@@ -489,26 +529,40 @@ export async function getNPLRatio(): Promise<NPLRatio> {
 
 export async function getPortfolioKPIs(): Promise<PortfolioKPIs> {
   const cached = rc<PortfolioKPIs>('portfolioKPIs'); if (cached) return cached
-  // Ensure WrittenOffClients table exists before the LEFT JOIN below
   await ensureWrittenOffTable()
   const mcd = await maxCalcDate()
   const rows = await query<PortfolioKPIs>(`
-    WITH base AS (
-      SELECT
-        SUM(TRY_CAST(rp.totalExposure AS FLOAT))                                        AS total_exposure,
-        COUNT(*)                                                                         AS total_clients,
-        ROUND(100.0 * SUM(CASE WHEN rp.Stage = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS stage1_pct,
-        ROUND(100.0 * SUM(CASE WHEN rp.Stage = 2 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS stage2_pct,
-        ROUND(100.0 * SUM(CASE WHEN rp.Stage = 3 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS stage3_pct
+    -- Deduplicate by client: each client assigned to their highest (worst) stage.
+    -- Exposure summed per client across all their loans.
+    WITH client_worst_stage AS (
+      SELECT rp.clientID,
+        MAX(COALESCE(rp.Stage, 1))                       AS worst_stage,
+        SUM(TRY_CAST(rp.totalExposure AS FLOAT))         AS client_exposure,
+        SUM(TRY_CAST(rp.onBalanceExposure AS FLOAT))     AS on_balance,
+        SUM(TRY_CAST(rp.Shuma_Approvuar AS FLOAT))      AS approved_amount
       FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
-      -- Exclude written-off clients from all active portfolio KPIs
-      LEFT JOIN [dbo].[WrittenOffClients] wo WITH (NOLOCK)
-        ON wo.client_id = rp.clientID
-      WHERE rp.CalculationDate = @mcd
-        AND wo.client_id IS NULL
+      LEFT JOIN [dbo].[WrittenOffClients] wo WITH (NOLOCK) ON wo.client_id = rp.clientID
+      WHERE rp.CalculationDate = @mcd AND wo.client_id IS NULL
+      GROUP BY rp.clientID
+    ),
+    base AS (
+      SELECT
+        COUNT(*)                                                                         AS total_clients,
+        COALESCE(SUM(client_exposure), 0)                                               AS total_exposure,
+        ROUND(100.0 * SUM(CASE WHEN worst_stage = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS stage1_pct,
+        ROUND(100.0 * SUM(CASE WHEN worst_stage = 2 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS stage2_pct,
+        ROUND(100.0 * SUM(CASE WHEN worst_stage = 3 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS stage3_pct,
+        -- NPL ratio: Stage 3 exposure / total exposure (IFRS 9 standard definition)
+        ROUND(100.0 * SUM(CASE WHEN worst_stage = 3 THEN client_exposure ELSE 0 END)
+              / NULLIF(SUM(client_exposure), 0), 1)                                     AS npl_ratio_pct,
+        -- LTV: on-balance exposure / approved amount (where approved amount > 0)
+        ROUND(100.0 * SUM(CASE WHEN COALESCE(approved_amount, 0) > 0 THEN on_balance ELSE NULL END)
+              / NULLIF(SUM(CASE WHEN COALESCE(approved_amount, 0) > 0 THEN approved_amount ELSE NULL END), 0), 1) AS avg_ltv
+      FROM client_worst_stage
     )
     SELECT
-      total_exposure, total_clients, stage1_pct, stage2_pct, stage3_pct, 0 AS avg_ltv,
+      total_exposure, total_clients, stage1_pct, stage2_pct, stage3_pct, npl_ratio_pct,
+      COALESCE(avg_ltv, 0) AS avg_ltv,
       CASE WHEN 100 - stage2_pct * 1 - stage3_pct * 3 < 0   THEN 0
            WHEN 100 - stage2_pct * 1 - stage3_pct * 3 > 100 THEN 100
            ELSE ROUND(100 - stage2_pct * 1 - stage3_pct * 3, 0)
@@ -522,8 +576,8 @@ export async function getPortfolioKPIs(): Promise<PortfolioKPIs> {
     FROM base
   `, { mcd })
   const result = rows[0] ?? {
-    total_exposure: 0, total_clients: 0, stage2_pct: 0, stage3_pct: 0,
-    avg_ltv: 0, stage1_pct: 0, health_score: 0, health_label: 'Unknown',
+    total_exposure: 0, total_clients: 0, stage1_pct: 0, stage2_pct: 0, stage3_pct: 0,
+    npl_ratio_pct: 0, avg_ltv: 0, health_score: 0, health_label: 'Unknown',
   }
   sc('portfolioKPIs', result, TTL); return result
 }
@@ -541,7 +595,7 @@ export async function getExposureByProduct(): Promise<ProductExposure[]> {
       WHERE rp.CalculationDate = @mcd
         AND wo.client_id IS NULL
     )
-    SELECT rp.TypeOfProduct AS product_type,
+    SELECT COALESCE(rp.ProductDesc, rp.TypeOfProduct, 'Other') AS product_type,
       SUM(TRY_CAST(rp.totalExposure AS FLOAT)) AS exposure,
       ROUND(100.0 * SUM(TRY_CAST(rp.totalExposure AS FLOAT)) / NULLIF(t.grand_total, 0), 1) AS pct
     FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
@@ -550,47 +604,60 @@ export async function getExposureByProduct(): Promise<ProductExposure[]> {
     CROSS JOIN totals t
     WHERE rp.CalculationDate = @mcd
       AND wo.client_id IS NULL
-    GROUP BY rp.TypeOfProduct, t.grand_total ORDER BY exposure DESC
+    GROUP BY rp.ProductDesc, rp.TypeOfProduct, t.grand_total ORDER BY exposure DESC
   `, { mcd })
   sc('exposureByProduct', result, TTL); return result
 }
 
 export async function getExposureByRegion(): Promise<RegionRow[]> {
   const cached = rc<RegionRow[]>('exposureByRegion'); if (cached) return cached
-  const [mcd, mdid] = await Promise.all([maxCalcDate(), maxDateID()])
+  const mcd = await maxCalcDate()
   const result = await query<RegionRow>(`
     WITH rp_filtered AS (
-      SELECT clientID, arrangementID, TRY_CAST(totalExposure AS FLOAT) AS exposure
+      SELECT clientID, TRY_CAST(totalExposure AS FLOAT) AS exposure
       FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
     ),
-    latest_dpd AS (
+    latest_dpd_per_client AS (
+      -- Latest DPD per client regardless of snapshot date (avoids partial-snapshot bug)
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS due_days
-      FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
+      FROM (
+        SELECT PersonalID, DueDays,
+          ROW_NUMBER() OVER (PARTITION BY PersonalID ORDER BY dateID DESC) AS rn
+        FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
+      ) x WHERE rn = 1
+      GROUP BY PersonalID
     )
     SELECT COALESCE(cu.City, cu.Branch, 'Unknown') AS region,
-      COUNT(DISTINCT rp.arrangementID) AS clients,
+      COUNT(DISTINCT rp.clientID) AS clients,
       SUM(rp.exposure) AS exposure,
-      ROUND(100.0 * SUM(CASE WHEN ld.due_days >= 30 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS delinquency_pct
+      ROUND(100.0 * COUNT(DISTINCT CASE WHEN COALESCE(ld.due_days, 0) >= 30 THEN rp.clientID END)
+            / NULLIF(COUNT(DISTINCT rp.clientID), 0), 1) AS delinquency_pct
     FROM rp_filtered rp
     LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK)
       ON TRY_CAST(cu.PersonalID AS BIGINT) = TRY_CAST(rp.clientID AS BIGINT)
-    LEFT JOIN latest_dpd ld ON ld.PersonalID = rp.clientID
+    LEFT JOIN latest_dpd_per_client ld ON ld.PersonalID = rp.clientID
     GROUP BY COALESCE(cu.City, cu.Branch, 'Unknown') ORDER BY exposure DESC
-  `, { mcd, mdid })
+  `, { mcd })
   sc('exposureByRegion', result, TTL); return result
 }
 
 export async function getTopLoans(): Promise<TopLoan[]> {
   const cached = rc<TopLoan[]>('topLoans'); if (cached) return cached
-  const [mcd, mdid] = await Promise.all([maxCalcDate(), maxDateID()])
+  const mcd = await maxCalcDate()
   const result = await query<TopLoan>(`
     WITH latest_dpd AS (
+      -- Latest DPD per CreditAccount regardless of snapshot date
       SELECT CreditAccount, MAX(TRY_CAST(DueDays AS FLOAT)) AS due_days
-      FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY CreditAccount
+      FROM (
+        SELECT CreditAccount, DueDays,
+          ROW_NUMBER() OVER (PARTITION BY CreditAccount ORDER BY dateID DESC) AS rn
+        FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
+      ) x WHERE rn = 1
+      GROUP BY CreditAccount
     )
     SELECT TOP 8 cr.CreditAccount AS credit_id, rp.clientID AS personal_id,
-      COALESCE(rp.TypeOfProduct, cr.TypeOfCalculatioin, '') AS product_type,
+      COALESCE(rp.ProductDesc, rp.TypeOfProduct, cr.TypeOfCalculatioin, '') AS product_type,
       TRY_CAST(rp.totalExposure AS FLOAT) AS exposure,
       'Stage ' + CAST(rp.Stage AS VARCHAR) AS stage,
       COALESCE(ld.due_days, 0) AS due_days
@@ -598,7 +665,7 @@ export async function getTopLoans(): Promise<TopLoan[]> {
     JOIN [dbo].[RiskPortfolio] rp WITH (NOLOCK) ON rp.contractNumber = cr.NoCredit AND rp.CalculationDate = @mcd
     LEFT JOIN latest_dpd ld ON ld.CreditAccount = cr.CreditAccount
     ORDER BY TRY_CAST(rp.totalExposure AS FLOAT) DESC
-  `, { mcd, mdid })
+  `, { mcd })
   sc('topLoans', result, TTL); return result
 }
 
@@ -1139,7 +1206,7 @@ export async function getClientProfile(personalId: string): Promise<ClientProfil
       COALESCE(DATEDIFF(YEAR, TRY_CAST(cu.DOB AS DATE), GETDATE()), 0) AS age,
       COALESCE(cu.Occupation, '')                                        AS employment_type,
       COALESCE(cr.CreditAccount, rp.clientID)                           AS credit_id,
-      COALESCE(rp.TypeOfProduct, cr.TypeOfCalculatioin, '')             AS product_type,
+      COALESCE(rp.ProductDesc, rp.TypeOfProduct, cr.TypeOfCalculatioin, '') AS product_type,
       COALESCE(TRY_CAST(rp.totalExposure AS FLOAT),
                TRY_CAST(cr.Amount AS FLOAT), 0)                        AS total_exposure,
       COALESCE(TRY_CAST(rp.onBalanceExposure AS FLOAT), 0)             AS on_balance,
@@ -1164,7 +1231,7 @@ export async function getClientProfile(personalId: string): Promise<ClientProfil
         THEN ROUND(
           COALESCE(TRY_CAST(cr.InstallmentsAmount AS FLOAT), 0)
           / ie.avg_monthly_income * 100.0, 1)
-        ELSE 0
+        ELSE NULL
       END                                                                AS dti_ratio,
       -- % of due installments paid on time
       CASE
@@ -1210,7 +1277,7 @@ export async function getClientProfile(personalId: string): Promise<ClientProfil
                                                                              AS sicr_flagged
     -- Anchor on Customer — all clients visible regardless of RiskPortfolio coverage
     FROM [dbo].[Customer] cu WITH (NOLOCK)
-    LEFT JOIN (SELECT clientID, Stage, totalExposure, onBalanceExposure, TotalOffBalance, TypeOfProduct, contractNumber FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd) rp ON rp.clientID = cu.PersonalID
+    LEFT JOIN (SELECT clientID, Stage, totalExposure, onBalanceExposure, TotalOffBalance, TypeOfProduct, ProductDesc, contractNumber FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd) rp ON rp.clientID = cu.PersonalID
     LEFT JOIN [dbo].[Credits]   cr WITH (NOLOCK) ON cr.NoCredit    = rp.contractNumber
     LEFT JOIN latest_dpd    ld  ON ld.PersonalID  = cu.PersonalID
     LEFT JOIN max_dpd_12m   md  ON md.PersonalID  = cu.PersonalID
@@ -1392,7 +1459,7 @@ export async function getClientSignalsBatch(): Promise<Record<string, ClientSign
       'Normal'                                                             AS overdraft,
       'Normal'                                                             AS card_usage,
       CASE WHEN cl.PersonalID IS NOT NULL THEN '3 months' ELSE '0 months' END AS consec_lates,
-      COALESCE(rp.TypeOfProduct, 'Consumer')                              AS product_type,
+      COALESCE(rp.ProductDesc, rp.TypeOfProduct, 'Consumer')              AS product_type,
       CASE
         WHEN COALESCE(p.total_payments, 0) = 0 THEN 0
         ELSE ROUND(
@@ -1425,7 +1492,7 @@ export async function getClientProducts(personalId: string): Promise<ClientProdu
     )
     SELECT
       LTRIM(RTRIM(cr.CreditAccount))                            AS credit_account,
-      COALESCE(rp.TypeOfProduct, cr.TypeOfCalculatioin, '')    AS product_type,
+      COALESCE(rp.ProductDesc, rp.TypeOfProduct, cr.TypeOfCalculatioin, '') AS product_type,
       COALESCE(TRY_CAST(cr.Amount AS FLOAT), 0)               AS approved_amount,
       'Stage ' + CAST(COALESCE(rp.Stage, 1) AS VARCHAR)       AS stage,
       COALESCE(ld.due_days, 0)                                 AS due_days
@@ -1490,11 +1557,11 @@ export async function getDelinquencyBySegment(): Promise<SegmentDelinquency[]> {
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS due_days
       FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
     )
-    SELECT COALESCE(rp.TypeOfProduct, 'Other') AS product_type,
+    SELECT COALESCE(rp.ProductDesc, rp.TypeOfProduct, 'Other') AS product_type,
       ROUND(100.0 * SUM(CASE WHEN ld.due_days >= 30 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS delinquency_pct
     FROM [dbo].[RiskPortfolio] rp WITH (NOLOCK)
     LEFT JOIN latest_dpd ld ON ld.PersonalID = rp.clientID
-    WHERE rp.CalculationDate = @mcd GROUP BY rp.TypeOfProduct ORDER BY delinquency_pct DESC
+    WHERE rp.CalculationDate = @mcd GROUP BY rp.ProductDesc, rp.TypeOfProduct ORDER BY delinquency_pct DESC
   `, { mcd, mdid })
   sc('delinquencyBySegment', result, EWI_TTL); return result
 }
@@ -1527,11 +1594,11 @@ export async function getProvisionByProduct(): Promise<ProvisionByProduct[]> {
   const cached = rc<ProvisionByProduct[]>('provisionByProduct'); if (cached) return cached
   const mcd = await maxCalcDate()
   const result = await query<ProvisionByProduct>(`
-    SELECT COALESCE(TypeOfProduct, 'Other') AS product_type,
+    SELECT COALESCE(ProductDesc, TypeOfProduct, 'Other') AS product_type,
       ROUND(AVG(100.0 * TRY_CAST(CalculatedProvision AS FLOAT) / NULLIF(TRY_CAST(totalExposure AS FLOAT), 0)), 1) AS provision_pct
     FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     WHERE CalculationDate = @mcd AND TRY_CAST(totalExposure AS FLOAT) > 0
-    GROUP BY TypeOfProduct ORDER BY provision_pct DESC
+    GROUP BY ProductDesc, TypeOfProduct ORDER BY provision_pct DESC
   `, { mcd })
   sc('provisionByProduct', result, EWI_TTL); return result
 }
@@ -1832,17 +1899,27 @@ export async function getClientsPaginated(
   const commonParams = { mcd, mdid, pattern, stageFilter, statusFilter }
 
   const dataQ = query<ClientTableRow>(`
-    WITH latest_rp AS (
-      SELECT clientID, TypeOfProduct, Stage,
+    WITH rp_raw AS (
+      SELECT clientID, COALESCE(ProductDesc, TypeOfProduct, '') AS TypeOfProduct, Stage,
         TRY_CAST(totalExposure AS FLOAT) AS exposure,
-        CalculationDate AS last_activity
+        CalculationDate AS last_activity,
+        ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY TRY_CAST(totalExposure AS FLOAT) DESC) AS rn
       FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
+    ),
+    latest_rp AS (
+      SELECT clientID, TypeOfProduct, Stage, exposure, last_activity FROM rp_raw WHERE rn = 1
     ),
     latest_dpd AS (
       SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS current_dpd
       FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID = @mdid GROUP BY PersonalID
+    ),
+    cu_dedup AS (
+      SELECT PersonalID, name, surname, email, Tel, City, Address, DOB, Gender,
+             Occupation, Status, CustomerType, Branch, DateOfRegister,
+             ROW_NUMBER() OVER (PARTITION BY PersonalID ORDER BY (SELECT NULL)) AS rn
+      FROM [dbo].[Customer] WITH (NOLOCK)
     )
     SELECT
       cu.PersonalID                                                         AS personal_id,
@@ -1860,17 +1937,18 @@ export async function getClientsPaginated(
       COALESCE(cu.CustomerType,    '')                                     AS customer_type,
       COALESCE(cu.Branch,          '')                                     AS branch,
       COALESCE(CAST(cu.DateOfRegister AS VARCHAR(30)), '')                 AS date_of_register,
-      COALESCE(rp.TypeOfProduct,   '')                                     AS product_type,
+      COALESCE(rp.TypeOfProduct, '')                                        AS product_type,
       COALESCE(rp.exposure,        0)                                      AS exposure,
       COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A')               AS stage,
       COALESCE(CAST(rp.last_activity AS VARCHAR(30)), '')                  AS last_activity,
       COALESCE(ld.current_dpd,     0)                                      AS current_dpd,
       CASE WHEN cr.client_id IS NOT NULL THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS is_resolved
-    FROM [dbo].[Customer] cu WITH (NOLOCK)
+    FROM cu_dedup cu
     INNER JOIN latest_rp rp ON rp.clientID = cu.PersonalID
     LEFT  JOIN latest_dpd ld ON ld.PersonalID = cu.PersonalID
     LEFT  JOIN [dbo].[ClientResolutions] cr WITH (NOLOCK) ON cr.client_id = cu.PersonalID
-    WHERE (cu.PersonalID LIKE @pattern
+    WHERE cu.rn = 1
+      AND (cu.PersonalID LIKE @pattern
        OR (COALESCE(cu.name, '') + ' ' + COALESCE(cu.surname, '')) LIKE @pattern)
       AND (@stageFilter  = '' OR (@stageFilter = 'NA' AND rp.Stage IS NULL) OR CAST(rp.Stage AS VARCHAR) = @stageFilter)
       AND (@dpdFilter    = ''
@@ -1887,9 +1965,14 @@ export async function getClientsPaginated(
   // DueDaysDaily can be very large — the GROUP BY is the main bottleneck on the count path.
   const cntQ = dpdFilter
     ? query<{ total: number }>(`
-        WITH latest_rp AS (
-          SELECT clientID, Stage FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
+        WITH rp_raw AS (
+          SELECT clientID, Stage,
+            ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY TRY_CAST(totalExposure AS FLOAT) DESC) AS rn
+          FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
           WHERE CalculationDate = @mcd
+        ),
+        latest_rp AS (
+          SELECT clientID, Stage FROM rp_raw WHERE rn = 1
         ),
         latest_dpd AS (
           SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS current_dpd
@@ -1897,25 +1980,34 @@ export async function getClientsPaginated(
           WHERE dateID = @mdid GROUP BY PersonalID
         )
         SELECT COUNT(*) AS total
-        FROM [dbo].[Customer] cu WITH (NOLOCK)
-        INNER JOIN latest_rp rp  ON rp.clientID   = cu.PersonalID
-        LEFT  JOIN latest_dpd ld ON ld.PersonalID = cu.PersonalID
-        WHERE (cu.PersonalID LIKE @pattern
-           OR (COALESCE(cu.name, '') + ' ' + COALESCE(cu.surname, '')) LIKE @pattern)
-          AND (@stageFilter  = '' OR (@stageFilter = 'NA' AND rp.Stage IS NULL) OR CAST(rp.Stage AS VARCHAR) = @stageFilter)
-          AND (@dpdFilter    = ''
-               OR (@dpdFilter = '0'  AND COALESCE(ld.current_dpd, 0) = 0)
-               OR (@dpdFilter = '1'  AND COALESCE(ld.current_dpd, 0) BETWEEN 1 AND 30)
-               OR (@dpdFilter = '31' AND COALESCE(ld.current_dpd, 0) BETWEEN 31 AND 90)
-               OR (@dpdFilter = '90' AND COALESCE(ld.current_dpd, 0) > 90))
-          AND (@statusFilter = '' OR cu.Status = @statusFilter)
+        FROM (
+          SELECT cu.PersonalID
+          FROM [dbo].[Customer] cu WITH (NOLOCK)
+          INNER JOIN latest_rp rp  ON rp.clientID   = cu.PersonalID
+          LEFT  JOIN latest_dpd ld ON ld.PersonalID = cu.PersonalID
+          WHERE (cu.PersonalID LIKE @pattern
+             OR (COALESCE(cu.name, '') + ' ' + COALESCE(cu.surname, '')) LIKE @pattern)
+            AND (@stageFilter  = '' OR (@stageFilter = 'NA' AND rp.Stage IS NULL) OR CAST(rp.Stage AS VARCHAR) = @stageFilter)
+            AND (@dpdFilter    = ''
+                 OR (@dpdFilter = '0'  AND COALESCE(ld.current_dpd, 0) = 0)
+                 OR (@dpdFilter = '1'  AND COALESCE(ld.current_dpd, 0) BETWEEN 1 AND 30)
+                 OR (@dpdFilter = '31' AND COALESCE(ld.current_dpd, 0) BETWEEN 31 AND 90)
+                 OR (@dpdFilter = '90' AND COALESCE(ld.current_dpd, 0) > 90))
+            AND (@statusFilter = '' OR cu.Status = @statusFilter)
+          GROUP BY cu.PersonalID
+        ) AS dedupd
       `, { ...commonParams, dpdFilter }, 15000)
     : query<{ total: number }>(`
-        WITH latest_rp AS (
-          SELECT clientID, Stage FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
+        WITH rp_raw AS (
+          SELECT clientID, Stage,
+            ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY TRY_CAST(totalExposure AS FLOAT) DESC) AS rn
+          FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
           WHERE CalculationDate = @mcd
+        ),
+        latest_rp AS (
+          SELECT clientID, Stage FROM rp_raw WHERE rn = 1
         )
-        SELECT COUNT(*) AS total
+        SELECT COUNT(DISTINCT cu.PersonalID) AS total
         FROM [dbo].[Customer] cu WITH (NOLOCK)
         INNER JOIN latest_rp rp ON rp.clientID = cu.PersonalID
         WHERE (cu.PersonalID LIKE @pattern
@@ -2857,4 +2949,9 @@ export function clearAllCaches(): void {
   _overdraftDep = null; _overdraftExp = 0
   _cardSpend = null; _cardSpendExp = 0
   _rc.clear()
+  // Also flush the ML prediction file cache so fresh EWIPredictions data is returned
+  try {
+    const { clearPredictionCache } = require('@/lib/predictions') as typeof import('@/lib/predictions')
+    clearPredictionCache()
+  } catch { /* non-fatal */ }
 }

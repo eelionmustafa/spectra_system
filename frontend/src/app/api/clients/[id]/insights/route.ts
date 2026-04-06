@@ -52,7 +52,7 @@ Stage: ${profile.stage} | Risk Score: ${profile.risk_score}/10 | SICR Flagged: $
 Exposure: EUR${Number(profile.total_exposure).toLocaleString()} (on-balance: EUR${Number(profile.on_balance).toLocaleString()})
 Current DPD: ${profile.current_due_days}d | Max DPD 12M: ${profile.max_due_days_12m}d
 Missed Payments: ${profile.missed_payments} of ${profile.total_payments} | Repayment Rate: ${profile.repayment_rate_pct}%
-DTI Ratio: ${profile.dti_ratio}% | Exposure Growth: ${profile.exposure_growth_pct ?? 'N/A'}%
+DTI Ratio: ${profile.dti_ratio != null ? profile.dti_ratio + '%' : 'N/A'} | Exposure Growth: ${profile.exposure_growth_pct ?? 'N/A'}%
 ${pdLine}
 
 Return this exact JSON structure:
