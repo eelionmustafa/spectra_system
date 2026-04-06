@@ -21,6 +21,8 @@ export default function PayButton({ personalId }: Props) {
         throw new Error(data.error ?? 'Payment failed')
       }
       setState('done')
+      // Reload after 2s so the server re-reads the updated DueDays → new risk score
+      setTimeout(() => window.location.reload(), 2000)
     } catch (e) {
       setErrMsg((e as Error).message)
       setState('error')
