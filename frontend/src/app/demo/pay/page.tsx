@@ -38,12 +38,14 @@ async function claimClient(): Promise<string | null> {
         WHERE PersonalID = rp.clientID
         ORDER BY dateID DESC
       ) dd
-      WHERE rp.clientID NOT IN (
-        SELECT client_id FROM [dbo].[DemoClientAssignments] WITH (NOLOCK)
-        WHERE assigned_at > DATEADD(HOUR, -2, GETDATE())
-      )
+      WHERE rp.Stage = 3
+        AND rp.clientID NOT IN (
+          SELECT client_id FROM [dbo].[DemoClientAssignments] WITH (NOLOCK)
+          WHERE assigned_at > DATEADD(HOUR, -2, GETDATE())
+        )
       ORDER BY
-        CASE rp.Stage WHEN 3 THEN 0 WHEN 2 THEN 1 ELSE 2 END,
+        -- Pin Arben Morina first
+        CASE WHEN LOWER(COALESCE(cu.name + ' ' + cu.surname, '')) LIKE '%arben%morina%' THEN 0 ELSE 1 END,
         COALESCE(TRY_CAST(dd.DueDays AS FLOAT), 0) DESC
     `, {})
 
