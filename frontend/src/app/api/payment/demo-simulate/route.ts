@@ -204,6 +204,43 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({ personalId }),
     }).catch(() => {})
 
+    // 8. Auto-reset after 30s so next scan gets fresh data
+    const resetDueDays = previousDueDays ?? 92
+    const resetStage   = stage // original stage before payment
+    setTimeout(async () => {
+      try {
+        // Restore DueDays
+        await query(
+          `UPDATE [dbo].[DueDaysDaily] SET DueDays = @resetDueDays
+           WHERE CreditAccount = @creditAccount AND PersonalID = @personalId
+             AND dateID = (SELECT MAX(dateID) FROM [dbo].[DueDaysDaily] WHERE PersonalID = @personalId)`,
+          { personalId, creditAccount: resolvedAccount, resetDueDays }
+        )
+        // Restore Stage
+        await query(
+          `UPDATE [dbo].[RiskPortfolio] SET Stage = @resetStage
+           WHERE clientID = @personalId
+             AND CalculationDate = (SELECT MAX(CalculationDate) FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE clientID = @personalId)`,
+          { personalId, resetStage }
+        )
+        // Remove post-payment EWI entry
+        await query(
+          `DELETE FROM [dbo].[EWIPredictions] WHERE client_id = @personalId AND run_date >= @since`,
+          { personalId, since: new Date(Date.now() - 35000).toISOString() }
+        )
+        // Clear payment action
+        await query(
+          `DELETE FROM [dbo].[ClientActions] WHERE clientId = @personalId AND action = 'Payment Received'`,
+          { personalId }
+        )
+        // Clear demo assignment so next scan picks a fresh client
+        await query(
+          `DELETE FROM [dbo].[DemoClientAssignments] WHERE client_id = @personalId`,
+          { personalId }
+        )
+      } catch { /* silent — demo reset is best-effort */ }
+    }, 30_000)
+
     return NextResponse.json({ ok: true, personalId, creditAccount: resolvedAccount, newDueDays, previousDueDays, newRiskScore: newScore, newRiskLabel: newLabel })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
