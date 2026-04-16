@@ -15,15 +15,17 @@ function fmtEur(n: number | null | undefined) {
   return '€' + n.toLocaleString()
 }
 
-function stageLabel(s: number | null | undefined) {
-  if (s === 3) return 'Stage 3 · NPL'
-  if (s === 2) return 'Stage 2 · Watch'
+function stageLabel(s: string | number | null | undefined) {
+  const n = Number(s)
+  if (n === 3) return 'Stage 3 · NPL'
+  if (n === 2) return 'Stage 2 · Watch'
   return 'Stage 1 · Performing'
 }
 
-function stageColor(s: number | null | undefined) {
-  if (s === 3) return '#ef4444'
-  if (s === 2) return '#f97316'
+function stageColor(s: string | number | null | undefined) {
+  const n = Number(s)
+  if (n === 3) return '#ef4444'
+  if (n === 2) return '#f97316'
   return '#10b981'
 }
 
@@ -104,8 +106,8 @@ function Row({
 /* ─── comparison table ────────────────────────────────────────────────────── */
 
 function CompareTable({ a, b }: { a: ClientProfile; b: ClientProfile }) {
-  const aStage = a.stage ?? 1
-  const bStage = b.stage ?? 1
+  const aStage = Number(a.stage ?? 1)
+  const bStage = Number(b.stage ?? 1)
 
   return (
     <div className="panel" style={{ padding: 0, overflowX: 'auto' }}>
