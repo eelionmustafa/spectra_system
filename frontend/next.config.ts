@@ -3,8 +3,6 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
-
   // Keep heavy native DB packages out of the Next.js bundle
   serverExternalPackages: ['mssql', 'msnodesqlv8', 'tedious'],
 
