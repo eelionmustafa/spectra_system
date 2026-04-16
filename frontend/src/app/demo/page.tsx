@@ -60,7 +60,7 @@ async function getTopClients(): Promise<DemoClient[]> {
 
 export default async function DemoControlPage() {
   const clients = await getTopClients()
-  const baseUrl = 'https://spectra-system-mbg5.vercel.app'
+  const baseUrl = 'https://spectrarsk.vercel.app'
 
   return (
     <div style={{
