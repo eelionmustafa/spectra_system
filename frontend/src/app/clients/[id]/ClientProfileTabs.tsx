@@ -201,8 +201,8 @@ export default function ClientProfileTabs({
   const [resolveLoading,   setResolveLoading]   = useState(false)
 
   // What-If scenario
-  const [whatIfDpd,   setWhatIfDpd]   = useState(profile.current_due_days ?? 0)
-  const [whatIfStage, setWhatIfStage] = useState(profile.stage ?? 1)
+  const [whatIfDpd,   setWhatIfDpd]   = useState(Number(profile.current_due_days ?? 0))
+  const [whatIfStage, setWhatIfStage] = useState(Number(profile.stage ?? 1))
 
   // Document request modal
   const [docModalOpen, setDocModalOpen] = useState(false)
@@ -1949,8 +1949,8 @@ export default function ClientProfileTabs({
                 return '#10b981'
               }
 
-              const curStage  = profile.stage ?? 1
-              const curDpd    = profile.current_due_days ?? 0
+              const curStage  = Number(profile.stage ?? 1)
+              const curDpd    = Number(profile.current_due_days ?? 0)
               const curScore  = wiScore(curStage, curDpd)
               const scenScore = wiScore(whatIfStage, whatIfDpd)
               const scenLabel = wiLabel(scenScore)
