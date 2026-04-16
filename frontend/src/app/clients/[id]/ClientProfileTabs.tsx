@@ -143,7 +143,7 @@ export default function ClientProfileTabs({
   isResolved: isResolvedProp,
   scheduledSalary,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'ewi' | 'alerts' | 'ai' | 'log'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'ewi' | 'alerts' | 'ai' | 'log' | 'whatif'>('overview')
   const [insights, setInsights] = useState<AIInsights | null>(null)
   const [letterOpen, setLetterOpen] = useState(false)
   const [quickActionDone, setQuickActionDone] = useState<Set<string>>(new Set())
@@ -200,6 +200,10 @@ export default function ClientProfileTabs({
   const [resolveNotes,     setResolveNotes]     = useState('')
   const [resolveLoading,   setResolveLoading]   = useState(false)
 
+  // What-If scenario
+  const [whatIfDpd,   setWhatIfDpd]   = useState(profile.current_due_days ?? 0)
+  const [whatIfStage, setWhatIfStage] = useState(profile.stage ?? 1)
+
   // Document request modal
   const [docModalOpen, setDocModalOpen] = useState(false)
   const [docSelections, setDocSelections] = useState<Record<string, boolean>>({})
@@ -221,6 +225,25 @@ export default function ClientProfileTabs({
   const [notifyLoading, setNotifyLoading] = useState(false)
   const [notifyDone, setNotifyDone] = useState<Set<string>>(new Set())
 
+
+  const [watchlistState, setWatchlistState] = useState<'idle' | 'loading' | 'done'>(() =>
+    activeActions.some(a => a.action === 'Add to Watchlist' || a.action === 'Add to watchlist') ? 'done' : 'idle'
+  )
+
+  async function addToWatchlist() {
+    setWatchlistState('loading')
+    try {
+      await fetch(`/api/actions/log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, action: 'Add to Watchlist', notes: 'Manually added from client profile' }),
+      })
+      setWatchlistState('done')
+      router.push('/watchlist')
+    } catch {
+      setWatchlistState('idle')
+    }
+  }
 
   // Avoid long-lived SSE subscriptions in the browser; refresh periodically instead.
   const router = useRouter()
@@ -801,6 +824,46 @@ export default function ClientProfileTabs({
             <span style={{ fontSize: '13px' }}>{generating ? '⏳' : '✦'}</span>
             {generating ? 'Generating…' : 'AI Insights'}
           </button>
+
+          {/* Add to Watchlist button */}
+          <button
+            onClick={watchlistState === 'done' ? () => router.push('/watchlist') : addToWatchlist}
+            disabled={watchlistState === 'loading'}
+            title={watchlistState === 'done' ? 'On watchlist — click to view' : 'Add to watchlist'}
+            style={{
+              flexShrink: 0, padding: '9px 14px', borderRadius: '8px',
+              border: watchlistState === 'done'
+                ? '1px solid rgba(34,197,94,0.4)'
+                : '1px solid rgba(255,255,255,0.12)',
+              background: watchlistState === 'done'
+                ? 'rgba(34,197,94,0.12)'
+                : watchlistState === 'loading'
+                  ? 'rgba(255,255,255,0.03)'
+                  : 'rgba(255,255,255,0.06)',
+              color: watchlistState === 'done'
+                ? '#4ade80'
+                : watchlistState === 'loading'
+                  ? 'rgba(255,255,255,0.25)'
+                  : 'rgba(255,255,255,0.7)',
+              fontSize: '13px', cursor: watchlistState === 'loading' ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              transition: 'all 0.15s', whiteSpace: 'nowrap',
+            }}
+          >
+            {watchlistState === 'loading' ? (
+              <span style={{ fontSize: '12px' }}>⏳</span>
+            ) : watchlistState === 'done' ? (
+              <>
+                <span>★</span>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>On Watchlist</span>
+              </>
+            ) : (
+              <>
+                <span>☆</span>
+                <span style={{ fontSize: '12px', fontWeight: 700 }}>Watchlist</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* KPI tiles */}
@@ -969,6 +1032,7 @@ export default function ClientProfileTabs({
               { id: 'alerts', label: 'Alerts', count: derivedAlerts.length || undefined },
               { id: 'ai', label: 'AI Insights' },
               { id: 'log', label: 'Actions Log', count: caseHistory.length || undefined },
+              { id: 'whatif', label: 'What-If' },
             ]) as { id: typeof activeTab; label: string; count?: number }[]).map(t => (
               <button
                 key={t.id}
@@ -1857,6 +1921,262 @@ export default function ClientProfileTabs({
                 </div>
               )
             })()}
+
+            {/* ── What-If ──────────────────────────────────────────── */}
+            {activeTab === 'whatif' && (() => {
+              // Risk scoring formula (mirrors Python pipeline)
+              function wiScore(stage: number, dpd: number) {
+                const base = stage === 3 ? 0.65 : stage === 2 ? 0.40 : 0.20
+                const dpdMod = dpd >= 90 ? 0.25 : dpd >= 60 ? 0.18 : dpd >= 30 ? 0.10 : dpd > 0 ? 0.04 : 0.0
+                return Math.min(0.98, Math.max(0.05, base + dpdMod))
+              }
+              function wiLabel(s: number) {
+                if (s >= 0.75) return 'Critical'
+                if (s >= 0.50) return 'High'
+                if (s >= 0.30) return 'Medium'
+                return 'Low'
+              }
+              function wiColor(s: number) {
+                if (s >= 0.75) return '#ef4444'
+                if (s >= 0.50) return '#f97316'
+                if (s >= 0.30) return '#eab308'
+                return '#10b981'
+              }
+              function wiLabelColor(lbl: string) {
+                if (lbl === 'Critical') return '#ef4444'
+                if (lbl === 'High')     return '#f97316'
+                if (lbl === 'Medium')   return '#eab308'
+                return '#10b981'
+              }
+
+              const curStage  = profile.stage ?? 1
+              const curDpd    = profile.current_due_days ?? 0
+              const curScore  = wiScore(curStage, curDpd)
+              const scenScore = wiScore(whatIfStage, whatIfDpd)
+              const scenLabel = wiLabel(scenScore)
+              const scenPct   = Math.round(scenScore * 100)
+              const curPct    = Math.round(curScore * 100)
+              const delta     = scenPct - curPct
+              const improved  = delta < 0
+              const worsened  = delta > 0
+
+              const pd30 = Math.max(0.05, scenScore * 0.70)
+              const pd60 = Math.max(0.05, scenScore * 0.85)
+              const pd90 = scenScore
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                  {/* Header */}
+                  <div className="panel" style={{ padding: '12px 14px', background: 'linear-gradient(180deg, #FBFCFE 0%, #F4F7FB 100%)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>What-If Scenario</div>
+                    <div style={{ fontSize: '11px', color: 'var(--muted)', lineHeight: 1.5 }}>
+                      Adjust DPD and IFRS 9 Stage to see how the risk score would change. Uses the same formula as the ML pipeline.
+                    </div>
+                  </div>
+
+                  {/* Controls */}
+                  <div className="panel" style={{ padding: '14px 16px' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12, fontWeight: 600 }}>
+                      Scenario Controls
+                    </div>
+
+                    {/* Stage selector */}
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: 8, fontWeight: 500 }}>
+                        IFRS 9 Stage
+                        <span style={{
+                          marginLeft: 8, fontSize: '9px', padding: '1px 6px', borderRadius: 3,
+                          background: whatIfStage === curStage ? '#F1F5F9' : '#FFF7ED',
+                          color: whatIfStage === curStage ? 'var(--muted)' : '#9A3412',
+                          fontWeight: 600,
+                        }}>
+                          {whatIfStage === curStage ? 'current' : 'modified'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {[1, 2, 3].map(s => (
+                          <button
+                            key={s}
+                            onClick={() => setWhatIfStage(s)}
+                            style={{
+                              flex: 1, padding: '8px 0', borderRadius: 6, cursor: 'pointer',
+                              border: whatIfStage === s
+                                ? `2px solid ${s === 3 ? 'var(--red)' : s === 2 ? 'var(--amber)' : 'var(--green)'}`
+                                : '1px solid var(--border)',
+                              background: whatIfStage === s
+                                ? s === 3 ? '#FEE2E2' : s === 2 ? '#FEF3C7' : '#DCFCE7'
+                                : 'transparent',
+                              color: whatIfStage === s
+                                ? s === 3 ? 'var(--red)' : s === 2 ? 'var(--amber)' : 'var(--green)'
+                                : 'var(--muted)',
+                              fontSize: '11px', fontWeight: 700,
+                            }}
+                          >
+                            Stage {s}
+                            <div style={{ fontSize: '9px', fontWeight: 400, opacity: 0.7, marginTop: 1 }}>
+                              {s === 1 ? 'Performing' : s === 2 ? 'Underperform' : 'NPL'}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* DPD slider */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <div style={{ fontSize: '10px', color: 'var(--muted)', fontWeight: 500 }}>
+                          Days Past Due (DPD)
+                          <span style={{
+                            marginLeft: 8, fontSize: '9px', padding: '1px 6px', borderRadius: 3,
+                            background: whatIfDpd === curDpd ? '#F1F5F9' : '#FFF7ED',
+                            color: whatIfDpd === curDpd ? 'var(--muted)' : '#9A3412',
+                            fontWeight: 600,
+                          }}>
+                            {whatIfDpd === curDpd ? 'current' : 'modified'}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: dpdColor(whatIfDpd), fontFamily: 'var(--mono)' }}>
+                          {whatIfDpd}d
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={120}
+                        value={whatIfDpd}
+                        onChange={e => setWhatIfDpd(Number(e.target.value))}
+                        style={{ width: '100%', accentColor: 'var(--navy)', cursor: 'pointer' }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px', color: 'var(--muted)', marginTop: 2 }}>
+                        <span>0</span><span>30</span><span>60</span><span>90</span><span>120</span>
+                      </div>
+                    </div>
+
+                    {/* Reset button */}
+                    {(whatIfDpd !== curDpd || whatIfStage !== curStage) && (
+                      <button
+                        onClick={() => { setWhatIfDpd(curDpd); setWhatIfStage(curStage) }}
+                        style={{
+                          marginTop: 12, fontSize: '10px', color: 'var(--muted)', background: 'none',
+                          border: '1px solid var(--border)', borderRadius: 4, padding: '4px 10px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ↺ Reset to current
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Before → After */}
+                  <div className="panel" style={{ padding: '14px 16px' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12, fontWeight: 600 }}>
+                      Risk Score Impact
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 10, alignItems: 'center' }}>
+
+                      {/* Current */}
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Current</div>
+                        <div style={{
+                          padding: '12px 8px', borderRadius: 8,
+                          background: `${wiColor(curScore)}12`,
+                          border: `1px solid ${wiColor(curScore)}30`,
+                        }}>
+                          <div className="mono" style={{ fontSize: '28px', fontWeight: 900, color: wiColor(curScore), lineHeight: 1 }}>
+                            {curPct}<span style={{ fontSize: 12 }}>%</span>
+                          </div>
+                          <div style={{ fontSize: '10px', color: wiColor(curScore), fontWeight: 700, marginTop: 3 }}>{wiLabel(curScore)}</div>
+                          <div style={{ fontSize: '9px', color: 'var(--muted)', marginTop: 3 }}>Stage {curStage} · {curDpd}d DPD</div>
+                        </div>
+                      </div>
+
+                      {/* Arrow */}
+                      <div style={{
+                        fontSize: 20,
+                        color: improved ? 'var(--green)' : worsened ? 'var(--red)' : 'var(--muted)',
+                        fontWeight: 700,
+                      }}>
+                        {improved ? '↓' : worsened ? '↑' : '='}
+                      </div>
+
+                      {/* Scenario */}
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>Scenario</div>
+                        <div style={{
+                          padding: '12px 8px', borderRadius: 8,
+                          background: `${wiColor(scenScore)}12`,
+                          border: `2px solid ${wiColor(scenScore)}50`,
+                          boxShadow: `0 0 12px ${wiColor(scenScore)}20`,
+                        }}>
+                          <div className="mono" style={{ fontSize: '28px', fontWeight: 900, color: wiColor(scenScore), lineHeight: 1 }}>
+                            {scenPct}<span style={{ fontSize: 12 }}>%</span>
+                          </div>
+                          <div style={{ fontSize: '10px', color: wiColor(scenScore), fontWeight: 700, marginTop: 3 }}>{scenLabel}</div>
+                          <div style={{ fontSize: '9px', color: 'var(--muted)', marginTop: 3 }}>Stage {whatIfStage} · {whatIfDpd}d DPD</div>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* Delta pill */}
+                    {delta !== 0 && (
+                      <div style={{
+                        marginTop: 12, padding: '7px 10px', borderRadius: 6, textAlign: 'center',
+                        background: improved ? '#DCFCE7' : '#FEE2E2',
+                        border: `1px solid ${improved ? '#86EFAC' : '#FECACA'}`,
+                        fontSize: '11px', fontWeight: 700,
+                        color: improved ? 'var(--green)' : 'var(--red)',
+                      }}>
+                        {improved ? '▼' : '▲'} {Math.abs(delta)} points — {improved ? 'risk improves' : 'risk worsens'}
+                        {improved && delta <= -20 && ' significantly'}
+                      </div>
+                    )}
+                    {delta === 0 && (
+                      <div style={{
+                        marginTop: 12, padding: '7px 10px', borderRadius: 6, textAlign: 'center',
+                        background: '#F8FAFC', border: '1px solid var(--border)',
+                        fontSize: '11px', color: 'var(--muted)',
+                      }}>
+                        No change from current state
+                      </div>
+                    )}
+                  </div>
+
+                  {/* PD Timeline */}
+                  <div className="panel" style={{ padding: '14px 16px' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12, fontWeight: 600 }}>
+                      Probability of Default — Scenario Horizon
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                      {[
+                        { label: '30-day PD',  value: pd30, col: '#3B82F6' },
+                        { label: '60-day PD',  value: pd60, col: '#8B5CF6' },
+                        { label: '90-day PD',  value: pd90, col: wiColor(scenScore) },
+                      ].map(({ label, value, col }) => {
+                        const pct = Math.round(value * 100)
+                        return (
+                          <div key={label} style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '9px', color: 'var(--muted)', marginBottom: 6 }}>{label}</div>
+                            <div style={{
+                              padding: '10px 6px', borderRadius: 6,
+                              background: `${col}10`, border: `1px solid ${col}30`,
+                            }}>
+                              <div className="mono" style={{ fontSize: '20px', fontWeight: 800, color: col }}>{pct}%</div>
+                            </div>
+                            <div style={{ marginTop: 5, height: 3, background: 'var(--border)', borderRadius: 2 }}>
+                              <div style={{ width: `${pct}%`, height: '100%', background: col, borderRadius: 2 }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                </div>
+              )
+            })()}
           </div>
         </div>
 
@@ -1896,6 +2216,21 @@ export default function ClientProfileTabs({
               </div>
             )}
           </div>
+
+          {/* Compare link */}
+          <Link
+            href={`/compare?a=${encodeURIComponent(clientId)}`}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '7px 12px', borderRadius: 6, textDecoration: 'none',
+              border: '1px solid var(--border)', fontSize: '11px', fontWeight: 600,
+              color: 'var(--muted)',
+              background: 'var(--card)',
+              transition: 'all 0.15s',
+            }}
+          >
+            ⇄ Compare with another client
+          </Link>
 
           {/* Divider */}
           <div className="divider" style={{ margin: '2px 0' }} />

@@ -40,6 +40,7 @@ const NAV_ICON = {
   warnings: <svg viewBox="0 0 15 15" fill="none"><path d="M7.5 1L14 13H1L7.5 1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><path d="M7.5 6v3M7.5 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
   watchlist: <svg viewBox="0 0 15 15" fill="none"><rect x="2" y="1.5" width="11" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M5 5h5M5 7.5h5M5 10h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
   clients: <svg viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="5" r="3" stroke="currentColor" strokeWidth="1.2"/><path d="M1.5 13c0-3 2.7-5 6-5s6 2 6 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
+  compare: <svg viewBox="0 0 15 15" fill="none"><circle cx="4.5" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.2"/><circle cx="10.5" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 13c0-2.5 1.6-3.5 3.5-3.5S8 10.5 8 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><path d="M7 13c0-2.5 1.6-3.5 3.5-3.5S14 10.5 14 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
   analytics: <svg viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.2"/><path d="M7.5 7.5L11 5M7.5 7.5v-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
   concentration: <svg viewBox="0 0 15 15" fill="none"><path d="M1 13L5 7l3 3 3-5 3 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 1v12h13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
   model: <svg viewBox="0 0 15 15" fill="none"><path d="M2 11l3-4 2 2 3-5 3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="5" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="9" r="1" fill="currentColor"/><circle cx="10" cy="4" r="1" fill="currentColor"/><circle cx="13" cy="7" r="1" fill="currentColor"/></svg>,
@@ -115,6 +116,7 @@ export default function Sidebar({ session }: Props) {
           <NavItem href="/warnings"      icon={NAV_ICON.warnings}      label="Early Warnings" count={alertCount}     collapsed={collapsed} isActive={isActive} />
           <NavItem href="/watchlist"     icon={NAV_ICON.watchlist}    label="Watchlist"      count={watchlistCount} countColor="var(--amber)" collapsed={collapsed} isActive={isActive} />
           <NavItem href="/clients"       icon={NAV_ICON.clients}      label="Clients"        collapsed={collapsed} isActive={isActive} />
+          <NavItem href="/compare"       icon={NAV_ICON.compare}      label="Compare"        collapsed={collapsed} isActive={isActive} />
           <NavItem href="/analytics"     icon={NAV_ICON.analytics}    label="Analytics"      collapsed={collapsed} isActive={isActive} />
           <NavItem href="/concentration" icon={NAV_ICON.concentration} label="Concentration"  collapsed={collapsed} isActive={isActive} />
           <NavItem href="/stress"        icon={NAV_ICON.stress}       label="Stress Test"    collapsed={collapsed} isActive={isActive} />

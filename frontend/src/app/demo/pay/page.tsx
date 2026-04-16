@@ -6,6 +6,7 @@ import PayButton from './PayButton'
 
 interface DemoClient {
   client_id: string
+  full_name: string | null
   risk_score: number
   risk_label: string | null
   stage: number | null
@@ -69,6 +70,7 @@ async function getClient(clientId: string): Promise<DemoClient | null> {
     const rows = await query<DemoClient>(`
       SELECT
         rp.clientID AS client_id,
+        COALESCE(cu.name + ' ' + cu.surname, NULL) AS full_name,
         CAST(
           CASE rp.Stage WHEN 3 THEN 0.65 WHEN 2 THEN 0.40 ELSE 0.20 END
           + CASE
@@ -92,6 +94,8 @@ async function getClient(clientId: string): Promise<DemoClient | null> {
         SELECT TOP 1 DueDays FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
         WHERE PersonalID = rp.clientID ORDER BY dateID DESC
       ) dd
+      LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK)
+        ON TRY_CAST(cu.PersonalID AS BIGINT) = TRY_CAST(rp.clientID AS BIGINT)
       WHERE rp.clientID = @clientId
     `, { clientId })
     return rows[0] ?? null
@@ -197,8 +201,13 @@ export default async function DemoPayPage({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 10, color: '#475569', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 3 }}>Assigned Client</div>
-                <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'monospace', color: '#f1f5f9', letterSpacing: 0.5 }}>
-                  {client.client_id}
+                {client.full_name && (
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9', marginBottom: 2 }}>
+                    {client.full_name}
+                  </div>
+                )}
+                <div style={{ fontSize: 12, fontFamily: 'monospace', color: '#475569', letterSpacing: 0.5 }}>
+                  ID: {client.client_id}
                 </div>
               </div>
               <div style={{
@@ -238,7 +247,13 @@ export default async function DemoPayPage({
               </div>
             </div>
 
-            <PayButton personalId={client.client_id} />
+            <PayButton
+              personalId={client.client_id}
+              beforeScore={client.risk_score}
+              beforeLabel={client.risk_label}
+              beforeDpd={dpd}
+              clientName={client.full_name}
+            />
           </div>
         )}
       </div>

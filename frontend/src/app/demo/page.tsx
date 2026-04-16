@@ -4,6 +4,7 @@ import { query } from '@/lib/db.server'
 import ResetButton from './ResetButton'
 import SeedSalaryButton from './SeedSalaryButton'
 import QRCardCarousel from './QRCardCarousel'
+import LiveFeed from './LiveFeed'
 
 interface DemoClient {
   client_id: string
@@ -84,7 +85,10 @@ export default async function DemoControlPage() {
         </div>
       </div>
 
-      <QRCardCarousel clients={clients} baseUrl={baseUrl} />
+      <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <QRCardCarousel clients={clients} baseUrl={baseUrl} />
+        <LiveFeed />
+      </div>
 
       <div style={{ display: 'flex', gap: 12 }}>
         <ResetButton />
@@ -96,14 +100,14 @@ export default async function DemoControlPage() {
         border: '1px solid rgba(201,168,76,0.2)',
         borderRadius: 10,
         padding: '14px 20px',
-        maxWidth: 360,
+        maxWidth: 420,
         fontSize: 12,
         color: '#8FA3B8',
         lineHeight: 1.7,
         textAlign: 'center',
       }}>
         Audience scans their QR → taps <strong style={{ color: '#C9A84C' }}>Pay Now</strong> →
-        risk score updates on the Warnings page within 30 seconds
+        risk score updates instantly · live feed appears on the right
       </div>
     </div>
   )
