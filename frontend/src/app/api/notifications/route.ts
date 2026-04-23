@@ -46,7 +46,9 @@ export async function GET(req: NextRequest) {
 
     const result = unreadOnly ? notifications.filter(n => !n.read_at) : notifications
 
-    return NextResponse.json({ notifications: result, unreadCount })
+    return NextResponse.json({ notifications: result, unreadCount }, {
+      headers: { 'Cache-Control': 'no-store' },
+    })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }

@@ -8,22 +8,25 @@ export const dynamic = 'force-dynamic'
 const VALID_STAGES   = new Set(['1', '2', '3', 'NA'])
 const VALID_DPD      = new Set(['0', '1', '31', '90'])
 const VALID_STATUSES = new Set(['Active', 'Inactive', 'Suspended', 'Deceased'])
+const CURRENT_YEAR   = new Date().getFullYear()
+const VALID_VINTAGES = new Set(Array.from({ length: 6 }, (_, i) => String(CURRENT_YEAR - i)))
 
 interface PageProps {
-  searchParams: Promise<{ q?: string; page?: string; stage?: string; dpd?: string; status?: string }>
+  searchParams: Promise<{ q?: string; page?: string; stage?: string; dpd?: string; status?: string; vintage?: string }>
 }
 
 async function ClientsContent({ searchParams }: PageProps) {
-  const { q = '', page = '1', stage = '', dpd = '', status = '' } = await searchParams
-  const pageNum      = Math.max(1, parseInt(page, 10) || 1)
-  const search       = q.trim()
-  const stageFilter  = VALID_STAGES.has(stage)   ? stage  : ''
-  const dpdFilter    = VALID_DPD.has(dpd)         ? dpd    : ''
-  const statusFilter = VALID_STATUSES.has(status) ? status : ''
+  const { q = '', page = '1', stage = '', dpd = '', status = '', vintage = '' } = await searchParams
+  const pageNum       = Math.max(1, parseInt(page, 10) || 1)
+  const search        = q.trim()
+  const stageFilter   = VALID_STAGES.has(stage)     ? stage   : ''
+  const dpdFilter     = VALID_DPD.has(dpd)           ? dpd     : ''
+  const statusFilter  = VALID_STATUSES.has(status)   ? status  : ''
+  const vintageFilter = VALID_VINTAGES.has(vintage)  ? parseInt(vintage, 10) : undefined
 
   let rows: Awaited<ReturnType<typeof getClientsPaginated>>['rows'] = [], total = 0
   try {
-    ;({ rows, total } = await getClientsPaginated(search, pageNum, { stage: stageFilter, dpd: dpdFilter, status: statusFilter }))
+    ;({ rows, total } = await getClientsPaginated(search, pageNum, { stage: stageFilter, dpd: dpdFilter, status: statusFilter, vintage: vintageFilter }))
   } catch {
     // DB error — table renders empty with error handled gracefully
   }
@@ -37,6 +40,7 @@ async function ClientsContent({ searchParams }: PageProps) {
       initialStage={stageFilter}
       initialDpd={dpdFilter}
       initialStatus={statusFilter}
+      initialVintage={vintage}
     />
   )
 }

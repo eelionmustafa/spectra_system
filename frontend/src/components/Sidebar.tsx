@@ -1,9 +1,41 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { SessionPayload } from '@/lib/auth'
 import { ROLE_BADGE } from '@/lib/users'
+
+interface Toast {
+  id: string
+  title: string
+  message: string
+  priority: string
+}
+
+function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: string) => void }) {
+  if (toasts.length === 0) return null
+  return (
+    <div style={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 340 }}>
+      <style>{`@keyframes slideIn { from { transform: translateX(110%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }`}</style>
+      {toasts.map(t => (
+        <div key={t.id} style={{
+          background: '#0F1E2D', border: `1px solid ${t.priority === 'critical' ? '#DC2626' : t.priority === 'high' ? '#D97706' : '#3B82F6'}`,
+          borderLeft: `4px solid ${t.priority === 'critical' ? '#DC2626' : t.priority === 'high' ? '#D97706' : '#3B82F6'}`,
+          borderRadius: 10, padding: '12px 14px', boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          animation: 'slideIn 0.3s ease-out',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#F1F5F9', marginBottom: 3, lineHeight: 1.4 }}>{t.title}</div>
+              <div style={{ fontSize: 10, color: '#94A3B8', lineHeight: 1.5 }}>{t.message}</div>
+            </div>
+            <button onClick={() => onDismiss(t.id)} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 0, flexShrink: 0 }}>×</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 interface Props { session: SessionPayload }
 
@@ -40,7 +72,6 @@ const NAV_ICON = {
   warnings: <svg viewBox="0 0 15 15" fill="none"><path d="M7.5 1L14 13H1L7.5 1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/><path d="M7.5 6v3M7.5 11v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
   watchlist: <svg viewBox="0 0 15 15" fill="none"><rect x="2" y="1.5" width="11" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.2"/><path d="M5 5h5M5 7.5h5M5 10h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
   clients: <svg viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="5" r="3" stroke="currentColor" strokeWidth="1.2"/><path d="M1.5 13c0-3 2.7-5 6-5s6 2 6 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
-  compare: <svg viewBox="0 0 15 15" fill="none"><circle cx="4.5" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.2"/><circle cx="10.5" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.2"/><path d="M1 13c0-2.5 1.6-3.5 3.5-3.5S8 10.5 8 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/><path d="M7 13c0-2.5 1.6-3.5 3.5-3.5S14 10.5 14 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
   analytics: <svg viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="6" stroke="currentColor" strokeWidth="1.2"/><path d="M7.5 7.5L11 5M7.5 7.5v-4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
   concentration: <svg viewBox="0 0 15 15" fill="none"><path d="M1 13L5 7l3 3 3-5 3 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/><path d="M1 1v12h13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>,
   model: <svg viewBox="0 0 15 15" fill="none"><path d="M2 11l3-4 2 2 3-5 3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="5" cy="7" r="1" fill="currentColor"/><circle cx="7" cy="9" r="1" fill="currentColor"/><circle cx="10" cy="4" r="1" fill="currentColor"/><circle cx="13" cy="7" r="1" fill="currentColor"/></svg>,
@@ -57,9 +88,16 @@ export default function Sidebar({ session }: Props) {
   const [collapsed, setCollapsed] = useState(() => {
     try { return localStorage.getItem('sb-collapsed') === '1' } catch { return false }
   })
-  const [alertCount, setAlertCount]             = useState<number | null>(null)
-  const [watchlistCount, setWatchlistCount]     = useState<number | null>(null)
-  const [notifCount, setNotifCount]             = useState<number | null>(null)
+  const [alertCount, setAlertCount]         = useState<number | null>(null)
+  const [watchlistCount, setWatchlistCount] = useState<number | null>(null)
+  const [notifCount, setNotifCount]         = useState<number | null>(null)
+  const [toasts, setToasts]                 = useState<Toast[]>([])
+  const knownNotifCount = useRef<number | null>(null)
+  const latestNotifId   = useRef<string | null>(null)
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }, [])
 
   const toggle = useCallback(() => {
     setCollapsed(c => {
@@ -71,8 +109,45 @@ export default function Sidebar({ session }: Props) {
   useEffect(() => {
     fetch('/api/alerts/count').then(r => r.json()).then(d => setAlertCount(d.count ?? 0)).catch(() => setAlertCount(0))
     fetch('/api/watchlist/count').then(r => r.json()).then(d => setWatchlistCount(d.count ?? 0)).catch(() => setWatchlistCount(0))
-    fetch('/api/notifications').then(r => r.json()).then(d => setNotifCount(d.unreadCount ?? 0)).catch(() => setNotifCount(0))
-  }, [])
+
+    async function pollNotifications() {
+      try {
+        const res  = await fetch(`/api/notifications?limit=1&_=${Date.now()}`, { cache: 'no-store' })
+        const data = await res.json()
+        const count: number = data.unreadCount ?? 0
+        const latest = data.notifications?.[0]
+
+        // On first load just record the baseline — don't toast
+        if (knownNotifCount.current === null) {
+          knownNotifCount.current = count
+          latestNotifId.current   = latest?.id ?? null
+          setNotifCount(count)
+          return
+        }
+
+        // New notification arrived
+        if (latest && latest.id !== latestNotifId.current) {
+          latestNotifId.current = latest.id
+          const toast: Toast = {
+            id:       latest.id,
+            title:    latest.title,
+            message:  latest.message,
+            priority: latest.priority,
+          }
+          setToasts(prev => [toast, ...prev].slice(0, 4))
+          // Auto-dismiss after 6 seconds
+          setTimeout(() => dismissToast(latest.id), 6000)
+        }
+
+        knownNotifCount.current = count
+        setNotifCount(count)
+      } catch { /* non-fatal */ }
+    }
+
+    pollNotifications()
+    const interval = setInterval(pollNotifications, 8000)
+    return () => clearInterval(interval)
+  }, [dismissToast])
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -84,6 +159,8 @@ export default function Sidebar({ session }: Props) {
   const isActive = (href: string) => path === href || (href !== '/' && path.startsWith(href))
 
   return (
+    <>
+    <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     <div className={`sidebar${collapsed ? ' sc' : ''}`}>
 
       {/* Logo */}
@@ -116,7 +193,6 @@ export default function Sidebar({ session }: Props) {
           <NavItem href="/warnings"      icon={NAV_ICON.warnings}      label="Early Warnings" count={alertCount}     collapsed={collapsed} isActive={isActive} />
           <NavItem href="/watchlist"     icon={NAV_ICON.watchlist}    label="Watchlist"      count={watchlistCount} countColor="var(--amber)" collapsed={collapsed} isActive={isActive} />
           <NavItem href="/clients"       icon={NAV_ICON.clients}      label="Clients"        collapsed={collapsed} isActive={isActive} />
-          <NavItem href="/compare"       icon={NAV_ICON.compare}      label="Compare"        collapsed={collapsed} isActive={isActive} />
           <NavItem href="/analytics"     icon={NAV_ICON.analytics}    label="Analytics"      collapsed={collapsed} isActive={isActive} />
           <NavItem href="/concentration" icon={NAV_ICON.concentration} label="Concentration"  collapsed={collapsed} isActive={isActive} />
           <NavItem href="/stress"        icon={NAV_ICON.stress}       label="Stress Test"    collapsed={collapsed} isActive={isActive} />
@@ -158,5 +234,6 @@ export default function Sidebar({ session }: Props) {
         )}
       </div>
     </div>
+    </>
   )
 }

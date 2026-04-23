@@ -31,7 +31,7 @@ export async function seedPredictions(): Promise<{ ok: boolean; count: number; e
         SELECT clientID,
           COALESCE(Stage, 1)                            AS stage,
           COALESCE(TRY_CAST(totalExposure AS FLOAT), 0) AS exposure,
-          COALESCE(TypeOfProduct, '')                   AS product
+          COALESCE(ProductDesc, TypeOfProduct, '')       AS product
         FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
         WHERE CalculationDate = @mcd
       ),

@@ -132,18 +132,22 @@ const DPD_OPTIONS    = [['', 'All'], ['0', 'No DPD'], ['1', '1–30d'], ['31', '
 const STATUS_OPTIONS = ['', 'Active', 'Inactive', 'Suspended', 'Deceased']
 
 interface Props {
-  initialRows:   ClientTableRow[]
-  initialTotal:  number
-  initialQ:      string
-  initialPage:   number
-  initialStage:  string
-  initialDpd:    string
-  initialStatus: string
+  initialRows:    ClientTableRow[]
+  initialTotal:   number
+  initialQ:       string
+  initialPage:    number
+  initialStage:   string
+  initialDpd:     string
+  initialStatus:  string
+  initialVintage?: string
 }
+
+const CURRENT_YEAR   = new Date().getFullYear()
+const VINTAGE_OPTIONS = Array.from({ length: 6 }, (_, i) => String(CURRENT_YEAR - i))
 
 export default function ClientsTable({
   initialRows, initialTotal, initialQ, initialPage,
-  initialStage, initialDpd, initialStatus,
+  initialStage, initialDpd, initialStatus, initialVintage = '',
 }: Props) {
   const router       = useRouter()
   const pathname     = usePathname()
@@ -158,20 +162,22 @@ export default function ClientsTable({
   const [stage,    setStage]    = useState(initialStage)
   const [dpd,      setDpd]      = useState(initialDpd)
   const [status,   setStatus]   = useState(initialStatus)
+  const [vintage,  setVintage]  = useState(initialVintage)
 
   const mounted    = useRef(false)
-  const filtersRef = useRef({ stage, dpd, status })
-  useEffect(() => { filtersRef.current = { stage, dpd, status } }, [stage, dpd, status])
+  const filtersRef = useRef({ stage, dpd, status, vintage })
+  useEffect(() => { filtersRef.current = { stage, dpd, status, vintage } }, [stage, dpd, status, vintage])
 
   const totalPages = Math.max(1, Math.ceil(total / 25))
 
-  const pushParams = useCallback((newQ: string, newPage: number, newStage: string, newDpd: string, newStatus: string) => {
+  const pushParams = useCallback((newQ: string, newPage: number, newStage: string, newDpd: string, newStatus: string, newVintage: string) => {
     const params = new URLSearchParams(searchParams.toString())
-    if (newQ)      params.set('q', newQ);              else params.delete('q')
-    if (newPage>1) params.set('page', String(newPage)); else params.delete('page')
-    if (newStage)  params.set('stage', newStage);      else params.delete('stage')
-    if (newDpd)    params.set('dpd', newDpd);          else params.delete('dpd')
-    if (newStatus) params.set('status', newStatus);    else params.delete('status')
+    if (newQ)       params.set('q', newQ);               else params.delete('q')
+    if (newPage>1)  params.set('page', String(newPage));  else params.delete('page')
+    if (newStage)   params.set('stage', newStage);       else params.delete('stage')
+    if (newDpd)     params.set('dpd', newDpd);           else params.delete('dpd')
+    if (newStatus)  params.set('status', newStatus);     else params.delete('status')
+    if (newVintage) params.set('vintage', newVintage);   else params.delete('vintage')
     startTransition(() => { router.push(`${pathname}?${params.toString()}`) })
   }, [router, pathname, searchParams])
 
@@ -179,8 +185,8 @@ export default function ClientsTable({
   useEffect(() => {
     if (!mounted.current) { mounted.current = true; return }
     setLoading(true)
-    const { stage: s, dpd: d, status: st } = filtersRef.current
-    const t = setTimeout(() => { pushParams(q.trim(), 1, s, d, st) }, 300)
+    const { stage: s, dpd: d, status: st, vintage: v } = filtersRef.current
+    const t = setTimeout(() => { pushParams(q.trim(), 1, s, d, st, v) }, 300)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q])
@@ -193,12 +199,14 @@ export default function ClientsTable({
     setStage(initialStage)
     setDpd(initialDpd)
     setStatus(initialStatus)
+    setVintage(initialVintage)
     setLoading(false)
-  }, [initialRows, initialTotal, initialPage, initialStage, initialDpd, initialStatus])
+  }, [initialRows, initialTotal, initialPage, initialStage, initialDpd, initialStatus, initialVintage])
 
-  function applyStage(v: string)  { setStage(v);  setPage(1); setLoading(true); pushParams(q.trim(), 1, v,     dpd,    status) }
-  function applyDpd(v: string)    { setDpd(v);    setPage(1); setLoading(true); pushParams(q.trim(), 1, stage, v,      status) }
-  function applyStatus(v: string) { setStatus(v); setPage(1); setLoading(true); pushParams(q.trim(), 1, stage, dpd,    v)      }
+  function applyStage(v: string)   { setStage(v);   setPage(1); setLoading(true); pushParams(q.trim(), 1, v,     dpd,   status,  vintage) }
+  function applyDpd(v: string)     { setDpd(v);     setPage(1); setLoading(true); pushParams(q.trim(), 1, stage, v,     status,  vintage) }
+  function applyStatus(v: string)  { setStatus(v);  setPage(1); setLoading(true); pushParams(q.trim(), 1, stage, dpd,   v,       vintage) }
+  function applyVintage(v: string) { setVintage(v); setPage(1); setLoading(true); pushParams(q.trim(), 1, stage, dpd,   status,  v)       }
 
   const table = useReactTable({
     data: rows,
@@ -208,14 +216,14 @@ export default function ClientsTable({
     pageCount: totalPages,
   })
 
-  const activeFilters = [stage, dpd, status].filter(Boolean).length
+  const activeFilters = [stage, dpd, status, vintage].filter(Boolean).length
 
   const paginationButtons = (
     <>
       <button
         className="ct-pg-btn"
         disabled={page <= 1 || loading}
-        onClick={() => { setPage(p => p - 1); pushParams(q.trim(), page - 1, stage, dpd, status) }}
+        onClick={() => { setPage(p => p - 1); pushParams(q.trim(), page - 1, stage, dpd, status, vintage) }}
         aria-label="Previous page"
       >‹</button>
       {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
@@ -229,14 +237,14 @@ export default function ClientsTable({
             key={p}
             className={`ct-pg-btn${p === page ? ' active' : ''}`}
             disabled={loading}
-            onClick={() => { setPage(p); pushParams(q.trim(), p, stage, dpd, status) }}
+            onClick={() => { setPage(p); pushParams(q.trim(), p, stage, dpd, status, vintage) }}
           >{p}</button>
         )
       })}
       <button
         className="ct-pg-btn"
         disabled={page >= totalPages || loading}
-        onClick={() => { setPage(p => p + 1); pushParams(q.trim(), page + 1, stage, dpd, status) }}
+        onClick={() => { setPage(p => p + 1); pushParams(q.trim(), page + 1, stage, dpd, status, vintage) }}
         aria-label="Next page"
       >›</button>
     </>
@@ -367,13 +375,28 @@ export default function ClientsTable({
           </select>
         </div>
 
+        {/* Vintage */}
+        <div className="ct-filter-group">
+          <span className="ct-filter-label">Vintage</span>
+          <select
+            className={`ct-filter-select${vintage ? ' active' : ''}`}
+            value={vintage}
+            onChange={e => applyVintage(e.target.value)}
+          >
+            <option value="">All years</option>
+            {VINTAGE_OPTIONS.map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Clear all */}
         {activeFilters > 0 && (
           <button
             className="ct-clear-btn"
             onClick={() => {
-              setStage(''); setDpd(''); setStatus(''); setPage(1); setLoading(true)
-              pushParams(q.trim(), 1, '', '', '')
+              setStage(''); setDpd(''); setStatus(''); setVintage(''); setPage(1); setLoading(true)
+              pushParams(q.trim(), 1, '', '', '', '')
             }}
           >
             Clear filters ({activeFilters})

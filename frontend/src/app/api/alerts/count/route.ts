@@ -11,7 +11,9 @@ export async function GET(_req: NextRequest) {
     await verifyToken(token)
 
     const count = await getCriticalAlertCount()
-    return NextResponse.json({ count })
+    return NextResponse.json({ count }, {
+      headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=30' },
+    })
   } catch {
     return NextResponse.json({ count: 0 })
   }

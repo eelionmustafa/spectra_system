@@ -307,14 +307,18 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
   const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
 
-  const [rows,     setRows]     = useState(initialRows)
-  const [total,    setTotal]    = useState(initialTotal)
-  const [q,        setQ]        = useState(initialQ)
-  const [page,     setPage]     = useState(initialPage)
-  const [loading,  setLoading]  = useState(false)
-  const [selected, setSelected] = useState<AlertTableRow | null>(null)
-  const [sev,      setSev]      = useState(initialSev)
-  const [stage,    setStage]    = useState(initialStage)
+  const [rows,       setRows]       = useState(initialRows)
+  const [total,      setTotal]      = useState(initialTotal)
+  const [q,          setQ]          = useState(initialQ)
+  const [page,       setPage]       = useState(initialPage)
+  const [loading,    setLoading]    = useState(false)
+  const [selected,   setSelected]   = useState<AlertTableRow | null>(null)
+  const [sev,        setSev]        = useState(initialSev)
+  const [stage,      setStage]      = useState(initialStage)
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
+  const [bulkAction, setBulkAction] = useState('')
+  const [bulking,    setBulking]    = useState(false)
+  const [bulkResult, setBulkResult] = useState<string | null>(null)
 
   const mounted    = useRef(false)
   const filtersRef = useRef({ sev, stage })
@@ -345,7 +349,26 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
     const nextTotalPages = Math.max(1, Math.ceil(initialTotal / 25))
     setRows(initialRows); setTotal(initialTotal); setPage(Math.min(initialPage, nextTotalPages))
     setSev(initialSev); setStage(initialStage); setLoading(false)
+    setCheckedIds(new Set())
   }, [initialRows, initialTotal, initialPage, initialSev, initialStage])
+
+  async function applyBulk() {
+    if (!bulkAction || checkedIds.size === 0) return
+    setBulking(true); setBulkResult(null)
+    try {
+      const res = await fetch('/api/actions/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientIds: [...checkedIds], action: bulkAction }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed')
+      setBulkResult(`Done — ${data.count} client${data.count !== 1 ? 's' : ''} updated${data.failed?.length ? `, ${data.failed.length} failed` : ''}`)
+      setCheckedIds(new Set())
+      setBulkAction('')
+    } catch (e) { setBulkResult(`Error: ${(e as Error).message}`) }
+    finally { setBulking(false) }
+  }
 
   function applySev(v: string)   { setSev(v);   setPage(1); setLoading(true); pushParams(q.trim(), 1, v,   stage) }
   function applyStage(v: string) { setStage(v); setPage(1); setLoading(true); pushParams(q.trim(), 1, sev, v)     }
@@ -470,6 +493,29 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
         )}
       </div>
 
+      {/* Bulk action bar */}
+      {checkedIds.size > 0 && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#1D4ED8' }}>{checkedIds.size} selected</span>
+          <select value={bulkAction} onChange={e => setBulkAction(e.target.value)}
+            style={{ fontSize: 11, padding: '4px 8px', borderRadius: 5, border: '1px solid #BFDBFE', background: 'white', color: 'var(--text)' }}>
+            <option value="">Choose action…</option>
+            <option value="Add to Watchlist">Add to Watchlist</option>
+            <option value="Flag for Review">Flag for Review</option>
+            <option value="Request Documents">Request Documents</option>
+          </select>
+          <button onClick={applyBulk} disabled={!bulkAction || bulking}
+            style={{ fontSize: 11, padding: '4px 12px', borderRadius: 5, border: 'none', background: '#1D4ED8', color: 'white', cursor: 'pointer', fontWeight: 600, opacity: (!bulkAction || bulking) ? 0.5 : 1 }}>
+            {bulking ? 'Applying…' : 'Apply'}
+          </button>
+          <button onClick={() => { setCheckedIds(new Set()); setBulkAction(''); setBulkResult(null) }}
+            style={{ fontSize: 11, padding: '4px 10px', borderRadius: 5, border: '1px solid #BFDBFE', background: 'transparent', cursor: 'pointer', color: '#1D4ED8', marginLeft: 'auto' }}>
+            × Clear
+          </button>
+          {bulkResult && <span style={{ fontSize: 11, color: bulkResult.startsWith('Done') ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>{bulkResult}</span>}
+        </div>
+      )}
+
       {/* Stats + top pagination */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
         <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
@@ -488,6 +534,12 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
             <thead>
               {table.getHeaderGroups().map(hg => (
                 <tr key={hg.id}>
+                  <th style={{ width: 36, padding: '10px 8px 10px 14px', background: 'rgba(255,255,255,0.04)', borderBottom: '1px solid var(--border)' }}>
+                    <input type="checkbox"
+                      checked={rows.length > 0 && rows.every(r => checkedIds.has(r.personal_id))}
+                      onChange={e => setCheckedIds(e.target.checked ? new Set(rows.map(r => r.personal_id)) : new Set())}
+                      style={{ cursor: 'pointer' }} />
+                  </th>
                   {hg.headers.map((h, i) => (
                     <th key={h.id} className={i === 0 ? 'ew-client-head' : undefined} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '10px', fontWeight: 700,
                       color: 'var(--muted)', letterSpacing: '1px', textTransform: 'uppercase',
@@ -501,20 +553,34 @@ export default function AlertsTable({ initialRows, initialTotal, initialQ, initi
             <tbody>
               {loading
                 ? Array.from({ length: 8 }).map((_, i) => (
-                    <tr key={i}>{columns.map((_, ci) => (
-                      <td key={ci} style={{ padding: '12px 14px' }}>
-                        <div style={{ height: 12, borderRadius: 3, background: '#EEF2F7',
-                          width: `${[140,80,110,60,40,60,70,70][ci]??70}px`,
-                          animation: `pulse 1.4s ease-in-out ${i*0.07}s infinite` }} />
-                      </td>
-                    ))}</tr>
+                    <tr key={i}>
+                      <td style={{ padding: '12px 8px 12px 14px' }}><div style={{ width: 14, height: 14, borderRadius: 3, background: '#EEF2F7' }} /></td>
+                      {columns.map((_, ci) => (
+                        <td key={ci} style={{ padding: '12px 14px' }}>
+                          <div style={{ height: 12, borderRadius: 3, background: '#EEF2F7',
+                            width: `${[140,80,110,60,40,60,70,70][ci]??70}px`,
+                            animation: `pulse 1.4s ease-in-out ${i*0.07}s infinite` }} />
+                        </td>
+                      ))}</tr>
                   ))
                 : table.getRowModel().rows.length === 0
-                  ? <tr><td colSpan={columns.length} style={{ padding: '48px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>No alerts found.</td></tr>
+                  ? <tr><td colSpan={columns.length + 1} style={{ padding: '48px', textAlign: 'center', color: 'var(--muted)', fontSize: '13px' }}>No alerts found.</td></tr>
                   : table.getRowModel().rows.map(row => (
-                    <tr key={row.id} className={`ew-row ${row.original.severity === 'critical' ? 'ew-row-critical' : 'ew-row-high'}`} onClick={() => setSelected(row.original)}>
+                    <tr key={row.id} className={`ew-row ${row.original.severity === 'critical' ? 'ew-row-critical' : 'ew-row-high'}`}>
+                      <td style={{ padding: '11px 8px 11px 14px', verticalAlign: 'middle' }} onClick={e => e.stopPropagation()}>
+                        <input type="checkbox"
+                          checked={checkedIds.has(row.original.personal_id)}
+                          onChange={e => setCheckedIds(prev => {
+                            const next = new Set(prev)
+                            e.target.checked ? next.add(row.original.personal_id) : next.delete(row.original.personal_id)
+                            return next
+                          })}
+                          style={{ cursor: 'pointer' }} />
+                      </td>
                       {row.getVisibleCells().map(cell => (
-                        <td key={cell.id} className={cell.column.id === 'client' ? 'ew-client-cell' : undefined} style={{ padding: '11px 14px', verticalAlign: 'middle' }}>
+                        <td key={cell.id} className={cell.column.id === 'client' ? 'ew-client-cell' : undefined}
+                          style={{ padding: '11px 14px', verticalAlign: 'middle' }}
+                          onClick={() => setSelected(row.original)}>
                           {flexRender(cell.column.columnDef.cell, cell.getContext())}
                         </td>
                       ))}

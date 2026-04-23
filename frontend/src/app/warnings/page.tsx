@@ -28,7 +28,7 @@ import PredictionsTable from './PredictionsTable'
 import RecommendationsTable from './RecommendationsTable'
 import ReloadButton from './ReloadButton'
 import LiveRefreshBanner from './LiveRefreshBanner'
-import PaymentToast from './PaymentToast'
+import AIAlertsPanel from './AIAlertsPanel'
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -79,7 +79,7 @@ const VALID_RISK     = new Set(['Critical', 'High', 'Medium', 'Low'])
 const VALID_PRIORITY = new Set(['Urgent', 'High', 'Medium', 'Low'])
 const VALID_TIER     = new Set(['all', ...TIER_ORDER])
 const VALID_WINDOW   = new Set(['30', '60', '90'])
-const VALID_VIEW     = new Set(['monitor', 'predictions', 'recommended'])
+const VALID_VIEW     = new Set(['monitor', 'predictions', 'recommended', 'ai-alerts'])
 
 /* ─── skeleton ────────────────────────────────────────────────────────────── */
 
@@ -122,7 +122,8 @@ async function WarningsContent({
 }) {
   const [alertsResult, signalsResult, predictionsResult] = await Promise.allSettled([
     getActiveAlerts(),
-    getClientSignalsBatch(),
+    // Signals are only needed for the predictions case-review panel
+    activeView === 'predictions' ? getClientSignalsBatch() : Promise.resolve({} as Record<string, ClientSignalSnapshot>),
     getLatestPredictionSnapshots(),
   ])
   const alerts = alertsResult.status === 'fulfilled' ? alertsResult.value : []
@@ -147,8 +148,18 @@ async function WarningsContent({
   let recRows:    Awaited<ReturnType<typeof getRecommendationsPaginated>>['rows'] = []
   let recTotal    = 0
 
-  // Fetch active tab data and both inactive-tab counts in one parallel batch
-  const [paginatedResult, predCountResult, recCountResult] = await Promise.all([
+  // Pre-compute caseRow so getClientActiveActions can be parallelised with the paged data fetch
+  const pdFieldEarly = PD_FIELD[filterWindow] ?? 'pd_90d'
+  const dedupedEarly = Array.from(new Map(allPredictions.map(p => [p.clientID, p])).values())
+  const annotatedEarly = dedupedEarly
+    .filter(p => p[pdFieldEarly] >= PD_THRESHOLD)
+    .map(p => ({ ...p, windowPD: p[pdFieldEarly], tier: deriveTier(p.risk_label, p[pdFieldEarly]), exposure: p.totalExposure ?? p.exposure ?? 0 }))
+    .sort((a, b) => b.windowPD - a.windowPD)
+  const visibleEarly = filterTier === 'all' ? annotatedEarly : annotatedEarly.filter(p => p.tier === filterTier)
+  const caseRowEarly = visibleEarly.length > 0 ? visibleEarly[Math.min(caseIndex, visibleEarly.length - 1)] : null
+
+  // Fetch active tab data, both inactive-tab counts, and case-review actions — all parallel
+  const [paginatedResult, predCountResult, recCountResult, caseActiveActions] = await Promise.all([
     activeView === 'monitor'
       ? getAlertsPaginated(aq, alertPage, { severity: alertSev, stage: alertStage })
           .then(r => ({ rows: r.rows as unknown[], total: r.total }))
@@ -166,6 +177,7 @@ async function WarningsContent({
     activeView !== 'recommended'
       ? getRecommendationsPaginated('', 1, '', false).then(r => r.total).catch(() => 0)
       : Promise.resolve(0),
+    caseRowEarly ? getClientActiveActions(caseRowEarly.clientID).catch(() => []) : Promise.resolve([]),
   ])
 
   if (activeView === 'monitor') {
@@ -216,7 +228,7 @@ async function WarningsContent({
   const casePdPct  = caseRow ? Math.round(caseRow.windowPD * 100) : 0
   const caseShap   = caseRow ? allShap[caseRow.clientID] : null
   const caseSig    = caseRow ? signalsMap[caseRow.clientID] : null
-  const caseActiveActions = caseRow ? await getClientActiveActions(caseRow.clientID) : []
+  // caseActiveActions already resolved in the parallel Promise.all above
   const caseDrivers = caseShap ? [
     caseShap.top_factor_1 ? { label: driverBullet(caseShap.top_factor_1, caseShap.shap_1), shap: Math.abs(caseShap.shap_1), neg: caseShap.shap_1 < 0 } : null,
     caseShap.top_factor_2 ? { label: driverBullet(caseShap.top_factor_2, caseShap.shap_2), shap: Math.abs(caseShap.shap_2), neg: caseShap.shap_2 < 0 } : null,
@@ -259,6 +271,7 @@ async function WarningsContent({
           { id: 'monitor',     label: 'EWI Monitor' },
           { id: 'predictions', label: 'Predicted Deterioration', count: predCount || undefined },
           { id: 'recommended', label: 'Recommended Actions',     count: recCount  || undefined },
+          { id: 'ai-alerts',   label: 'AI Alerts' },
         ] as { id: string; label: string; count?: number }[]).map(t => (
           <a
             key={t.id}
@@ -288,6 +301,9 @@ async function WarningsContent({
           </a>
         ))}
       </div>
+
+      {/* ── AI Alerts tab ─────────────────────────────────────────────────── */}
+      {activeView === 'ai-alerts' && <AIAlertsPanel />}
 
       {/* ── Predicted Deterioration tab ───────────────────────────────────── */}
       {activeView === 'predictions' && (
@@ -616,7 +632,6 @@ export default async function Warnings({
     <>
       <Topbar title="Early Warnings" sub="EWI Monitor" />
       <LiveRefreshBanner />
-      <PaymentToast />
       <div className="content">
         <Suspense fallback={<WarningSkeleton />}>
           <WarningsContent

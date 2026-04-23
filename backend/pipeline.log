@@ -1,0 +1,405 @@
+2026-04-06 20:23:16,507 [INFO] spectra.pipeline: ============================================================
+2026-04-06 20:23:16,508 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-06 20:23:16,508 [INFO] spectra.pipeline: ============================================================
+2026-04-06 20:23:16,508 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-06 20:23:16,524 [ERROR] spectra.pipeline: Feature engineering failed: No module named 'numpy'
+Traceback (most recent call last):
+  File "C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\run_pipeline.py", line 45, in run
+    from feature_engineering import run as build_features
+  File "C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\scripts\feature_engineering.py", line 3, in <module>
+    import numpy as np, pandas as pd
+ModuleNotFoundError: No module named 'numpy'
+2026-04-06 20:24:40,394 [INFO] spectra.pipeline: ============================================================
+2026-04-06 20:24:40,395 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-06 20:24:40,395 [INFO] spectra.pipeline: ============================================================
+2026-04-06 20:24:40,395 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-06 20:25:03,869 [INFO] spectra.feature_engineering: Connecting to localhost / SPECTRA
+2026-04-06 20:25:04,057 [INFO] spectra.feature_engineering: Fetching RiskPortfolio...
+2026-04-06 20:25:07,208 [INFO] spectra.feature_engineering: Fetching DueDaysDaily...
+2026-04-06 20:25:14,087 [INFO] spectra.feature_engineering: Fetching AmortizationPlan...
+2026-04-06 20:25:14,146 [INFO] spectra.feature_engineering: Fetching TAccounts...
+2026-04-06 20:25:14,675 [INFO] spectra.feature_engineering: Fetching CC_Event_LOG...
+2026-04-06 20:25:15,057 [INFO] spectra.feature_engineering: Sizes -- RP:38515 DPD:162 Amort:7 TA:1 CC:1
+2026-04-06 20:25:15,315 [INFO] spectra.feature_engineering: Matrix: 38515 clients, 32 features
+2026-04-06 20:25:15,356 [WARNING] spectra.feature_engineering: Final: 'DueDays' has 99.3% nulls
+2026-04-06 20:25:15,358 [WARNING] spectra.feature_engineering: Final: 'DueMax6M' has 99.3% nulls
+2026-04-06 20:25:15,360 [WARNING] spectra.feature_engineering: Final: 'DueMax1Y' has 99.3% nulls
+2026-04-06 20:25:15,361 [WARNING] spectra.feature_engineering: Final: 'DueMax2Y' has 99.3% nulls
+2026-04-06 20:25:15,363 [WARNING] spectra.feature_engineering: Final: 'DueTotal' has 99.3% nulls
+2026-04-06 20:25:16,202 [INFO] spectra.feature_engineering: Saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\features.parquet
+2026-04-06 20:25:16,222 [INFO] spectra.pipeline: Feature engineering complete.
+2026-04-06 20:25:16,222 [INFO] spectra.pipeline: Step 2/2 — Scoring all clients
+2026-04-06 20:25:18,279 [INFO] spectra.predict: Loading features...
+2026-04-06 20:25:19,105 [INFO] spectra.predict: Loading models...
+2026-04-06 20:25:24,413 [INFO] spectra.predict: Validating feature hashes...
+2026-04-06 20:25:24,415 [WARNING] spectra.predict: [model_dpd_escalation] No feature_hash in bundle; model may have been trained with an older pipeline version.
+2026-04-06 20:25:24,415 [INFO] spectra.predict: Scoring 38515 clients across 3 horizons (30d, 60d, 90d)...
+2026-04-06 20:25:26,122 [INFO] spectra.predict: Predictions saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\predictions.csv (38515 clients)
+2026-04-06 20:25:26,124 [INFO] spectra.predict: Avg PD - 30d: 0.058  60d: 0.058  90d: 0.058
+2026-04-06 20:25:26,132 [INFO] spectra.predict: Risk label distribution (90d):
+risk_label
+Low                 35292
+Medium               2369
+High                  388
+Critical              286
+Default imminent      180
+2026-04-06 20:25:26,144 [INFO] spectra.pipeline: Scored 38515 clients.
+2026-04-06 20:25:26,144 [INFO] spectra.pipeline: Dry run — skipping DB publish.
+2026-04-06 20:25:26,144 [INFO] spectra.pipeline: Pipeline complete in 45.7s
+2026-04-06 20:25:26,144 [INFO] spectra.pipeline: ============================================================
+2026-04-06 20:25:40,352 [INFO] spectra.pipeline: ============================================================
+2026-04-06 20:25:40,352 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-06 20:25:40,352 [INFO] spectra.pipeline: ============================================================
+2026-04-06 20:25:40,353 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-06 20:25:42,690 [INFO] spectra.feature_engineering: Connecting to localhost / SPECTRA
+2026-04-06 20:25:42,742 [INFO] spectra.feature_engineering: Fetching RiskPortfolio...
+2026-04-06 20:25:44,952 [INFO] spectra.feature_engineering: Fetching DueDaysDaily...
+2026-04-06 20:25:51,162 [INFO] spectra.feature_engineering: Fetching AmortizationPlan...
+2026-04-06 20:25:51,202 [INFO] spectra.feature_engineering: Fetching TAccounts...
+2026-04-06 20:25:51,543 [INFO] spectra.feature_engineering: Fetching CC_Event_LOG...
+2026-04-06 20:25:51,751 [INFO] spectra.feature_engineering: Sizes -- RP:38515 DPD:162 Amort:7 TA:1 CC:1
+2026-04-06 20:25:52,037 [INFO] spectra.feature_engineering: Matrix: 38515 clients, 32 features
+2026-04-06 20:25:52,117 [WARNING] spectra.feature_engineering: Final: 'DueDays' has 99.3% nulls
+2026-04-06 20:25:52,127 [WARNING] spectra.feature_engineering: Final: 'DueMax6M' has 99.3% nulls
+2026-04-06 20:25:52,133 [WARNING] spectra.feature_engineering: Final: 'DueMax1Y' has 99.3% nulls
+2026-04-06 20:25:52,140 [WARNING] spectra.feature_engineering: Final: 'DueMax2Y' has 99.3% nulls
+2026-04-06 20:25:52,145 [WARNING] spectra.feature_engineering: Final: 'DueTotal' has 99.3% nulls
+2026-04-06 20:25:52,517 [INFO] spectra.feature_engineering: Saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\features.parquet
+2026-04-06 20:25:52,542 [INFO] spectra.pipeline: Feature engineering complete.
+2026-04-06 20:25:52,542 [INFO] spectra.pipeline: Step 2/2 — Scoring all clients
+2026-04-06 20:25:52,695 [INFO] spectra.predict: Loading features...
+2026-04-06 20:25:52,832 [INFO] spectra.predict: Loading models...
+2026-04-06 20:25:53,333 [INFO] spectra.predict: Validating feature hashes...
+2026-04-06 20:25:53,334 [WARNING] spectra.predict: [model_dpd_escalation] No feature_hash in bundle; model may have been trained with an older pipeline version.
+2026-04-06 20:25:53,334 [INFO] spectra.predict: Scoring 38515 clients across 3 horizons (30d, 60d, 90d)...
+2026-04-06 20:25:55,119 [INFO] spectra.predict: Predictions saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\predictions.csv (38515 clients)
+2026-04-06 20:25:55,120 [INFO] spectra.predict: Avg PD - 30d: 0.058  60d: 0.058  90d: 0.058
+2026-04-06 20:25:55,124 [INFO] spectra.predict: Risk label distribution (90d):
+risk_label
+Low                 35292
+Medium               2369
+High                  388
+Critical              286
+Default imminent      180
+2026-04-06 20:25:55,136 [INFO] spectra.pipeline: Scored 38515 clients.
+2026-04-06 20:26:12,110 [INFO] spectra.pipeline: Running SHAP explanations…
+2026-04-06 20:26:12,110 [INFO] spectra.explain: Loading features...
+2026-04-06 20:26:12,220 [INFO] spectra.explain: Creating SHAP explainer for GradientBoostingClassifier
+2026-04-06 20:26:12,233 [INFO] spectra.explain: Computing SHAP values for 38515 clients...
+2026-04-06 20:26:29,182 [INFO] spectra.explain: Global feature importance (mean |SHAP|):
+stage_age_months        0.636412
+exposure_growth_rate    0.628247
+rating_deterioration    0.115504
+dpd_trend               0.006451
+salary_months_active    0.000246
+repayment_rate_avg      0.000221
+overdraft_months        0.000072
+missed_payment_ratio    0.000067
+missed_payment_count    0.000017
+repayment_rate_min      0.000000
+2026-04-06 20:26:40,991 [INFO] spectra.explain: SHAP explanations saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\shap_explanations.csv (38515 clients)
+2026-04-06 20:26:41,002 [INFO] spectra.pipeline: SHAP complete: 38515 rows
+2026-04-06 20:31:46,362 [INFO] spectra.predict: Published 155315 predictions to dbo.EWIPredictions
+2026-04-06 20:31:46,473 [INFO] spectra.pipeline: EWIPredictions updated successfully.
+2026-04-06 20:31:46,473 [INFO] spectra.pipeline: Pipeline complete in 366.1s
+2026-04-06 20:31:46,473 [INFO] spectra.pipeline: ============================================================
+2026-04-07 02:00:03,180 [INFO] spectra.pipeline: ============================================================
+2026-04-07 02:00:03,181 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-07 02:00:03,184 [INFO] spectra.pipeline: ============================================================
+2026-04-07 02:00:03,184 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-07 02:00:07,189 [INFO] spectra.feature_engineering: Connecting to localhost / SPECTRA
+2026-04-07 02:00:07,368 [INFO] spectra.feature_engineering: Fetching RiskPortfolio...
+2026-04-07 02:00:10,777 [INFO] spectra.feature_engineering: Fetching DueDaysDaily...
+2026-04-07 02:00:18,253 [INFO] spectra.feature_engineering: Fetching AmortizationPlan...
+2026-04-07 02:00:18,346 [INFO] spectra.feature_engineering: Fetching TAccounts...
+2026-04-07 02:00:18,901 [INFO] spectra.feature_engineering: Fetching CC_Event_LOG...
+2026-04-07 02:00:19,294 [INFO] spectra.feature_engineering: Sizes -- RP:38515 DPD:162 Amort:7 TA:1 CC:1
+2026-04-07 02:00:19,629 [INFO] spectra.feature_engineering: Matrix: 38515 clients, 32 features
+2026-04-07 02:00:19,677 [WARNING] spectra.feature_engineering: Final: 'DueDays' has 99.3% nulls
+2026-04-07 02:00:19,679 [WARNING] spectra.feature_engineering: Final: 'DueMax6M' has 99.3% nulls
+2026-04-07 02:00:19,681 [WARNING] spectra.feature_engineering: Final: 'DueMax1Y' has 99.3% nulls
+2026-04-07 02:00:19,683 [WARNING] spectra.feature_engineering: Final: 'DueMax2Y' has 99.3% nulls
+2026-04-07 02:00:19,685 [WARNING] spectra.feature_engineering: Final: 'DueTotal' has 99.3% nulls
+2026-04-07 02:00:20,182 [INFO] spectra.feature_engineering: Saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\features.parquet
+2026-04-07 02:00:20,209 [INFO] spectra.pipeline: Feature engineering complete.
+2026-04-07 02:00:20,210 [INFO] spectra.pipeline: Step 2/2 — Scoring all clients
+2026-04-07 02:00:20,482 [INFO] spectra.predict: Loading features...
+2026-04-07 02:00:20,849 [INFO] spectra.predict: Loading models...
+2026-04-07 02:00:21,843 [INFO] spectra.predict: Validating feature hashes...
+2026-04-07 02:00:21,850 [WARNING] spectra.predict: [model_dpd_escalation] No feature_hash in bundle; model may have been trained with an older pipeline version.
+2026-04-07 02:00:21,851 [INFO] spectra.predict: Scoring 38515 clients across 3 horizons (30d, 60d, 90d)...
+2026-04-07 02:00:23,627 [INFO] spectra.predict: Predictions saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\predictions.csv (38515 clients)
+2026-04-07 02:00:23,630 [INFO] spectra.predict: Avg PD - 30d: 0.058  60d: 0.058  90d: 0.058
+2026-04-07 02:00:23,636 [INFO] spectra.predict: Risk label distribution (90d):
+risk_label
+Low                 35292
+Medium               2369
+High                  388
+Critical              286
+Default imminent      180
+2026-04-07 02:00:23,659 [INFO] spectra.pipeline: Scored 38515 clients.
+2026-04-07 02:00:27,099 [INFO] spectra.pipeline: Running SHAP explanations…
+2026-04-07 02:00:27,100 [INFO] spectra.explain: Loading features...
+2026-04-07 02:00:27,257 [INFO] spectra.explain: Creating SHAP explainer for GradientBoostingClassifier
+2026-04-07 02:00:27,271 [INFO] spectra.explain: Computing SHAP values for 38515 clients...
+2026-04-07 02:00:44,727 [INFO] spectra.explain: Global feature importance (mean |SHAP|):
+stage_age_months        0.636412
+exposure_growth_rate    0.628247
+rating_deterioration    0.115504
+dpd_trend               0.006451
+salary_months_active    0.000246
+repayment_rate_avg      0.000221
+overdraft_months        0.000072
+missed_payment_ratio    0.000067
+missed_payment_count    0.000017
+repayment_rate_min      0.000000
+2026-04-07 02:01:00,433 [INFO] spectra.explain: SHAP explanations saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\shap_explanations.csv (38515 clients)
+2026-04-07 02:01:00,447 [INFO] spectra.pipeline: SHAP complete: 38515 rows
+2026-04-07 02:07:23,696 [INFO] spectra.predict: Published 155315 predictions to dbo.EWIPredictions
+2026-04-07 02:07:23,823 [INFO] spectra.pipeline: EWIPredictions updated successfully.
+2026-04-07 02:07:23,823 [INFO] spectra.pipeline: Pipeline complete in 440.6s
+2026-04-07 02:07:23,826 [INFO] spectra.pipeline: ============================================================
+2026-04-08 02:00:04,211 [INFO] spectra.pipeline: ============================================================
+2026-04-08 02:00:04,212 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-08 02:00:04,216 [INFO] spectra.pipeline: ============================================================
+2026-04-08 02:00:04,216 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-08 02:00:30,610 [INFO] spectra.feature_engineering: Connecting to localhost / SPECTRA
+2026-04-08 02:00:30,842 [INFO] spectra.feature_engineering: Fetching RiskPortfolio...
+2026-04-08 02:00:33,855 [INFO] spectra.feature_engineering: Fetching DueDaysDaily...
+2026-04-08 02:00:40,041 [INFO] spectra.feature_engineering: Fetching AmortizationPlan...
+2026-04-08 02:00:40,132 [INFO] spectra.feature_engineering: Fetching TAccounts...
+2026-04-08 02:00:40,643 [INFO] spectra.feature_engineering: Fetching CC_Event_LOG...
+2026-04-08 02:00:41,009 [INFO] spectra.feature_engineering: Sizes -- RP:38515 DPD:162 Amort:7 TA:1 CC:1
+2026-04-08 02:00:41,283 [INFO] spectra.feature_engineering: Matrix: 38515 clients, 32 features
+2026-04-08 02:00:41,323 [WARNING] spectra.feature_engineering: Final: 'DueDays' has 99.3% nulls
+2026-04-08 02:00:41,325 [WARNING] spectra.feature_engineering: Final: 'DueMax6M' has 99.3% nulls
+2026-04-08 02:00:41,327 [WARNING] spectra.feature_engineering: Final: 'DueMax1Y' has 99.3% nulls
+2026-04-08 02:00:41,329 [WARNING] spectra.feature_engineering: Final: 'DueMax2Y' has 99.3% nulls
+2026-04-08 02:00:41,331 [WARNING] spectra.feature_engineering: Final: 'DueTotal' has 99.3% nulls
+2026-04-08 02:00:42,126 [INFO] spectra.feature_engineering: Saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\features.parquet
+2026-04-08 02:00:42,147 [INFO] spectra.pipeline: Feature engineering complete.
+2026-04-08 02:00:42,147 [INFO] spectra.pipeline: Step 2/2 — Scoring all clients
+2026-04-08 02:00:44,019 [INFO] spectra.predict: Loading features...
+2026-04-08 02:00:44,789 [INFO] spectra.predict: Loading models...
+2026-04-08 02:00:50,153 [INFO] spectra.predict: Validating feature hashes...
+2026-04-08 02:00:50,154 [WARNING] spectra.predict: [model_dpd_escalation] No feature_hash in bundle; model may have been trained with an older pipeline version.
+2026-04-08 02:00:50,155 [INFO] spectra.predict: Scoring 38515 clients across 3 horizons (30d, 60d, 90d)...
+2026-04-08 02:00:51,783 [INFO] spectra.predict: Predictions saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\predictions.csv (38515 clients)
+2026-04-08 02:00:51,785 [INFO] spectra.predict: Avg PD - 30d: 0.058  60d: 0.058  90d: 0.058
+2026-04-08 02:00:51,791 [INFO] spectra.predict: Risk label distribution (90d):
+risk_label
+Low                 35292
+Medium               2369
+High                  388
+Critical              286
+Default imminent      180
+2026-04-08 02:00:51,804 [INFO] spectra.pipeline: Scored 38515 clients.
+2026-04-08 02:01:08,604 [INFO] spectra.pipeline: Running SHAP explanations…
+2026-04-08 02:01:08,604 [INFO] spectra.explain: Loading features...
+2026-04-08 02:01:08,720 [INFO] spectra.explain: Creating SHAP explainer for GradientBoostingClassifier
+2026-04-08 02:01:08,733 [INFO] spectra.explain: Computing SHAP values for 38515 clients...
+2026-04-08 02:01:23,786 [INFO] spectra.explain: Global feature importance (mean |SHAP|):
+stage_age_months        0.636412
+exposure_growth_rate    0.628247
+rating_deterioration    0.115504
+dpd_trend               0.006451
+salary_months_active    0.000246
+repayment_rate_avg      0.000221
+overdraft_months        0.000072
+missed_payment_ratio    0.000067
+missed_payment_count    0.000017
+repayment_rate_min      0.000000
+2026-04-08 02:01:34,887 [INFO] spectra.explain: SHAP explanations saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\shap_explanations.csv (38515 clients)
+2026-04-08 02:01:34,898 [INFO] spectra.pipeline: SHAP complete: 38515 rows
+2026-04-08 02:05:06,665 [INFO] spectra.predict: Published 155315 predictions to dbo.EWIPredictions
+2026-04-08 02:05:06,830 [INFO] spectra.pipeline: EWIPredictions updated successfully.
+2026-04-08 02:05:06,830 [INFO] spectra.pipeline: Pipeline complete in 302.6s
+2026-04-08 02:05:06,832 [INFO] spectra.pipeline: ============================================================
+2026-04-12 02:00:04,347 [INFO] spectra.pipeline: ============================================================
+2026-04-12 02:00:04,348 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-12 02:00:04,354 [INFO] spectra.pipeline: ============================================================
+2026-04-12 02:00:04,354 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-13 02:00:03,728 [INFO] spectra.pipeline: ============================================================
+2026-04-13 02:00:03,729 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-13 02:00:03,732 [INFO] spectra.pipeline: ============================================================
+2026-04-13 02:00:03,733 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-13 02:00:29,711 [INFO] spectra.feature_engineering: Connecting to localhost / SPECTRA
+2026-04-13 02:00:29,928 [INFO] spectra.feature_engineering: Fetching RiskPortfolio...
+2026-04-13 02:00:32,758 [INFO] spectra.feature_engineering: Fetching DueDaysDaily...
+2026-04-13 02:00:39,053 [INFO] spectra.feature_engineering: Fetching AmortizationPlan...
+2026-04-13 02:00:39,113 [INFO] spectra.feature_engineering: Fetching TAccounts...
+2026-04-13 02:00:39,552 [INFO] spectra.feature_engineering: Fetching CC_Event_LOG...
+2026-04-13 02:00:39,903 [INFO] spectra.feature_engineering: Sizes -- RP:38515 DPD:162 Amort:7 TA:1 CC:1
+2026-04-13 02:00:40,171 [INFO] spectra.feature_engineering: Matrix: 38515 clients, 32 features
+2026-04-13 02:00:40,211 [WARNING] spectra.feature_engineering: Final: 'DueDays' has 99.3% nulls
+2026-04-13 02:00:40,213 [WARNING] spectra.feature_engineering: Final: 'DueMax6M' has 99.3% nulls
+2026-04-13 02:00:40,215 [WARNING] spectra.feature_engineering: Final: 'DueMax1Y' has 99.3% nulls
+2026-04-13 02:00:40,217 [WARNING] spectra.feature_engineering: Final: 'DueMax2Y' has 99.3% nulls
+2026-04-13 02:00:40,219 [WARNING] spectra.feature_engineering: Final: 'DueTotal' has 99.3% nulls
+2026-04-13 02:00:40,974 [INFO] spectra.feature_engineering: Saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\features.parquet
+2026-04-13 02:00:40,996 [INFO] spectra.pipeline: Feature engineering complete.
+2026-04-13 02:00:40,996 [INFO] spectra.pipeline: Step 2/2 — Scoring all clients
+2026-04-13 02:00:42,734 [INFO] spectra.predict: Loading features...
+2026-04-13 02:00:43,476 [INFO] spectra.predict: Loading models...
+2026-04-13 02:00:48,333 [INFO] spectra.predict: Validating feature hashes...
+2026-04-13 02:00:48,334 [WARNING] spectra.predict: [model_dpd_escalation] No feature_hash in bundle; model may have been trained with an older pipeline version.
+2026-04-13 02:00:48,335 [INFO] spectra.predict: Scoring 38515 clients across 3 horizons (30d, 60d, 90d)...
+2026-04-13 02:00:49,945 [INFO] spectra.predict: Predictions saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\predictions.csv (38515 clients)
+2026-04-13 02:00:49,947 [INFO] spectra.predict: Avg PD - 30d: 0.058  60d: 0.058  90d: 0.058
+2026-04-13 02:00:49,956 [INFO] spectra.predict: Risk label distribution (90d):
+risk_label
+Low                 35292
+Medium               2369
+High                  388
+Critical              286
+Default imminent      180
+2026-04-13 02:00:49,970 [INFO] spectra.pipeline: Scored 38515 clients.
+2026-04-13 02:01:06,360 [INFO] spectra.pipeline: Running SHAP explanations…
+2026-04-13 02:01:06,360 [INFO] spectra.explain: Loading features...
+2026-04-13 02:01:06,470 [INFO] spectra.explain: Creating SHAP explainer for GradientBoostingClassifier
+2026-04-13 02:01:06,483 [INFO] spectra.explain: Computing SHAP values for 38515 clients...
+2026-04-13 02:01:20,657 [INFO] spectra.explain: Global feature importance (mean |SHAP|):
+stage_age_months        0.636412
+exposure_growth_rate    0.628247
+rating_deterioration    0.115504
+dpd_trend               0.006451
+salary_months_active    0.000246
+repayment_rate_avg      0.000221
+overdraft_months        0.000072
+missed_payment_ratio    0.000067
+missed_payment_count    0.000017
+repayment_rate_min      0.000000
+2026-04-13 02:01:31,389 [INFO] spectra.explain: SHAP explanations saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\shap_explanations.csv (38515 clients)
+2026-04-13 02:01:31,401 [INFO] spectra.pipeline: SHAP complete: 38515 rows
+2026-04-13 02:04:57,247 [INFO] spectra.predict: Published 155315 predictions to dbo.EWIPredictions
+2026-04-13 02:04:57,375 [INFO] spectra.pipeline: EWIPredictions updated successfully.
+2026-04-13 02:04:57,376 [INFO] spectra.pipeline: Pipeline complete in 293.6s
+2026-04-13 02:04:57,378 [INFO] spectra.pipeline: ============================================================
+2026-04-14 02:00:04,052 [INFO] spectra.pipeline: ============================================================
+2026-04-14 02:00:04,053 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-14 02:00:04,056 [INFO] spectra.pipeline: ============================================================
+2026-04-14 02:00:04,056 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-15 02:00:03,036 [INFO] spectra.pipeline: ============================================================
+2026-04-15 02:00:03,037 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-15 02:00:03,041 [INFO] spectra.pipeline: ============================================================
+2026-04-15 02:00:03,041 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-15 02:00:28,835 [INFO] spectra.feature_engineering: Connecting to localhost / SPECTRA
+2026-04-15 02:00:29,008 [INFO] spectra.feature_engineering: Fetching RiskPortfolio...
+2026-04-15 02:00:31,671 [INFO] spectra.feature_engineering: Fetching DueDaysDaily...
+2026-04-15 02:00:38,278 [INFO] spectra.feature_engineering: Fetching AmortizationPlan...
+2026-04-15 02:00:38,335 [INFO] spectra.feature_engineering: Fetching TAccounts...
+2026-04-15 02:00:38,880 [INFO] spectra.feature_engineering: Fetching CC_Event_LOG...
+2026-04-15 02:00:39,257 [INFO] spectra.feature_engineering: Sizes -- RP:38515 DPD:162 Amort:7 TA:1 CC:1
+2026-04-15 02:00:39,504 [INFO] spectra.feature_engineering: Matrix: 38515 clients, 32 features
+2026-04-15 02:00:39,556 [WARNING] spectra.feature_engineering: Final: 'DueDays' has 99.3% nulls
+2026-04-15 02:00:39,558 [WARNING] spectra.feature_engineering: Final: 'DueMax6M' has 99.3% nulls
+2026-04-15 02:00:39,560 [WARNING] spectra.feature_engineering: Final: 'DueMax1Y' has 99.3% nulls
+2026-04-15 02:00:39,562 [WARNING] spectra.feature_engineering: Final: 'DueMax2Y' has 99.3% nulls
+2026-04-15 02:00:39,564 [WARNING] spectra.feature_engineering: Final: 'DueTotal' has 99.3% nulls
+2026-04-15 02:00:40,395 [INFO] spectra.feature_engineering: Saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\features.parquet
+2026-04-15 02:00:40,422 [INFO] spectra.pipeline: Feature engineering complete.
+2026-04-15 02:00:40,422 [INFO] spectra.pipeline: Step 2/2 — Scoring all clients
+2026-04-15 02:00:42,231 [INFO] spectra.predict: Loading features...
+2026-04-15 02:00:42,926 [INFO] spectra.predict: Loading models...
+2026-04-15 02:00:47,900 [INFO] spectra.predict: Validating feature hashes...
+2026-04-15 02:00:47,901 [WARNING] spectra.predict: [model_dpd_escalation] No feature_hash in bundle; model may have been trained with an older pipeline version.
+2026-04-15 02:00:47,902 [INFO] spectra.predict: Scoring 38515 clients across 3 horizons (30d, 60d, 90d)...
+2026-04-15 02:00:49,502 [INFO] spectra.predict: Predictions saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\predictions.csv (38515 clients)
+2026-04-15 02:00:49,504 [INFO] spectra.predict: Avg PD - 30d: 0.058  60d: 0.058  90d: 0.058
+2026-04-15 02:00:49,515 [INFO] spectra.predict: Risk label distribution (90d):
+risk_label
+Low                 35292
+Medium               2369
+High                  388
+Critical              286
+Default imminent      180
+2026-04-15 02:00:49,531 [INFO] spectra.pipeline: Scored 38515 clients.
+2026-04-15 02:01:05,980 [INFO] spectra.pipeline: Running SHAP explanations…
+2026-04-15 02:01:05,981 [INFO] spectra.explain: Loading features...
+2026-04-15 02:01:06,110 [INFO] spectra.explain: Creating SHAP explainer for GradientBoostingClassifier
+2026-04-15 02:01:06,139 [INFO] spectra.explain: Computing SHAP values for 38515 clients...
+2026-04-15 02:01:22,816 [INFO] spectra.explain: Global feature importance (mean |SHAP|):
+stage_age_months        0.636412
+exposure_growth_rate    0.628247
+rating_deterioration    0.115504
+dpd_trend               0.006451
+salary_months_active    0.000246
+repayment_rate_avg      0.000221
+overdraft_months        0.000072
+missed_payment_ratio    0.000067
+missed_payment_count    0.000017
+repayment_rate_min      0.000000
+2026-04-15 02:01:33,987 [INFO] spectra.explain: SHAP explanations saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\shap_explanations.csv (38515 clients)
+2026-04-15 02:01:34,001 [INFO] spectra.pipeline: SHAP complete: 38515 rows
+2026-04-15 02:05:02,402 [INFO] spectra.predict: Published 155315 predictions to dbo.EWIPredictions
+2026-04-15 02:05:02,591 [INFO] spectra.pipeline: EWIPredictions updated successfully.
+2026-04-15 02:05:02,592 [INFO] spectra.pipeline: Pipeline complete in 299.6s
+2026-04-15 02:05:02,594 [INFO] spectra.pipeline: ============================================================
+2026-04-16 02:00:03,522 [INFO] spectra.pipeline: ============================================================
+2026-04-16 02:00:03,523 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-16 02:00:03,527 [INFO] spectra.pipeline: ============================================================
+2026-04-16 02:00:03,528 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-17 02:00:03,951 [INFO] spectra.pipeline: ============================================================
+2026-04-17 02:00:03,952 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-17 02:00:03,956 [INFO] spectra.pipeline: ============================================================
+2026-04-17 02:00:03,956 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-18 02:00:39,322 [INFO] spectra.pipeline: ============================================================
+2026-04-18 02:00:39,326 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-18 02:00:39,327 [INFO] spectra.pipeline: ============================================================
+2026-04-18 02:00:39,327 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-23 02:00:03,280 [INFO] spectra.pipeline: ============================================================
+2026-04-23 02:00:03,294 [INFO] spectra.pipeline: SPECTRA ML Pipeline starting
+2026-04-23 02:00:03,294 [INFO] spectra.pipeline: ============================================================
+2026-04-23 02:00:03,294 [INFO] spectra.pipeline: Step 1/2 — Feature Engineering
+2026-04-23 02:00:31,903 [INFO] spectra.feature_engineering: Connecting to localhost / SPECTRA
+2026-04-23 02:00:32,101 [INFO] spectra.feature_engineering: Fetching RiskPortfolio...
+2026-04-23 02:00:35,490 [INFO] spectra.feature_engineering: Fetching DueDaysDaily...
+2026-04-23 02:00:42,925 [INFO] spectra.feature_engineering: Fetching AmortizationPlan...
+2026-04-23 02:00:43,001 [INFO] spectra.feature_engineering: Fetching TAccounts...
+2026-04-23 02:00:43,684 [INFO] spectra.feature_engineering: Fetching CC_Event_LOG...
+2026-04-23 02:00:44,025 [INFO] spectra.feature_engineering: Sizes -- RP:38515 DPD:162 Amort:7 TA:1 CC:1
+2026-04-23 02:00:44,328 [INFO] spectra.feature_engineering: Matrix: 38515 clients, 32 features
+2026-04-23 02:00:44,443 [WARNING] spectra.feature_engineering: Final: 'DueDays' has 99.3% nulls
+2026-04-23 02:00:44,452 [WARNING] spectra.feature_engineering: Final: 'DueMax6M' has 99.3% nulls
+2026-04-23 02:00:44,467 [WARNING] spectra.feature_engineering: Final: 'DueMax1Y' has 99.3% nulls
+2026-04-23 02:00:44,485 [WARNING] spectra.feature_engineering: Final: 'DueMax2Y' has 99.3% nulls
+2026-04-23 02:00:44,497 [WARNING] spectra.feature_engineering: Final: 'DueTotal' has 99.3% nulls
+2026-04-23 02:00:45,325 [INFO] spectra.feature_engineering: Saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\features.parquet
+2026-04-23 02:00:45,347 [INFO] spectra.pipeline: Feature engineering complete.
+2026-04-23 02:00:45,347 [INFO] spectra.pipeline: Step 2/2 — Scoring all clients
+2026-04-23 02:00:47,203 [INFO] spectra.predict: Loading features...
+2026-04-23 02:00:48,069 [INFO] spectra.predict: Loading models...
+2026-04-23 02:00:53,585 [INFO] spectra.predict: Validating feature hashes...
+2026-04-23 02:00:53,586 [WARNING] spectra.predict: [model_dpd_escalation] No feature_hash in bundle; model may have been trained with an older pipeline version.
+2026-04-23 02:00:53,586 [INFO] spectra.predict: Scoring 38515 clients across 3 horizons (30d, 60d, 90d)...
+2026-04-23 02:00:55,342 [INFO] spectra.predict: Predictions saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\predictions.csv (38515 clients)
+2026-04-23 02:00:55,347 [INFO] spectra.predict: Avg PD - 30d: 0.058  60d: 0.058  90d: 0.058
+2026-04-23 02:00:55,379 [INFO] spectra.predict: Risk label distribution (90d):
+risk_label
+Low                 35292
+Medium               2369
+High                  388
+Critical              286
+Default imminent      180
+2026-04-23 02:00:55,395 [INFO] spectra.pipeline: Scored 38515 clients.
+2026-04-23 02:01:13,724 [INFO] spectra.pipeline: Running SHAP explanations…
+2026-04-23 02:01:13,724 [INFO] spectra.explain: Loading features...
+2026-04-23 02:01:13,847 [INFO] spectra.explain: Creating SHAP explainer for GradientBoostingClassifier
+2026-04-23 02:01:13,860 [INFO] spectra.explain: Computing SHAP values for 38515 clients...
+2026-04-23 02:01:31,034 [INFO] spectra.explain: Global feature importance (mean |SHAP|):
+stage_age_months        0.636412
+exposure_growth_rate    0.628247
+rating_deterioration    0.115504
+dpd_trend               0.006451
+salary_months_active    0.000246
+repayment_rate_avg      0.000221
+overdraft_months        0.000072
+missed_payment_ratio    0.000067
+missed_payment_count    0.000017
+repayment_rate_min      0.000000
+2026-04-23 02:01:43,336 [INFO] spectra.explain: SHAP explanations saved to C:\Users\Elion\OneDrive\Documents\GitHub\spectra_system\backend\data\processed\shap_explanations.csv (38515 clients)
+2026-04-23 02:01:43,351 [INFO] spectra.pipeline: SHAP complete: 38515 rows
+2026-04-23 02:05:26,010 [INFO] spectra.predict: Published 155315 predictions to dbo.EWIPredictions
+2026-04-23 02:05:26,136 [INFO] spectra.pipeline: EWIPredictions updated successfully.
+2026-04-23 02:05:26,137 [INFO] spectra.pipeline: Pipeline complete in 322.9s
+2026-04-23 02:05:26,139 [INFO] spectra.pipeline: ============================================================

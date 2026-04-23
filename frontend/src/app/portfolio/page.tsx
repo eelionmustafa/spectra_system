@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 300 // Portfolio data changes at most once per ML pipeline run
 
 import { Suspense } from 'react'
 import Topbar from '@/components/Topbar'
@@ -198,11 +198,11 @@ export default async function Portfolio() {
         <div className="row4">
           {[
             {
-              label: 'NPL Ratio', sub: 'Stage 3 / Total portfolio',
-              val: `${kpis.stage3_pct}%`,
-              color: kpis.stage3_pct > KPI.NPL_RED ? 'var(--red)' : kpis.stage3_pct > KPI.NPL_AMBER ? 'var(--amber)' : 'var(--green)',
-              badge: kpis.stage3_pct > KPI.NPL_RED ? 'br' : kpis.stage3_pct > KPI.NPL_AMBER ? 'ba' : 'bg',
-              badgeLabel: kpis.stage3_pct > KPI.NPL_RED ? '▲ High' : kpis.stage3_pct > KPI.NPL_AMBER ? '~ Watch' : '✓ Low',
+              label: 'NPL Ratio', sub: 'Stage 3 exposure / total (IFRS 9)',
+              val: `${kpis.npl_ratio_pct ?? kpis.stage3_pct}%`,
+              color: (kpis.npl_ratio_pct ?? kpis.stage3_pct) > KPI.NPL_RED ? 'var(--red)' : (kpis.npl_ratio_pct ?? kpis.stage3_pct) > KPI.NPL_AMBER ? 'var(--amber)' : 'var(--green)',
+              badge: (kpis.npl_ratio_pct ?? kpis.stage3_pct) > KPI.NPL_RED ? 'br' : (kpis.npl_ratio_pct ?? kpis.stage3_pct) > KPI.NPL_AMBER ? 'ba' : 'bg',
+              badgeLabel: (kpis.npl_ratio_pct ?? kpis.stage3_pct) > KPI.NPL_RED ? '▲ High' : (kpis.npl_ratio_pct ?? kpis.stage3_pct) > KPI.NPL_AMBER ? '~ Watch' : '✓ Low',
             },
             {
               label: 'SICR Rate', sub: 'Stage 2 migration',

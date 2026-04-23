@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import Sidebar from '@/components/Sidebar'
+import PaymentToast from '@/app/warnings/PaymentToast'
 import { cookies, headers } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 import { validateEnv } from '@/lib/validateEnv'
@@ -52,6 +53,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="wrap">
               <Sidebar session={session} />
               <div className="main">{children}</div>
+              {/* Only poll for payment events on pages where it is relevant */}
+              {pathname.startsWith('/warnings') && <PaymentToast />}
             </div>
           ) : (
             children

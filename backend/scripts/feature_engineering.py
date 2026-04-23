@@ -180,5 +180,9 @@ def build_features():
     _nullcheck(df,"Final"); df.to_parquet(_OUTPUT,index=True)
     log.info("Saved to %s",_OUTPUT); return df
 
+def run():
+    """Entry point for the pipeline runner."""
+    return build_features()
+
 if __name__ == "__main__":
     f=build_features(); print("Shape:",f.shape); print(f.dtypes.to_string())

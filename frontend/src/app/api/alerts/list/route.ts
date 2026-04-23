@@ -18,7 +18,9 @@ export async function GET(_req: NextRequest) {
         return sev(a) - sev(b) || b.due_days - a.due_days
       })
       .slice(0, 8)
-    return NextResponse.json({ alerts: top, total: all.length })
+    return NextResponse.json({ alerts: top, total: all.length }, {
+      headers: { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=30' },
+    })
   } catch {
     return NextResponse.json({ alerts: [], total: 0 })
   }

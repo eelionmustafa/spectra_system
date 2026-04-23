@@ -166,6 +166,6 @@ export const EWI = {
 
 // ─── Cache TTLs ───────────────────────────────────────────────────────────────
 export const CACHE = {
-  TTL_MS:     envNum('CACHE_TTL_MS',     5 * 60_000),  // 5 min — portfolio / analytics queries
-  EWI_TTL_MS: envNum('CACHE_EWI_TTL_MS', 10 * 60_000), // 10 min — EWI aggregate table scans
+  TTL_MS:     envNum('CACHE_TTL_MS',     15 * 60_000), // 15 min — portfolio / analytics queries
+  EWI_TTL_MS: envNum('CACHE_EWI_TTL_MS', 30 * 60_000), // 30 min — EWI aggregate table scans
 } as const

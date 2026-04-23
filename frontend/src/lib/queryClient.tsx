@@ -9,8 +9,11 @@ export default function ReactQueryProvider({ children }: { children: React.React
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000,
+            // KPIs only change when the ML pipeline runs (nightly) — 5 min is safe
+            staleTime: 5 * 60_000,
+            gcTime:    10 * 60_000,
             refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
           },
         },
       })

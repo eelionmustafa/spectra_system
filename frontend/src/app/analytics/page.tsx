@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 300 // re-compute at most every 5 minutes
 
 import { Suspense } from 'react'
 import Topbar from '@/components/Topbar'
@@ -18,7 +18,7 @@ import lazy from 'next/dynamic'
 const _skel = () => <div style={{ height: 220, borderRadius: 8, background: '#F8FAFC', animation: 'pulse 1.5s ease-in-out infinite' }} />
 const NPLAreaChart    = lazy(() => import('./NPLAreaChart'),    { loading: _skel })
 const SegmentBarChart = lazy(() => import('./SegmentBarChart'), { loading: _skel })
-const VintageBarChart = lazy(() => import('./VintageBarChart'), { loading: _skel })
+const VintagePanel    = lazy(() => import('./VintagePanel'),    { loading: _skel })
 const RepaymentDonut  = lazy(() => import('./RepaymentDonut'),  { loading: _skel })
 const ECLGroupedChart = lazy(() => import('./ECLGroupedChart'), { loading: _skel })
 const PDRatingChart   = lazy(() => import('./PDRatingChart'),   { loading: _skel })
@@ -179,14 +179,15 @@ async function IFRS9Compliance() {
             <thead><tr><th>Stage</th><th>Prior</th><th>Current</th><th>Change</th></tr></thead>
             <tbody>
               {coverage.map(r => {
-                const declined = r.mom_change_pct < -2
+                const mom = r.mom_change_pct
+                const declined = mom != null && mom < -2
                 return (
                   <tr key={r.stage}>
                     <td><span className={`badge ${r.stage === 1 ? 'bg' : r.stage === 2 ? 'ba' : 'br'}`}>Stage {r.stage}</span></td>
                     <td className="mono">{r.prev_coverage_pct}%</td>
                     <td className="mono" style={{ fontWeight: 600 }}>{r.curr_coverage_pct}%</td>
-                    <td className="mono" style={{ color: declined ? 'var(--red)' : r.mom_change_pct > 0 ? 'var(--green)' : 'var(--muted)', fontWeight: 600 }}>
-                      {r.mom_change_pct > 0 ? '▲ ' : r.mom_change_pct < 0 ? '▼ ' : ''}{Math.abs(r.mom_change_pct)}pp
+                    <td className="mono" style={{ color: declined ? 'var(--red)' : mom != null && mom > 0 ? 'var(--green)' : 'var(--muted)', fontWeight: 600 }}>
+                      {mom == null ? 'N/A' : <>{mom > 0 ? '▲ ' : mom < 0 ? '▼ ' : ''}{Math.abs(mom)}pp</>}
                       {declined && <span style={{ marginLeft: 4, fontSize: 9, background: 'var(--red)', color: '#fff', borderRadius: 3, padding: '1px 4px' }}>FLAG</span>}
                     </td>
                   </tr>
@@ -359,17 +360,7 @@ async function RiskSignals() {
             <span style={{ color: 'var(--red)' }}>■</span> &gt;5% critical
           </div>
         </div>
-        <div className="panel">
-          <div className="ph">
-            <span className="pt">Vintage delinquency</span>
-            <span className="pa">By issuance year</span>
-          </div>
-          <VintageBarChart data={vintage} warnThreshold={KPI.VINTAGE_DELINQUENCY_WARN} />
-          <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 10, color: 'var(--muted)' }}>
-            <span style={{ color: 'var(--navy)' }}>■</span> Normal
-            <span style={{ color: 'var(--red)' }}>■</span> &gt;{KPI.VINTAGE_DELINQUENCY_WARN}% flagged
-          </div>
-        </div>
+        <VintagePanel data={vintage} warnThreshold={KPI.VINTAGE_DELINQUENCY_WARN} />
       </div>
       <div className="panel">
         <div className="ph"><span className="pt">PD by client rating</span><span className="pa">Stage 3 migration rate — higher PD % = elevated risk tier</span></div>

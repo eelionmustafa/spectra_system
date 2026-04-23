@@ -68,6 +68,12 @@ const STORED_USERS: StoredUser[] = [
     passwordHash: '982569ff581ddd92f08338344b0253f4d212a3cac7d83a1f27a5d1b0c10f9162be9193aa20283442be0017a674f65a474f81221ec05d47192961d2cace68c618',
   },
   {
+    id: '6', username: 'spectra_user', name: 'Spectra User',
+    role: 'senior_risk_manager', department: 'Senior Risk', initials: 'SU',
+    salt: 'spectra_user_v1',
+    passwordHash: '8cf09bfac017586edd29c8a719741fe03f052109cb4cf17ef7502e9b4cc2df4c180b37497c1b0b2c718db1d8405f20c54346e5d49fd295485d85c0a6c629db3b',
+  },
+  {
     id: '5', username: 'demo', name: 'Spectra Demo',
     role: 'auditor', department: 'App Testing', initials: 'SD',
     salt: 'spectra_demo_v1',

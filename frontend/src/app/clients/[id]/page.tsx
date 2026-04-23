@@ -8,8 +8,9 @@ import Loading from './loading'
 import {
   getClientProfile, getClientDPDHistory, getClientEWI,
   getClientActiveActions, getClientProducts, getClientCaseHistory,
+  getCovenantWaivers, getClientCollateralReviews,
 } from '@/lib/queries'
-import type { ClientProfile, DPDHistory, ClientEWI, ClientProduct, CaseAction } from '@/lib/queries'
+import type { ClientProfile, DPDHistory, ClientEWI, ClientProduct, CaseAction, CovenantWaiverRow, CollateralReviewRow } from '@/lib/queries'
 import { readRiskFlags } from '@/lib/predictions'
 import { getPredictionSnapshot } from '@/lib/ewiPredictionsService'
 import { getActiveRestructuringPlan } from '@/lib/restructuringService'
@@ -48,6 +49,8 @@ async function ClientProfileContent({
     resolved,
     predictionSnapshot,
     scheduledSalary,
+    covenantWaivers,
+    collateralReviews,
   ] = await Promise.all([
     getClientDPDHistory(id).catch((): DPDHistory[]                                 => []),
     getClientEWI(id).catch((): ClientEWI | null                                    => null),
@@ -62,6 +65,8 @@ async function ClientProfileContent({
     isClientResolved(id).catch(()                                                  => false),
     getPredictionSnapshot(id).catch(()                                             => null),
     getScheduledSalary(id).catch((): ScheduledSalary | null                        => null),
+    getCovenantWaivers(id).catch((): CovenantWaiverRow[]                           => []),
+    getClientCollateralReviews(id).catch((): CollateralReviewRow[]                 => []),
   ])
 
   const prediction  = predictionSnapshot?.prediction ?? null
@@ -88,6 +93,8 @@ async function ClientProfileContent({
       isWrittenOff={writtenOff}
       isResolved={resolved}
       scheduledSalary={scheduledSalary}
+      covenantWaivers={covenantWaivers}
+      collateralReviews={collateralReviews}
     />
   )
 }
@@ -126,7 +133,7 @@ export default async function ClientProfilePage({
             <div style={{ fontWeight: 600, color: 'var(--red)', marginBottom: '6px' }}>Database error</div>
             <code style={{ fontSize: '11px', wordBreak: 'break-all' }}>{msg}</code>
             <div style={{ marginTop: '10px', fontSize: '11px' }}>
-              Check <code>/api/db/ping</code> for diagnostics or review <code>.env.local</code>.
+              Check <code>/api/infra/ping</code> for diagnostics or review <code>.env.local</code>.
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation } from '@tanstack/react-query'
 import Link from 'next/link'
-import type { ClientProfile, DPDHistory, ClientEWI, ClientProduct, CaseAction } from '@/lib/queries'
+import type { ClientProfile, DPDHistory, ClientEWI, ClientProduct, CaseAction, CovenantWaiverRow, CollateralReviewRow } from '@/lib/queries'
 import type { PredictionRow, ShapRow, RiskFlagRow } from '@/lib/predictions'
 import type { PlanRow } from '@/lib/restructuringService'
 import type { CommitteeRow } from '@/lib/committeeService'
@@ -41,6 +41,8 @@ interface Props {
   isWrittenOff: boolean
   isResolved: boolean
   scheduledSalary?: { id: string; personalId: string; accountNo: string | null; amount: number; description: string; scheduledDate: string } | null
+  covenantWaivers?: CovenantWaiverRow[]
+  collateralReviews?: CollateralReviewRow[]
 }
 
 interface RecoveryMutationResponse {
@@ -142,8 +144,10 @@ export default function ClientProfileTabs({
   isWrittenOff,
   isResolved: isResolvedProp,
   scheduledSalary,
+  covenantWaivers: covenantWaiversProp = [],
+  collateralReviews: collateralReviewsProp = [],
 }: Props) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'ewi' | 'alerts' | 'ai' | 'log' | 'whatif'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'ewi' | 'alerts' | 'ai' | 'log' | 'whatif' | 'covenants'>('overview')
   const [insights, setInsights] = useState<AIInsights | null>(null)
   const [letterOpen, setLetterOpen] = useState(false)
   const [quickActionDone, setQuickActionDone] = useState<Set<string>>(new Set())
@@ -153,10 +157,14 @@ export default function ClientProfileTabs({
   const [ackedAlerts, setAckedAlerts] = useState<Set<number>>(new Set())
 
   // Credit committee state
-  const [committeeLog, setCommitteeLog]             = useState<CommitteeRow[]>(committeeLogProp)
-  const [committeeSubmitting, setCommitteeSubmitting] = useState(false)
-  const [committeeNotes, setCommitteeNotes]         = useState('')
-  const [committeeModalOpen, setCommitteeModalOpen] = useState(false)
+  const [committeeLog, setCommitteeLog]                       = useState<CommitteeRow[]>(committeeLogProp)
+  const [committeeSubmitting, setCommitteeSubmitting]         = useState(false)
+  const [committeeNotes, setCommitteeNotes]                   = useState('')
+  const [committeeModalOpen, setCommitteeModalOpen]           = useState(false)
+  const [committeeDecision, setCommitteeDecision]             = useState('')
+  const [committeeDecisionNotes, setCommitteeDecisionNotes]   = useState('')
+  const [committeeDeciding, setCommitteeDeciding]             = useState(false)
+  const [committeeDecisionError, setCommitteeDecisionError]   = useState<string | null>(null)
 
   // Recovery state
   const [activeRecovery, setActiveRecovery]         = useState<RecoveryCaseRow | null>(recoveryCaseProp)
@@ -178,6 +186,12 @@ export default function ClientProfileTabs({
   const [rNewRate,         setRNewRate]         = useState('')
   const [rForgivenAmount,  setRForgivenAmount]  = useState('')
   const [rNotes,           setRNotes]           = useState('')
+  const [rStatusUpdating,  setRStatusUpdating]  = useState(false)
+  const [rStatusError,     setRStatusError]     = useState<string | null>(null)
+
+  // Recovery close state
+  const [rcClosing,    setRcClosing]    = useState(false)
+  const [rcCloseError, setRcCloseError] = useState<string | null>(null)
 
   // Schedule engagement modal
   const [scheduleModalType, setScheduleModalType] = useState<'call' | 'meeting' | null>(null)
@@ -199,6 +213,28 @@ export default function ClientProfileTabs({
   const [resolveModalOpen, setResolveModalOpen] = useState(false)
   const [resolveNotes,     setResolveNotes]     = useState('')
   const [resolveLoading,   setResolveLoading]   = useState(false)
+
+  // Covenant waivers state
+  const [covenantWaivers, setCovenantWaivers] = useState<CovenantWaiverRow[]>(covenantWaiversProp)
+  const [cwFormOpen,    setCwFormOpen]         = useState(false)
+  const [cwType,        setCwType]             = useState('financial_covenant')
+  const [cwCreditId,    setCwCreditId]         = useState('')
+  const [cwReason,      setCwReason]           = useState('')
+  const [cwSubmitting,  setCwSubmitting]       = useState(false)
+  const [cwDeciding,    setCwDeciding]         = useState<string | null>(null)
+  const [cwError,       setCwError]            = useState<string | null>(null)
+
+  // Collateral reviews state
+  const [collateralReviews, setCollateralReviews] = useState<CollateralReviewRow[]>(collateralReviewsProp)
+  const [colFormOpen,   setColFormOpen]   = useState(false)
+  const [colDate,       setColDate]       = useState('')
+  const [colOldVal,     setColOldVal]     = useState('')
+  const [colNewVal,     setColNewVal]     = useState('')
+  const [colExposure,   setColExposure]   = useState('')
+  const [colCreditId,   setColCreditId]   = useState('')
+  const [colNotes,      setColNotes]      = useState('')
+  const [colSubmitting, setColSubmitting] = useState(false)
+  const [colError,      setColError]      = useState<string | null>(null)
 
   // What-If scenario
   const [whatIfDpd,   setWhatIfDpd]   = useState(Number(profile.current_due_days ?? 0))
@@ -310,7 +346,7 @@ export default function ClientProfileTabs({
       credit_id: p.credit_account,
       product_type: p.product_type,
       due_days: p.due_days,
-      days_open: daysAgo(new Date(Date.now() - p.due_days * 86_400_000).toISOString()),
+      days_open: `${p.due_days} days`,
       priority: p.due_days >= 90 ? 'Urgent' : p.due_days >= 30 ? 'High' : 'Medium',
       recommended_action: p.due_days >= 90
         ? 'Escalate to collections — account is severely past due'
@@ -720,6 +756,62 @@ export default function ClientProfileTabs({
     setRecoveryOpen(true)
   }, [activeRecovery])
 
+  const recordCommitteeDecision = useCallback(async (logId: string) => {
+    if (!committeeDecision) return
+    setCommitteeDeciding(true); setCommitteeDecisionError(null)
+    try {
+      const res = await fetch(`/api/clients/${clientId}/committee/${logId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: committeeDecision, notes: committeeDecisionNotes || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setCommitteeDecisionError(data.error ?? 'Failed to record decision'); return }
+      setCommitteeLog(prev => prev.map(r => r.id === logId
+        ? { ...r, decision: committeeDecision as CommitteeRow['decision'], decided_by: 'You', decision_date: new Date().toISOString() }
+        : r
+      ))
+      setCommitteeDecision(''); setCommitteeDecisionNotes('')
+    } catch { setCommitteeDecisionError('Network error — please try again') }
+    finally { setCommitteeDeciding(false) }
+  }, [clientId, committeeDecision, committeeDecisionNotes])
+
+  const updateRestructuringStatus = useCallback(async (newStatus: string) => {
+    if (!activePlan) return
+    setRStatusUpdating(true); setRStatusError(null)
+    try {
+      const res = await fetch(`/api/clients/${clientId}/restructuring/${activePlan.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setRStatusError(data.error ?? 'Failed to update status'); return }
+      setActivePlan(prev => prev ? { ...prev, status: newStatus as PlanRow['status'] } : prev)
+    } catch { setRStatusError('Network error — please try again') }
+    finally { setRStatusUpdating(false) }
+  }, [clientId, activePlan])
+
+  const closeRecoveryCase = useCallback(async () => {
+    if (!activeRecovery) return
+    setRcClosing(true); setRcCloseError(null)
+    try {
+      const res = await fetch(`/api/clients/${clientId}/recovery/${activeRecovery.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Closed' }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setRcCloseError(data.error ?? 'Failed to close case'); return }
+      setActiveRecovery(null)
+      setRecoveryHistory(prev => sortRecoveryCases(
+        prev.map(c => c.id === activeRecovery.id ? { ...c, status: 'Closed' as RecoveryCaseRow['status'] } : c)
+      ))
+      setRecoveryOpen(false)
+    } catch { setRcCloseError('Network error — please try again') }
+    finally { setRcClosing(false) }
+  }, [clientId, activeRecovery])
+
   /* ── render ──────────────────────────────────────────────────────────── */
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1033,6 +1125,7 @@ export default function ClientProfileTabs({
               { id: 'ai', label: 'AI Insights' },
               { id: 'log', label: 'Actions Log', count: caseHistory.length || undefined },
               { id: 'whatif', label: 'What-If' },
+              { id: 'covenants', label: 'Covenants', count: covenantWaivers.filter(w => w.status === 'Pending').length || undefined },
             ]) as { id: typeof activeTab; label: string; count?: number }[]).map(t => (
               <button
                 key={t.id}
@@ -1314,6 +1407,151 @@ export default function ClientProfileTabs({
                       )}
                     </div>
                   )}
+
+                  {/* Collateral Reviews */}
+                  <div className="panel">
+                    <div className="ph" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="pt">Collateral Reviews</span>
+                      {['credit_risk_manager', 'senior_risk_manager', 'admin'].includes(userRole) && (
+                        <button
+                          onClick={() => {
+                            setColDate(new Date().toISOString().slice(0, 10))
+                            setColOldVal(collateralReviews.length > 0 ? String(collateralReviews[0].new_value ?? '') : '')
+                            setColFormOpen(v => !v)
+                          }}
+                          style={{ fontSize: '10px', padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--navy)' }}
+                        >
+                          {colFormOpen ? 'Cancel' : '+ Add Review'}
+                        </button>
+                      )}
+                    </div>
+                    {colFormOpen && (
+                      <div style={{ padding: '12px 14px', background: '#F8FAFC', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {colError && <div style={{ fontSize: 11, color: 'var(--red)', background: '#FEF2F2', padding: '5px 8px', borderRadius: 4 }}>{colError}</div>}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          <label style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>
+                            Date<br />
+                            <input type="date" value={colDate} onChange={e => setColDate(e.target.value)}
+                              style={{ width: '100%', marginTop: 3, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11 }} />
+                          </label>
+                          <label style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>
+                            Credit ID (opt.)<br />
+                            <input type="text" value={colCreditId} onChange={e => setColCreditId(e.target.value)} placeholder="e.g. CR-0001"
+                              style={{ width: '100%', marginTop: 3, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11 }} />
+                          </label>
+                          <label style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>
+                            Old Value (€)<br />
+                            <input type="number" value={colOldVal} onChange={e => setColOldVal(e.target.value)} placeholder="Previous value"
+                              style={{ width: '100%', marginTop: 3, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11 }} />
+                          </label>
+                          <label style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>
+                            New Value (€)*<br />
+                            <input type="number" value={colNewVal} onChange={e => setColNewVal(e.target.value)} placeholder="Current value" required
+                              style={{ width: '100%', marginTop: 3, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11 }} />
+                          </label>
+                          <label style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>
+                            Current Exposure (€)<br />
+                            <input type="number" value={colExposure} onChange={e => setColExposure(e.target.value)} placeholder="Client exposure"
+                              style={{ width: '100%', marginTop: 3, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11 }} />
+                          </label>
+                          <label style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>
+                            Notes<br />
+                            <input type="text" value={colNotes} onChange={e => setColNotes(e.target.value)} placeholder="Optional notes"
+                              style={{ width: '100%', marginTop: 3, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11 }} />
+                          </label>
+                        </div>
+                        <button
+                          disabled={colSubmitting || !colNewVal}
+                          onClick={async () => {
+                            setColSubmitting(true); setColError(null)
+                            try {
+                              const res = await fetch(`/api/monitoring/${clientId}/collateral`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  revaluation_date: colDate,
+                                  old_value: colOldVal ? Number(colOldVal) : null,
+                                  new_value: Number(colNewVal),
+                                  current_exposure: colExposure ? Number(colExposure) : null,
+                                  credit_id: colCreditId || null,
+                                  notes: colNotes || null,
+                                }),
+                              })
+                              const data = await res.json()
+                              if (!res.ok) throw new Error(data.error ?? 'Failed')
+                              const newRow: CollateralReviewRow = {
+                                id: data.id ?? String(Date.now()),
+                                client_id: clientId,
+                                credit_id: colCreditId || null,
+                                revaluation_date: colDate,
+                                old_value: colOldVal ? Number(colOldVal) : null,
+                                new_value: Number(colNewVal),
+                                current_exposure: colExposure ? Number(colExposure) : null,
+                                ltv_recalculated: (colExposure && colNewVal && Number(colNewVal) > 0)
+                                  ? Math.round((Number(colExposure) / Number(colNewVal)) * 1000) / 10
+                                  : null,
+                                reviewed_by: 'you',
+                                notes: colNotes || null,
+                                created_at: new Date().toISOString(),
+                              }
+                              setCollateralReviews(prev => [newRow, ...prev])
+                              setColFormOpen(false); setColNewVal(''); setColOldVal(''); setColExposure(''); setColCreditId(''); setColNotes('')
+                            } catch (e) { setColError((e as Error).message) }
+                            finally { setColSubmitting(false) }
+                          }}
+                          style={{ padding: '5px 14px', borderRadius: 5, border: 'none', background: 'var(--navy)', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600, alignSelf: 'flex-start' }}
+                        >
+                          {colSubmitting ? 'Saving…' : 'Save Review'}
+                        </button>
+                      </div>
+                    )}
+                    {collateralReviews.length === 0 ? (
+                      <div className="empty-state"><div className="empty-state-icon">🏦</div><div className="empty-state-text">No collateral reviews recorded</div></div>
+                    ) : (
+                      <div className="tbl-wrap">
+                        <table className="tbl">
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th className="tr">Old Value</th>
+                              <th className="tr">New Value</th>
+                              <th className="tr">LTV</th>
+                              <th className="tr">Exposure</th>
+                              <th>Dir</th>
+                              <th>Reviewed By</th>
+                              <th>Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {collateralReviews.map(r => {
+                              const ltv = r.ltv_recalculated
+                              const ltvColor = ltv == null ? 'var(--muted)' : ltv > 80 ? 'var(--red)' : ltv > 60 ? 'var(--amber)' : 'var(--green)'
+                              const dir = r.old_value == null ? null : r.new_value > r.old_value ? '▲' : r.new_value < r.old_value ? '▼' : '='
+                              const dirColor = dir === '▲' ? 'var(--green)' : dir === '▼' ? 'var(--red)' : 'var(--muted)'
+                              return (
+                                <tr key={r.id}>
+                                  <td style={{ fontSize: 11 }}>{fmtDate(r.revaluation_date)}</td>
+                                  <td className="tr mono" style={{ fontSize: 11 }}>{r.old_value != null ? fmtEur(r.old_value) : '—'}</td>
+                                  <td className="tr mono" style={{ fontSize: 11 }}>{fmtEur(r.new_value)}</td>
+                                  <td className="tr">
+                                    {ltv != null ? (
+                                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: ltvColor === 'var(--red)' ? '#FEE2E2' : ltvColor === 'var(--amber)' ? '#FEF3C7' : '#DCFCE7', color: ltvColor }}>
+                                        {ltv.toFixed(1)}%
+                                      </span>
+                                    ) : '—'}
+                                  </td>
+                                  <td className="tr mono" style={{ fontSize: 11 }}>{r.current_exposure != null ? fmtEur(r.current_exposure) : '—'}</td>
+                                  <td style={{ fontWeight: 700, color: dirColor, fontSize: 13 }}>{dir ?? '—'}</td>
+                                  <td style={{ fontSize: 11 }}>{r.reviewed_by}</td>
+                                  <td style={{ fontSize: 11, color: 'var(--muted)' }}>{r.notes ?? '—'}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
 
                 </div>{/* end left column */}
 
@@ -2177,6 +2415,202 @@ export default function ClientProfileTabs({
                 </div>
               )
             })()}
+
+            {/* ── Covenants ─────────────────────────────────────── */}
+            {activeTab === 'covenants' && (() => {
+              const total    = covenantWaivers.length
+              const pending  = covenantWaivers.filter(w => w.status === 'Pending').length
+              const approved = covenantWaivers.filter(w => w.status === 'Approved').length
+              const rejected = covenantWaivers.filter(w => w.status === 'Rejected').length
+              const canDecide = ['credit_risk_manager', 'senior_risk_manager', 'admin'].includes(userRole)
+              const WAIVER_TYPE_LABELS: Record<string, string> = {
+                financial_covenant:    'Financial Covenant',
+                reporting_covenant:    'Reporting Covenant',
+                maintenance_covenant:  'Maintenance Covenant',
+                other:                 'Other',
+              }
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {/* KPI strip */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                    {[
+                      { label: 'Total', value: total, color: 'var(--navy)' },
+                      { label: 'Pending', value: pending, color: 'var(--amber)' },
+                      { label: 'Approved', value: approved, color: 'var(--green)' },
+                      { label: 'Rejected', value: rejected, color: 'var(--red)' },
+                    ].map(k => (
+                      <div key={k.label} className="panel" style={{ padding: '12px 14px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)', marginBottom: 4, fontWeight: 600 }}>{k.label}</div>
+                        <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: k.color }}>{k.value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Create waiver form */}
+                  <div className="panel">
+                    <div className="ph" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="pt">Waiver Requests</span>
+                      <button
+                        onClick={() => setCwFormOpen(v => !v)}
+                        style={{ fontSize: 10, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--navy)' }}
+                      >
+                        {cwFormOpen ? 'Cancel' : '+ New Waiver'}
+                      </button>
+                    </div>
+
+                    {cwFormOpen && (
+                      <div style={{ padding: '12px 14px', background: '#F8FAFC', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {cwError && <div style={{ fontSize: 11, color: 'var(--red)', background: '#FEF2F2', padding: '5px 8px', borderRadius: 4 }}>{cwError}</div>}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          <label style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>
+                            Waiver Type*<br />
+                            <select value={cwType} onChange={e => setCwType(e.target.value)}
+                              style={{ width: '100%', marginTop: 3, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11 }}>
+                              <option value="financial_covenant">Financial Covenant</option>
+                              <option value="reporting_covenant">Reporting Covenant</option>
+                              <option value="maintenance_covenant">Maintenance Covenant</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </label>
+                          <label style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>
+                            Credit ID (opt.)<br />
+                            <input type="text" value={cwCreditId} onChange={e => setCwCreditId(e.target.value)} placeholder="e.g. CR-0001"
+                              style={{ width: '100%', marginTop: 3, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11 }} />
+                          </label>
+                        </div>
+                        <label style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>
+                          Reason<br />
+                          <textarea value={cwReason} onChange={e => setCwReason(e.target.value)} rows={2} placeholder="Reason for waiver request (optional)"
+                            style={{ width: '100%', marginTop: 3, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, resize: 'vertical' }} />
+                        </label>
+                        <button
+                          disabled={cwSubmitting}
+                          onClick={async () => {
+                            setCwSubmitting(true); setCwError(null)
+                            try {
+                              const res = await fetch(`/api/clients/${clientId}/covenant-waivers`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  waiverType: cwType,
+                                  reason: cwReason || null,
+                                  creditId: cwCreditId || null,
+                                }),
+                              })
+                              const data = await res.json()
+                              if (!res.ok) throw new Error(data.error ?? 'Failed')
+                              const today = new Date().toISOString().slice(0, 10)
+                              const newRow: CovenantWaiverRow = {
+                                id: data.id ?? String(Date.now()),
+                                client_id: clientId,
+                                credit_id: cwCreditId || null,
+                                waiver_type: cwType,
+                                requested_date: today,
+                                requested_by: 'you',
+                                reason: cwReason || null,
+                                status: 'Pending',
+                                approved_by: null,
+                                approved_at: null,
+                                decision_notes: null,
+                                created_at: new Date().toISOString(),
+                              }
+                              setCovenantWaivers(prev => [newRow, ...prev])
+                              setCwFormOpen(false); setCwReason(''); setCwCreditId('')
+                            } catch (e) { setCwError((e as Error).message) }
+                            finally { setCwSubmitting(false) }
+                          }}
+                          style={{ padding: '5px 14px', borderRadius: 5, border: 'none', background: 'var(--navy)', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600, alignSelf: 'flex-start' }}
+                        >
+                          {cwSubmitting ? 'Submitting…' : 'Submit Request'}
+                        </button>
+                      </div>
+                    )}
+
+                    {covenantWaivers.length === 0 ? (
+                      <div className="empty-state"><div className="empty-state-icon">📋</div><div className="empty-state-text">No waiver requests for this client</div></div>
+                    ) : (
+                      <div className="tbl-wrap">
+                        <table className="tbl">
+                          <thead>
+                            <tr>
+                              <th>Type</th>
+                              <th>Requested</th>
+                              <th>By</th>
+                              <th>Status</th>
+                              <th>Decided By</th>
+                              <th>Notes</th>
+                              {canDecide && <th></th>}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {covenantWaivers.map(w => (
+                              <tr key={w.id}>
+                                <td style={{ fontSize: 11 }}>{WAIVER_TYPE_LABELS[w.waiver_type] ?? w.waiver_type}</td>
+                                <td style={{ fontSize: 11 }}>{fmtDate(w.requested_date)}</td>
+                                <td style={{ fontSize: 11 }}>{w.requested_by}</td>
+                                <td>
+                                  <span style={{
+                                    fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+                                    background: w.status === 'Approved' ? '#DCFCE7' : w.status === 'Rejected' ? '#FEE2E2' : '#FEF3C7',
+                                    color: w.status === 'Approved' ? 'var(--green)' : w.status === 'Rejected' ? 'var(--red)' : '#92400E',
+                                  }}>
+                                    {w.status}
+                                  </span>
+                                </td>
+                                <td style={{ fontSize: 11 }}>{w.approved_by ?? '—'}</td>
+                                <td style={{ fontSize: 11, color: 'var(--muted)' }}>{w.decision_notes ?? '—'}</td>
+                                {canDecide && (
+                                  <td>
+                                    {w.status === 'Pending' && (
+                                      <div style={{ display: 'flex', gap: 4 }}>
+                                        <button
+                                          disabled={cwDeciding === w.id}
+                                          onClick={async () => {
+                                            setCwDeciding(w.id)
+                                            try {
+                                              const res = await fetch(`/api/clients/${clientId}/covenant-waivers/${w.id}`, {
+                                                method: 'PATCH',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ status: 'Approved' }),
+                                              })
+                                              if (!res.ok) throw new Error((await res.json()).error)
+                                              setCovenantWaivers(prev => prev.map(x => x.id === w.id ? { ...x, status: 'Approved', approved_by: 'you' } : x))
+                                            } catch (e) { setCwError((e as Error).message) }
+                                            finally { setCwDeciding(null) }
+                                          }}
+                                          style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: 'none', background: '#DCFCE7', color: 'var(--green)', cursor: 'pointer', fontWeight: 700 }}
+                                        >✓</button>
+                                        <button
+                                          disabled={cwDeciding === w.id}
+                                          onClick={async () => {
+                                            setCwDeciding(w.id)
+                                            try {
+                                              const res = await fetch(`/api/clients/${clientId}/covenant-waivers/${w.id}`, {
+                                                method: 'PATCH',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ status: 'Rejected' }),
+                                              })
+                                              if (!res.ok) throw new Error((await res.json()).error)
+                                              setCovenantWaivers(prev => prev.map(x => x.id === w.id ? { ...x, status: 'Rejected' } : x))
+                                            } catch (e) { setCwError((e as Error).message) }
+                                            finally { setCwDeciding(null) }
+                                          }}
+                                          style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: 'none', background: '#FEE2E2', color: 'var(--red)', cursor: 'pointer', fontWeight: 700 }}
+                                        >✕</button>
+                                      </div>
+                                    )}
+                                  </td>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         </div>
 
@@ -2216,21 +2650,6 @@ export default function ClientProfileTabs({
               </div>
             )}
           </div>
-
-          {/* Compare link */}
-          <Link
-            href={`/compare?a=${encodeURIComponent(clientId)}`}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              padding: '7px 12px', borderRadius: 6, textDecoration: 'none',
-              border: '1px solid var(--border)', fontSize: '11px', fontWeight: 600,
-              color: 'var(--muted)',
-              background: 'var(--card)',
-              transition: 'all 0.15s',
-            }}
-          >
-            ⇄ Compare with another client
-          </Link>
 
           {/* Divider */}
           <div className="divider" style={{ margin: '2px 0' }} />
@@ -2567,19 +2986,45 @@ export default function ClientProfileTabs({
                     <div className="detail-value">{value}</div>
                   </div>
                 ))}
+                {/* Status action buttons — only for authorized roles */}
+                {['credit_risk_manager', 'senior_risk_manager'].includes(userRole) && (
+                  <div style={{ marginTop: '4px', padding: '12px', background: '#F8FAFC', borderRadius: '7px', border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)', fontWeight: 700, marginBottom: '8px' }}>Plan Actions</div>
+                    {rStatusError && <div style={{ fontSize: '11px', color: 'var(--red)', marginBottom: '8px' }}>{rStatusError}</div>}
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {activePlan.status === 'Proposed' && (<>
+                        <button onClick={() => updateRestructuringStatus('Approved')} disabled={rStatusUpdating} style={{ flex: 1, minWidth: '80px', padding: '7px 10px', borderRadius: '6px', border: 'none', background: 'var(--green)', color: 'white', fontSize: '11.5px', fontWeight: 700, cursor: rStatusUpdating ? 'default' : 'pointer', fontFamily: 'var(--font)', opacity: rStatusUpdating ? 0.6 : 1 }}>
+                          {rStatusUpdating ? '…' : '✓ Approve'}
+                        </button>
+                        <button onClick={() => updateRestructuringStatus('Rejected')} disabled={rStatusUpdating} style={{ flex: 1, minWidth: '80px', padding: '7px 10px', borderRadius: '6px', border: 'none', background: 'var(--red)', color: 'white', fontSize: '11.5px', fontWeight: 700, cursor: rStatusUpdating ? 'default' : 'pointer', fontFamily: 'var(--font)', opacity: rStatusUpdating ? 0.6 : 1 }}>
+                          {rStatusUpdating ? '…' : '✕ Reject'}
+                        </button>
+                      </>)}
+                      {activePlan.status === 'Approved' && (
+                        <button onClick={() => updateRestructuringStatus('Active')} disabled={rStatusUpdating} style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: 'none', background: 'var(--blue)', color: 'white', fontSize: '11.5px', fontWeight: 700, cursor: rStatusUpdating ? 'default' : 'pointer', fontFamily: 'var(--font)', opacity: rStatusUpdating ? 0.6 : 1 }}>
+                          {rStatusUpdating ? 'Activating…' : '▶ Activate Plan'}
+                        </button>
+                      )}
+                      {activePlan.status === 'Active' && (
+                        <button onClick={() => updateRestructuringStatus('Completed')} disabled={rStatusUpdating} style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'white', color: 'var(--text)', fontSize: '11.5px', fontWeight: 600, cursor: rStatusUpdating ? 'default' : 'pointer', fontFamily: 'var(--font)', opacity: rStatusUpdating ? 0.6 : 1 }}>
+                          {rStatusUpdating ? 'Completing…' : '✓ Mark Completed'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ marginTop: '6px', display: 'flex', gap: '8px' }}>
                   <button
                     onClick={() => setRestructuringOpen(false)}
                     style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: 'white', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)' }}
-                  >
-                    Close
-                  </button>
-                  <button
-                    onClick={() => setActivePlan(null)}
-                    style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: '#F8FAFC', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)', color: 'var(--muted)' }}
-                  >
-                    Propose New Plan
-                  </button>
+                  >Close</button>
+                  {['Rejected', 'Completed'].includes(activePlan.status) && (
+                    <button
+                      onClick={() => setActivePlan(null)}
+                      style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: '#F8FAFC', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)', color: 'var(--muted)' }}
+                    >Propose New Plan</button>
+                  )}
                 </div>
               </div>
             ) : (
@@ -2700,11 +3145,11 @@ export default function ClientProfileTabs({
       {/* ── Committee escalation modal ─────────────────────────────────── */}
       {committeeModalOpen && (
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
           onClick={() => setCommitteeModalOpen(false)}
         >
           <div
-            style={{ background: 'white', borderRadius: '10px', padding: '24px', maxWidth: '420px', width: '90%', position: 'relative', boxShadow: 'var(--shadow-lg)' }}
+            style={{ background: 'white', borderRadius: '10px', padding: '24px', maxWidth: '480px', width: '100%', position: 'relative', boxShadow: 'var(--shadow-lg)', maxHeight: '90vh', overflowY: 'auto' }}
             onClick={e => e.stopPropagation()}
           >
             <button
@@ -2727,51 +3172,114 @@ export default function ClientProfileTabs({
               </div>
             </div>
 
-            {/* Client context */}
-            <div style={{ padding: '10px 12px', background: '#FEF2F2', borderRadius: '7px', marginBottom: '16px', fontSize: '11.5px', color: '#991B1B', lineHeight: '1.5' }}>
-              <strong>{profile.full_name || profile.personal_id}</strong> will be escalated to the credit committee.
-              A formal review will be initiated with Decision = <strong>Pending</strong> until the committee responds.
-            </div>
+            {/* Escalation form — only shown when no pending entry exists */}
+            {!committeeLog.some(r => r.decision === 'Pending') && (
+              <>
+                <div style={{ padding: '10px 12px', background: '#FEF2F2', borderRadius: '7px', marginBottom: '16px', fontSize: '11.5px', color: '#991B1B', lineHeight: '1.5' }}>
+                  <strong>{profile.full_name || profile.personal_id}</strong> will be escalated to the credit committee.
+                  A formal review will be initiated with Decision = <strong>Pending</strong> until the committee responds.
+                </div>
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '5px' }}>
+                    Escalation Notes <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span>
+                  </label>
+                  <textarea
+                    value={committeeNotes}
+                    onChange={e => setCommitteeNotes(e.target.value)}
+                    placeholder="Reason for escalation, key risk signals, recommended action…"
+                    rows={3}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px', fontFamily: 'var(--font)', resize: 'vertical', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: committeeLog.length > 0 ? '20px' : '0' }}>
+                  <button
+                    onClick={() => setCommitteeModalOpen(false)}
+                    style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: 'white', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)' }}
+                  >Cancel</button>
+                  <button
+                    onClick={escalateToCommittee}
+                    disabled={committeeSubmitting}
+                    style={{ flex: 2, padding: '9px', borderRadius: '6px', border: 'none', background: 'var(--red)', color: 'white', fontSize: '12px', fontWeight: 700, cursor: committeeSubmitting ? 'default' : 'pointer', fontFamily: 'var(--font)', opacity: committeeSubmitting ? 0.7 : 1 }}
+                  >{committeeSubmitting ? 'Escalating…' : 'Confirm Escalation'}</button>
+                </div>
+              </>
+            )}
 
-            {/* Notes */}
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '5px' }}>
-                Escalation Notes <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span>
-              </label>
-              <textarea
-                value={committeeNotes}
-                onChange={e => setCommitteeNotes(e.target.value)}
-                placeholder="Reason for escalation, key risk signals, recommended action…"
-                rows={3}
-                style={{
-                  width: '100%', padding: '8px 10px', borderRadius: '6px',
-                  border: '1px solid var(--border)', fontSize: '12px',
-                  fontFamily: 'var(--font)', resize: 'vertical', boxSizing: 'border-box',
-                }}
-              />
-            </div>
+            {/* Decision form — shown when a Pending entry exists */}
+            {committeeLog.filter(r => r.decision === 'Pending').map(pending => (
+              <div key={pending.id} style={{ marginBottom: '20px', padding: '14px', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px' }}>
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: '#92400E', fontWeight: 700, marginBottom: '8px' }}>
+                  Record Committee Decision
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#78350F', marginBottom: '12px' }}>
+                  Escalated {fmtDate(pending.escalated_at)}{pending.escalated_by ? ` by ${pending.escalated_by}` : ''}
+                  {pending.notes && <div style={{ marginTop: '4px', fontStyle: 'italic' }}>"{pending.notes}"</div>}
+                </div>
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '5px' }}>Decision <span style={{ color: 'var(--red)' }}>*</span></label>
+                  <select
+                    value={committeeDecision}
+                    onChange={e => setCommitteeDecision(e.target.value)}
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px', fontFamily: 'var(--font)', background: 'white' }}
+                  >
+                    <option value="">— Select decision —</option>
+                    <option value="Restructure">Restructure</option>
+                    <option value="LegalAction">Legal Action</option>
+                    <option value="WriteOff">Write-Off</option>
+                  </select>
+                </div>
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text)', display: 'block', marginBottom: '5px' }}>
+                    Decision Notes <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span>
+                  </label>
+                  <textarea
+                    value={committeeDecisionNotes}
+                    onChange={e => setCommitteeDecisionNotes(e.target.value)}
+                    placeholder="Rationale, conditions, next steps…"
+                    rows={2}
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px', fontFamily: 'var(--font)', resize: 'vertical', boxSizing: 'border-box' }}
+                  />
+                </div>
+                {committeeDecisionError && (
+                  <div style={{ fontSize: '11px', color: 'var(--red)', marginBottom: '8px' }}>{committeeDecisionError}</div>
+                )}
+                <button
+                  onClick={() => recordCommitteeDecision(pending.id)}
+                  disabled={!committeeDecision || committeeDeciding}
+                  style={{ width: '100%', padding: '9px', borderRadius: '6px', border: 'none', background: committeeDecision ? '#D97706' : '#E5E7EB', color: committeeDecision ? 'white' : '#9CA3AF', fontSize: '12px', fontWeight: 700, cursor: committeeDecision && !committeeDeciding ? 'pointer' : 'default', fontFamily: 'var(--font)' }}
+                >{committeeDeciding ? 'Recording…' : 'Record Decision'}</button>
+              </div>
+            ))}
 
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={() => setCommitteeModalOpen(false)}
-                style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: 'white', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={escalateToCommittee}
-                disabled={committeeSubmitting}
-                style={{
-                  flex: 2, padding: '9px', borderRadius: '6px',
-                  border: 'none', background: 'var(--red)', color: 'white',
-                  fontSize: '12px', fontWeight: 700, cursor: committeeSubmitting ? 'default' : 'pointer',
-                  fontFamily: 'var(--font)', opacity: committeeSubmitting ? 0.7 : 1,
-                }}
-              >
-                {committeeSubmitting ? 'Escalating…' : 'Confirm Escalation'}
-              </button>
-            </div>
+            {/* Committee log history */}
+            {committeeLog.length > 0 && (
+              <div>
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)', fontWeight: 700, marginBottom: '8px' }}>
+                  Escalation History
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {committeeLog.map(row => {
+                    const isPending = row.decision === 'Pending'
+                    const decisionColor = row.decision === 'Restructure' ? 'var(--blue)' : row.decision === 'LegalAction' ? 'var(--red)' : row.decision === 'WriteOff' ? '#7C1D1D' : 'var(--amber)'
+                    const decisionBg   = row.decision === 'Restructure' ? 'rgba(55,138,221,0.1)' : row.decision === 'LegalAction' ? '#FEF2F2' : row.decision === 'WriteOff' ? 'rgba(124,29,29,0.08)' : '#FFFBEB'
+                    return (
+                      <div key={row.id} style={{ padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: '#FAFAFA', fontSize: '11px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                          <span style={{ color: 'var(--muted)' }}>{fmtDate(row.escalated_at)}{row.escalated_by ? ` · ${row.escalated_by}` : ''}</span>
+                          <span style={{ padding: '2px 7px', borderRadius: '4px', fontWeight: 700, fontSize: '10px', background: decisionBg, color: decisionColor }}>
+                            {isPending ? 'Pending' : row.decision}
+                          </span>
+                        </div>
+                        {!isPending && row.decided_by && (
+                          <div style={{ color: 'var(--muted)', fontSize: '10.5px' }}>Decided by {row.decided_by}{row.decision_date ? ` · ${fmtDate(row.decision_date)}` : ''}</div>
+                        )}
+                        {row.notes && <div style={{ color: 'var(--text)', marginTop: '3px', fontStyle: 'italic' }}>"{row.notes}"</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2861,27 +3369,55 @@ export default function ClientProfileTabs({
             </div>
 
             {/* Actions */}
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: activeRecovery?.status === 'Open' ? '10px' : '0' }}>
               <button
                 onClick={() => setRecoveryOpen(false)}
                 style={{ flex: 1, padding: '9px', borderRadius: '6px', border: '1px solid var(--border)', background: 'white', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font)' }}
-              >
-                Cancel
-              </button>
+              >Cancel</button>
               <button
                 onClick={initiateRecovery}
                 disabled={recoverySubmitting}
-                style={{
-                  flex: 2, padding: '9px', borderRadius: '6px',
-                  border: 'none', background: rcStage === 'WriteOff' ? 'var(--red)' : '#EA580C',
-                  color: 'white', fontSize: '12px', fontWeight: 700,
-                  cursor: recoverySubmitting ? 'default' : 'pointer',
-                  fontFamily: 'var(--font)', opacity: recoverySubmitting ? 0.7 : 1,
-                }}
-              >
-                {recoverySubmitting ? 'Saving…' : rcStage === 'WriteOff' ? 'Confirm Write-Off' : activeRecovery ? 'Update Recovery Case' : 'Create Recovery Case'}
-              </button>
+                style={{ flex: 2, padding: '9px', borderRadius: '6px', border: 'none', background: rcStage === 'WriteOff' ? 'var(--red)' : '#EA580C', color: 'white', fontSize: '12px', fontWeight: 700, cursor: recoverySubmitting ? 'default' : 'pointer', fontFamily: 'var(--font)', opacity: recoverySubmitting ? 0.7 : 1 }}
+              >{recoverySubmitting ? 'Saving…' : rcStage === 'WriteOff' ? 'Confirm Write-Off' : activeRecovery ? 'Update Recovery Case' : 'Create Recovery Case'}</button>
             </div>
+
+            {/* Close Case button */}
+            {activeRecovery?.status === 'Open' && (
+              <div>
+                {rcCloseError && <div style={{ fontSize: '11px', color: 'var(--red)', marginBottom: '6px' }}>{rcCloseError}</div>}
+                <button
+                  onClick={closeRecoveryCase}
+                  disabled={rcClosing}
+                  style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #D1D5DB', background: '#F9FAFB', color: '#374151', fontSize: '11.5px', cursor: rcClosing ? 'default' : 'pointer', fontFamily: 'var(--font)', opacity: rcClosing ? 0.6 : 1 }}
+                >{rcClosing ? 'Closing…' : '✓ Close Recovery Case'}</button>
+              </div>
+            )}
+
+            {/* Recovery history timeline */}
+            {recoveryHistory.length > 0 && (
+              <div style={{ marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--muted)', fontWeight: 700, marginBottom: '10px' }}>Case History</div>
+                <div style={{ position: 'relative', paddingLeft: '18px' }}>
+                  <div style={{ position: 'absolute', left: '6px', top: 0, bottom: 0, width: '2px', background: 'var(--border)' }} />
+                  {recoveryHistory.map((c, i) => (
+                    <div key={c.id} style={{ position: 'relative', marginBottom: i < recoveryHistory.length - 1 ? '12px' : '0' }}>
+                      <div style={{ position: 'absolute', left: '-15px', top: '4px', width: '8px', height: '8px', borderRadius: '50%', background: c.status === 'Open' ? '#EA580C' : '#9CA3AF', border: '2px solid white', boxShadow: '0 0 0 1px #D1D5DB' }} />
+                      <div style={{ fontSize: '11px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 700, color: 'var(--text)' }}>{RECOVERY_STAGE_LABELS[c.stage] ?? c.stage}</span>
+                          <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: c.status === 'Open' ? '#FFEDD5' : '#F3F4F6', color: c.status === 'Open' ? '#C2410C' : '#6B7280', fontWeight: 600 }}>{c.status}</span>
+                        </div>
+                        <div style={{ color: 'var(--muted)', fontSize: '10.5px', marginTop: '1px' }}>
+                          {fmtDate(c.opened_at)}{c.status === 'Closed' ? ` → ${fmtDate(c.updated_at)}` : ' · Open'}
+                          {c.assigned_to ? ` · ${c.assigned_to}` : ''}
+                        </div>
+                        {c.notes && <div style={{ color: 'var(--text)', fontStyle: 'italic', marginTop: '2px' }}>"{c.notes}"</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

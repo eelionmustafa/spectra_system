@@ -164,7 +164,7 @@ export interface PortfolioAccountTransaction {
   personal_id: string
   account_type: string
   balance: number
-  overdraft_limit: number
+  amount_on_hold: number  // amountonhold from Accounts — reserved/blocked amount, not overdraft limit
   currency: string
 }
 
@@ -314,7 +314,7 @@ export interface CoverageByStage {
   stage: number
   prev_coverage_pct: number
   curr_coverage_pct: number
-  mom_change_pct: number
+  mom_change_pct: number | null
 }
 
 export interface CardSpendAlert {
@@ -344,9 +344,11 @@ export interface RollrateCell {
 }
 
 export interface VintageRow {
-  vintage_year: number
-  loan_count: number
+  vintage_year:         number
+  loan_count:           number
   delinquency_rate_pct: number
+  avg_loan_amount:      number
+  performing_pct:       number
 }
 
 export interface ECLGapRow {
@@ -359,25 +361,39 @@ export interface ECLGapRow {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-/** Returns top-level portfolio KPIs (total clients, delinquency rate, NPL ratio, health score). */
+/** Returns top-level portfolio KPIs from the pre-computed kpi_summary table.
+ *  Populated nightly by SQL Agent job (usp_RefreshKPISummary).
+ *  Falls back to live query if the summary table is empty or missing. */
 export async function getDashboardKPIs(): Promise<DashboardKPIs> {
   const cached = rc<DashboardKPIs>('dashboardKPIs'); if (cached) return cached
-  const [mcd] = await Promise.all([maxCalcDate()])
+
+  // Try the pre-computed summary first — single-row read, no joins
+  const summary = await query<DashboardKPIs>(`
+    SELECT TOP 1
+      total_clients, delinquency_rate_pct, avg_due_days,
+      total_exposure, npl_ratio_pct, health_score, health_label
+    FROM [dbo].[kpi_summary] WITH (NOLOCK)
+    ORDER BY computed_at DESC
+  `).catch(() => [] as DashboardKPIs[])
+
+  if (summary.length > 0) {
+    sc('dashboardKPIs', summary[0], TTL)
+    return summary[0]
+  }
+
+  // Fallback: live computation (runs when kpi_summary is not yet populated)
+  const mcd = await maxCalcDate()
   const rows = await query<DashboardKPIs>(`
     WITH latest_dpd_per_client AS (
-      -- Take each client's most recent DueDays regardless of which snapshot date it came from.
-      -- Using MAX(dateID) per PersonalID avoids the problem of a single global MAX(dateID)
-      -- returning a near-empty partial snapshot (e.g. only 7 rows on 2026-04-03 vs 1300 rows on 2025-12-21).
       SELECT PersonalID,
-        MAX(TRY_CAST(DueDays AS FLOAT)) OVER (PARTITION BY PersonalID) AS max_dpd,
+        TRY_CAST(DueDays AS FLOAT) AS current_dpd,
         ROW_NUMBER() OVER (PARTITION BY PersonalID ORDER BY dateID DESC) AS rn
       FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
     ),
     dpd_deduped AS (
-      SELECT PersonalID, max_dpd FROM latest_dpd_per_client WHERE rn = 1
+      SELECT PersonalID, current_dpd AS max_dpd FROM latest_dpd_per_client WHERE rn = 1
     ),
     dpd_base AS (
-      -- Denominator = active clients in RiskPortfolio, not just those in DueDaysDaily
       SELECT
         ROUND(100.0 * COUNT(DISTINCT CASE WHEN COALESCE(d.max_dpd, 0) >= 30 THEN rp.clientID END)
               / NULLIF(COUNT(DISTINCT rp.clientID), 0), 1)                           AS delinquency_rate_pct,
@@ -387,7 +403,6 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
       WHERE rp.CalculationDate = @mcd
     ),
     client_worst_stage AS (
-      -- Each client at their highest (worst) stage — IFRS 9 principle
       SELECT clientID,
         MAX(COALESCE(Stage, 1)) AS worst_stage,
         SUM(TRY_CAST(totalExposure AS FLOAT)) AS client_exposure
@@ -399,10 +414,10 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
       SELECT
         COUNT(*)                                                                     AS total_clients,
         COALESCE(SUM(client_exposure), 0)                                           AS total_exposure,
-        ROUND(100.0 * SUM(CASE WHEN worst_stage = 2 THEN 1 ELSE 0 END)
-              / NULLIF(COUNT(*), 0), 1)                                              AS stage2_pct,
-        ROUND(100.0 * SUM(CASE WHEN worst_stage = 3 THEN 1 ELSE 0 END)
-              / NULLIF(COUNT(*), 0), 1)                                              AS stage3_pct,
+        ROUND(100.0 * SUM(CASE WHEN worst_stage = 2 THEN client_exposure ELSE 0 END)
+              / NULLIF(SUM(client_exposure), 0), 1)                                 AS stage2_pct,
+        ROUND(100.0 * SUM(CASE WHEN worst_stage = 3 THEN client_exposure ELSE 0 END)
+              / NULLIF(SUM(client_exposure), 0), 1)                                 AS stage3_pct,
         ROUND(100.0 * SUM(CASE WHEN worst_stage = 3 THEN client_exposure ELSE 0 END)
               / NULLIF(SUM(client_exposure), 0), 1)                                 AS npl_ratio_pct
       FROM client_worst_stage
@@ -431,10 +446,24 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
 
 export async function getStageDistribution(): Promise<StageDistribution[]> {
   const cached = rc<StageDistribution[]>('stageDistribution'); if (cached) return cached
+
+  // Read pre-computed JSON from kpi_summary
+  const rows = await query<{ stage_distribution_json: string }>(`
+    SELECT TOP 1 stage_distribution_json FROM [dbo].[kpi_summary] WITH (NOLOCK)
+    ORDER BY computed_at DESC
+  `).catch(() => [] as { stage_distribution_json: string }[])
+
+  if (rows.length > 0 && rows[0].stage_distribution_json) {
+    try {
+      const result = JSON.parse(rows[0].stage_distribution_json) as StageDistribution[]
+      sc('stageDistribution', result, TTL)
+      return result
+    } catch { /* fall through to live query */ }
+  }
+
+  // Fallback: live query
   const mcd = await maxCalcDate()
   const result = await query<StageDistribution>(`
-    -- Client count: each client assigned to their HIGHEST (worst) stage (IFRS 9 principle).
-    -- Exposure: summed per loan stage (correct for ECL provisioning — each facility is staged independently).
     WITH client_worst_stage AS (
       SELECT clientID,
         MAX(COALESCE(Stage, 1)) AS worst_stage
@@ -462,7 +491,7 @@ export async function getStageDistribution(): Promise<StageDistribution[]> {
 
 export async function getRecentTransactions(): Promise<RecentTransaction[]> {
   const cached = rc<RecentTransaction[]>('recentTransactions'); if (cached) return cached
-  const mcd = await maxCalcDate()
+  const [mcd, mdid] = await Promise.all([maxCalcDate(), maxDateID()])
   const d30 = new Date(); d30.setDate(d30.getDate() - 30)
   const d30Str = d30.toISOString().slice(0, 10)
   // Subquery on TCredits first (date-filtered, TOP 50 candidates) then join — avoids full CTE scan
@@ -477,38 +506,61 @@ export async function getRecentTransactions(): Promise<RecentTransaction[]> {
       SELECT clientID, Stage, contractNumber
       FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
       WHERE CalculationDate = @mcd
+    ),
+    latest_dpd AS (
+      -- Current DPD per CreditAccount from the latest daily snapshot
+      SELECT CreditAccount, MAX(TRY_CAST(DueDays AS FLOAT)) AS due_days
+      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
+      WHERE dateID = @mdid
+      GROUP BY CreditAccount
     )
     SELECT TOP 10
       tc.CreditAccount                                       AS credit_id,
-      COALESCE(rp.clientID, '')                             AS personal_id,
+      COALESCE(rp.clientID, CAST(cr.PersonalID AS VARCHAR(50)), '') AS personal_id,
       COALESCE(tc.Kind, '')                                 AS product_type,
       TRY_CAST(tc.Amount AS FLOAT)                          AS amount,
-      0                                                     AS due_days,
+      COALESCE(ld.due_days, 0)                              AS due_days,
       COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A') AS stage,
       LEFT(CAST(tc.Date AS VARCHAR(30)), 10)                AS date
     FROM recent_tc tc
     LEFT JOIN [dbo].[Credits] cr WITH (NOLOCK) ON cr.CreditAccount = tc.CreditAccount
     LEFT JOIN latest_rp rp ON rp.contractNumber = cr.NoCredit
+    LEFT JOIN latest_dpd ld ON ld.CreditAccount = tc.CreditAccount
     ORDER BY tc.Date DESC
-  `, { mcd, d30: d30Str }, 15000)
+  `, { mcd, mdid, d30: d30Str }, 15000)
   sc('recentTransactions', result, TTL); return result
 }
 
 export async function getMonthlyExposureTrend(): Promise<MonthlyExposure[]> {
   const cached = rc<MonthlyExposure[]>('monthlyExposureTrend'); if (cached) return cached
-  const d12m = new Date(); d12m.setMonth(d12m.getMonth() - 12)
-  const ym12m = d12m.toISOString().slice(0, 7)
+
+  // Read pre-computed JSON from kpi_summary
+  const rows = await query<{ monthly_exposure_json: string }>(`
+    SELECT TOP 1 monthly_exposure_json FROM [dbo].[kpi_summary] WITH (NOLOCK)
+    ORDER BY computed_at DESC
+  `).catch(() => [] as { monthly_exposure_json: string }[])
+
+  if (rows.length > 0 && rows[0].monthly_exposure_json) {
+    try {
+      const result = JSON.parse(rows[0].monthly_exposure_json) as MonthlyExposure[]
+      sc('monthlyExposureTrend', result, TTL)
+      return result
+    } catch { /* fall through to live query */ }
+  }
+
+  // Fallback: live query
+  const d12m = new Date(); d12m.setMonth(d12m.getMonth() - 12); d12m.setDate(1)
+  const startDate = d12m.toISOString().slice(0, 10)
   const result = await query<MonthlyExposure>(`
-    -- Description: Monthly total exposure from RiskPortfolio over last 12 months
     SELECT TOP 12
       LEFT(CalculationDate, 7)              AS month,
       SUM(TRY_CAST(totalExposure AS FLOAT)) AS exposure
     FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
-    WHERE LEFT(CalculationDate, 7) >= @ym12m
+    WHERE CalculationDate >= @startDate
     GROUP BY LEFT(CalculationDate, 7)
     ORDER BY LEFT(CalculationDate, 7)
     OPTION (RECOMPILE, MAXDOP 4)
-  `, { ym12m }, 60000)
+  `, { startDate }, 60000)
   sc('monthlyExposureTrend', result, TTL); return result
 }
 
@@ -656,14 +708,16 @@ export async function getTopLoans(): Promise<TopLoan[]> {
       ) x WHERE rn = 1
       GROUP BY CreditAccount
     )
-    SELECT TOP 8 cr.CreditAccount AS credit_id, rp.clientID AS personal_id,
+    SELECT TOP 8 cr.CreditAccount AS credit_id,
+      COALESCE(rp.clientID, CAST(cr.PersonalID AS VARCHAR(50)), '') AS personal_id,
       COALESCE(rp.ProductDesc, rp.TypeOfProduct, cr.TypeOfCalculatioin, '') AS product_type,
       TRY_CAST(rp.totalExposure AS FLOAT) AS exposure,
-      'Stage ' + CAST(rp.Stage AS VARCHAR) AS stage,
+      COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A') AS stage,
       COALESCE(ld.due_days, 0) AS due_days
     FROM [dbo].[Credits] cr WITH (NOLOCK)
-    JOIN [dbo].[RiskPortfolio] rp WITH (NOLOCK) ON rp.contractNumber = cr.NoCredit AND rp.CalculationDate = @mcd
+    LEFT JOIN [dbo].[RiskPortfolio] rp WITH (NOLOCK) ON rp.contractNumber = cr.NoCredit AND rp.CalculationDate = @mcd
     LEFT JOIN latest_dpd ld ON ld.CreditAccount = cr.CreditAccount
+    WHERE rp.totalExposure IS NOT NULL
     ORDER BY TRY_CAST(rp.totalExposure AS FLOAT) DESC
   `, { mcd })
   sc('topLoans', result, TTL); return result
@@ -687,7 +741,9 @@ export async function getCreditTransactions(days?: number): Promise<PortfolioCre
     )
     SELECT TOP 100
       tc.CreditAccount                              AS credit_id,
-      COALESCE(rp.clientID, '')                    AS personal_id,
+      -- Prefer RiskPortfolio clientID; fall back to Credits.PersonalID so the field
+      -- is never an empty string for loans not in the current snapshot.
+      COALESCE(rp.clientID, CAST(cr.PersonalID AS VARCHAR(50)), '') AS personal_id,
       COALESCE(tc.Kind, '')                        AS product_type,
       TRY_CAST(tc.Amount AS FLOAT)                 AS amount,
       COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A') AS stage,
@@ -710,7 +766,7 @@ export async function getAccountTransactions(): Promise<PortfolioAccountTransact
       a.PersonalID                                   AS personal_id,
       a.AccountType                                  AS account_type,
       TRY_CAST(a.Balance AS FLOAT)                   AS balance,
-      COALESCE(TRY_CAST(a.amountonhold AS FLOAT), 0) AS overdraft_limit,
+      COALESCE(TRY_CAST(a.amountonhold AS FLOAT), 0) AS amount_on_hold,
       a.Currency                                     AS currency
     FROM [dbo].[Accounts] a WITH (NOLOCK)
     ORDER BY TRY_CAST(a.Balance AS FLOAT) ASC
@@ -832,7 +888,7 @@ export async function getActiveAlerts(): Promise<AlertItem[]> {
         ROW_NUMBER() OVER (PARTITION BY CreditAccount ORDER BY TRY_CAST(Amount AS FLOAT) DESC) AS rn
       FROM [dbo].[Credits] WITH (NOLOCK)
     )
-    SELECT TOP 10
+    SELECT TOP 200
       -- Cast IDs to VARCHAR so mssql never returns BigInt — RSC cannot serialize BigInt
       CAST(ld.CreditAccount AS VARCHAR(50))            AS credit_id,
       CAST(ld.PersonalID    AS VARCHAR(50))            AS personal_id,
@@ -927,7 +983,8 @@ export async function getAlertsPaginated(
       )
   `
 
-  const dataQ = query<AlertTableRow>(`
+  // Single query: COUNT(*) OVER() eliminates the separate count round-trip
+  const combined = await query<AlertTableRow & { _total: number }>(`
     WITH latest_dpd AS (
       SELECT CreditAccount, PersonalID, DueDays,
         ROW_NUMBER() OVER (PARTITION BY CreditAccount ORDER BY TRY_CAST(DueDays AS FLOAT) DESC) AS rn
@@ -950,61 +1007,45 @@ export async function getAlertsPaginated(
       SELECT CreditAccount, Amount,
         ROW_NUMBER() OVER (PARTITION BY CreditAccount ORDER BY TRY_CAST(Amount AS FLOAT) DESC) AS rn
       FROM [dbo].[Credits] WITH (NOLOCK)
+    ),
+    base AS (
+      SELECT
+        CAST(ld.CreditAccount AS VARCHAR(50))                                      AS credit_id,
+        CAST(ld.PersonalID    AS VARCHAR(50))                                      AS personal_id,
+        COALESCE(cu.name + ' ' + cu.surname, CAST(ld.PersonalID AS VARCHAR(50)))  AS full_name,
+        COALESCE(cu.name,    '')                                                   AS name,
+        COALESCE(cu.surname, '')                                                   AS surname,
+        COALESCE(cu.City, cu.Branch, '')                                           AS city,
+        CASE
+          WHEN TRY_CAST(ld.DueDays AS FLOAT) >= 90 THEN 'NPL — 90+ DPD'
+          WHEN TRY_CAST(ld.DueDays AS FLOAT) >= 60 THEN 'Substandard — 60–89 DPD'
+          WHEN TRY_CAST(ld.DueDays AS FLOAT) >= 30 THEN 'Watch — 30–59 DPD'
+          ELSE 'Monitor'
+        END                                                                        AS alert_type,
+        CASE
+          WHEN TRY_CAST(ld.DueDays AS FLOAT) >= 60 THEN 'critical'
+          WHEN TRY_CAST(ld.DueDays AS FLOAT) >= 30 THEN 'high'
+          ELSE 'medium'
+        END                                                                        AS severity,
+        TRY_CAST(ld.DueDays AS FLOAT)                                             AS due_days,
+        COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A')                    AS stage,
+        COALESCE(TRY_CAST(rp.totalExposure AS FLOAT), TRY_CAST(cr.Amount AS FLOAT), 0) AS exposure,
+        fb.triggered_date                                                          AS triggered_date
+      FROM latest_dpd ld
+      LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = ld.PersonalID
+      LEFT JOIN cr_dedup  cr ON cr.CreditAccount = ld.CreditAccount AND cr.rn = 1
+      LEFT JOIN rp_dedup  rp ON rp.clientID      = ld.PersonalID    AND rp.rn = 1
+      LEFT JOIN first_breach fb ON fb.CreditAccount = ld.CreditAccount
+      ${ALERT_WHERE}
     )
-    SELECT
-      CAST(ld.CreditAccount AS VARCHAR(50))                                      AS credit_id,
-      CAST(ld.PersonalID    AS VARCHAR(50))                                      AS personal_id,
-      COALESCE(cu.name + ' ' + cu.surname, CAST(ld.PersonalID AS VARCHAR(50)))  AS full_name,
-      COALESCE(cu.name,    '')                                                   AS name,
-      COALESCE(cu.surname, '')                                                   AS surname,
-      COALESCE(cu.City, cu.Branch, '')                                           AS city,
-      CASE
-        WHEN TRY_CAST(ld.DueDays AS FLOAT) >= 90 THEN 'NPL — 90+ DPD'
-        WHEN TRY_CAST(ld.DueDays AS FLOAT) >= 60 THEN 'Substandard — 60–89 DPD'
-        WHEN TRY_CAST(ld.DueDays AS FLOAT) >= 30 THEN 'Watch — 30–59 DPD'
-        ELSE 'Monitor'
-      END                                                                        AS alert_type,
-      CASE
-        WHEN TRY_CAST(ld.DueDays AS FLOAT) >= 60 THEN 'critical'
-        WHEN TRY_CAST(ld.DueDays AS FLOAT) >= 30 THEN 'high'
-        ELSE 'medium'
-      END                                                                        AS severity,
-      TRY_CAST(ld.DueDays AS FLOAT)                                             AS due_days,
-      COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A')                    AS stage,
-      COALESCE(TRY_CAST(rp.totalExposure AS FLOAT), TRY_CAST(cr.Amount AS FLOAT), 0) AS exposure,
-      fb.triggered_date                                                          AS triggered_date
-    FROM latest_dpd ld
-    LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = ld.PersonalID
-    LEFT JOIN cr_dedup  cr ON cr.CreditAccount = ld.CreditAccount AND cr.rn = 1
-    LEFT JOIN rp_dedup  rp ON rp.clientID      = ld.PersonalID    AND rp.rn = 1
-    LEFT JOIN first_breach fb ON fb.CreditAccount = ld.CreditAccount
-    ${ALERT_WHERE}
-    ORDER BY TRY_CAST(ld.DueDays AS FLOAT) DESC
+    SELECT *, COUNT(*) OVER() AS _total
+    FROM base
+    ORDER BY TRY_CAST(due_days AS FLOAT) DESC
     OFFSET @offset ROWS FETCH NEXT ${PAGE_SIZE} ROWS ONLY
   `, { mcd, mdid, d6m: d6mStr, pattern, offset, sevFilter, stgFilter }, 30000)
 
-  const cntQ = query<{ total: number }>(`
-    WITH latest_dpd AS (
-      SELECT CreditAccount, PersonalID, DueDays,
-        ROW_NUMBER() OVER (PARTITION BY CreditAccount ORDER BY TRY_CAST(DueDays AS FLOAT) DESC) AS rn
-      FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
-      WHERE dateID = @mdid
-    ),
-    rp_dedup AS (
-      SELECT clientID, Stage,
-        ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY TRY_CAST(totalExposure AS FLOAT) DESC) AS rn
-      FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
-      WHERE CalculationDate = @mcd
-    )
-    SELECT COUNT(*) AS total
-    FROM latest_dpd ld
-    LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = ld.PersonalID
-    LEFT JOIN rp_dedup rp ON rp.clientID = ld.PersonalID AND rp.rn = 1
-    ${ALERT_WHERE}
-  `, { mcd, mdid, pattern, sevFilter, stgFilter }, 30000)
-
-  const [rows, countRows] = await Promise.all([dataQ, cntQ])
-  return { rows, total: countRows[0]?.total ?? 0 }
+  const rows = combined as AlertTableRow[]
+  return { rows, total: combined[0]?._total ?? 0 }
 }
 
 export async function getAlertTrend(): Promise<AlertTrend[]> {
@@ -1179,7 +1220,10 @@ export async function getClientProfile(personalId: string): Promise<ClientProfil
       SELECT
         PARTIJA                                                           AS CreditAccount,
         COUNT(*)                                                          AS total_payments,
-        SUM(CASE WHEN TRY_CAST(OTPLATA AS FLOAT) < NULLIF(TRY_CAST(IZNOS AS FLOAT), 0)
+        -- Use ANUITET (full installment = principal+interest+fees) as the benchmark,
+        -- consistent with getRepaymentSummary analytics. IZNOS is principal-only and
+        -- understates the missed threshold.
+        SUM(CASE WHEN TRY_CAST(OTPLATA AS FLOAT) < NULLIF(TRY_CAST(ANUITET AS FLOAT), 0) * 0.9
                   AND TRY_CAST(DATUMDOSPECA AS DATE) < GETDATE() THEN 1 ELSE 0 END) AS missed_payments
       FROM [dbo].[AmortizationPlan] WITH (NOLOCK)
       WHERE PARTIJA IN (
@@ -1239,9 +1283,13 @@ export async function getClientProfile(personalId: string): Promise<ClientProfil
         ELSE ROUND(100.0 * (COALESCE(cp.total_payments, 0) - COALESCE(cp.missed_payments, 0))
                           / NULLIF(cp.total_payments, 0), 1)
       END                                                                AS repayment_rate_pct,
-      COALESCE(DATEDIFF(YEAR,
-        TRY_CAST(CAST(TRY_CAST(cr.FromYear AS INT) AS VARCHAR) + '-01-01' AS DATE),
-        GETDATE()
+      -- Use mid-year (Jul-01) as approximation when only the credit year is known.
+      -- Jan-01 overstates tenure by up to 11 months; Jul-01 limits bias to ±6 months.
+      COALESCE(ROUND(
+        DATEDIFF(MONTH,
+          TRY_CAST(CAST(TRY_CAST(cr.FromYear AS INT) AS VARCHAR) + '-07-01' AS DATE),
+          GETDATE()
+        ) / 12.0, 1
       ), 0)                                                              AS tenure_years,
       'Stage ' + CAST(COALESCE(rp.Stage, 1) AS VARCHAR)                AS stage,
       -- Risk score: Stage base (1/4/7) + DPD bucket (0–2) + missed ratio (0–1), capped 10
@@ -1402,12 +1450,13 @@ export async function getClientSignalsBatch(): Promise<Record<string, ClientSign
     return Object.fromEntries(_signalsBatch.map(r => [r.personal_id, r]))
   }
   const mdid = await maxDateID()
-  // Pre-compute string date thresholds so SQL Server can seek on string-stored date columns
-  // instead of applying TRY_CONVERT/TRY_CAST to every row (which prevents index use).
+  const fmtDate = (d: Date) => d.toISOString().slice(0, 10)
   const date12m = new Date(); date12m.setMonth(date12m.getMonth() - 12)
   const date6m  = new Date(); date6m.setMonth(date6m.getMonth() - 6)
-  const fmt = (d: Date) => d.toISOString().slice(0, 10)
-  const d12m = fmt(date12m), d6m = fmt(date6m)
+  const date60d = new Date(); date60d.setDate(date60d.getDate() - 60)
+  const date30d = new Date(); date30d.setDate(date30d.getDate() - 30)
+  const d12m = fmtDate(date12m), d6m = fmtDate(date6m)
+  const d60d = fmtDate(date60d), d30d = fmtDate(date30d)
 
   const rows = await query<ClientSignalSnapshot>(`
     WITH
@@ -1420,15 +1469,13 @@ export async function getClientSignalsBatch(): Promise<Record<string, ClientSign
       FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID >= @d12m GROUP BY PersonalID
     ),
     payments AS (
-      -- Count scheduled installments from AmortizationPlan (not DPD snapshots).
-      -- missed_payments = installments where paid amount < scheduled amount (OTPLATA < IZNOS).
       SELECT rp_pay.clientID AS PersonalID,
         SUM(ap_agg.total_payments)  AS total_payments,
         SUM(ap_agg.missed_payments) AS missed_payments
       FROM (
         SELECT PARTIJA AS CreditAccount,
           COUNT(*) AS total_payments,
-          SUM(CASE WHEN TRY_CAST(OTPLATA AS FLOAT) < NULLIF(TRY_CAST(IZNOS AS FLOAT), 0)
+          SUM(CASE WHEN TRY_CAST(OTPLATA AS FLOAT) < NULLIF(TRY_CAST(ANUITET AS FLOAT), 0) * 0.9
                     AND TRY_CAST(DATUMDOSPECA AS DATE) < GETDATE() THEN 1 ELSE 0 END) AS missed_payments
         FROM [dbo].[AmortizationPlan] WITH (NOLOCK)
         WHERE TRY_CAST(DATUMDOSPECA AS DATE) <= GETDATE()
@@ -1441,12 +1488,40 @@ export async function getClientSignalsBatch(): Promise<Record<string, ClientSign
       ) rp_pay ON rp_pay.contractNumber = cr_pay.NoCredit
       GROUP BY rp_pay.clientID
     ),
-    -- Simplified from gaps-and-islands: client had late payments in 3+ distinct months of last 6m
-    consec_late_clients AS (
-      SELECT PersonalID
+    -- Real consecutive-late count: distinct months with DPD > 0 in last 6 months
+    consec_late_counts AS (
+      SELECT PersonalID, COUNT(DISTINCT LEFT(dateID, 7)) AS late_months
       FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
       WHERE dateID >= @d6m AND TRY_CAST(DueDays AS FLOAT) > 0
-      GROUP BY PersonalID HAVING COUNT(DISTINCT LEFT(dateID, 7)) >= 3
+      GROUP BY PersonalID
+    ),
+    -- Salary inflow: any account credit in TAccounts in last 60 days, keyed by PersonalID
+    salary_signals AS (
+      SELECT CAST(a.PersonalID AS VARCHAR(50)) AS PersonalID
+      FROM [dbo].[Accounts] a WITH (NOLOCK)
+      WHERE EXISTS (
+        SELECT 1 FROM [dbo].[TAccounts] ta WITH (NOLOCK)
+        WHERE ta.NoAccount = a.NoAccount
+          AND TRY_CAST(ta.Amount AS FLOAT) > 0
+          AND ta.Date >= @d60d
+      )
+      GROUP BY CAST(a.PersonalID AS VARCHAR(50))
+    ),
+    -- Overdraft: any account with negative balance
+    overdraft_signals AS (
+      SELECT CAST(PersonalID AS VARCHAR(50)) AS PersonalID
+      FROM [dbo].[Accounts] WITH (NOLOCK)
+      WHERE TRY_CAST(Balance AS FLOAT) < 0
+      GROUP BY CAST(PersonalID AS VARCHAR(50))
+    ),
+    -- Card usage: total CC spend in last 30 days per client
+    card_signals AS (
+      SELECT CAST(c.PersonalID AS VARCHAR(50)) AS PersonalID,
+        SUM(TRY_CAST(cc.Ammount AS FLOAT)) AS card_spend
+      FROM [dbo].[Cards] c WITH (NOLOCK)
+      JOIN [dbo].[CC_Event_LOG] cc WITH (NOLOCK) ON cc.Account = c.NoCards
+      WHERE cc.trans_date >= @d30d
+      GROUP BY CAST(c.PersonalID AS VARCHAR(50))
     )
     SELECT TOP 200
       rp.clientID                                                          AS personal_id,
@@ -1455,10 +1530,14 @@ export async function getClientSignalsBatch(): Promise<Record<string, ClientSign
       COALESCE(m.max_dpd_12m, 0)                                          AS max_dpd_12m,
       COALESCE(p.missed_payments, 0)                                       AS missed_payments,
       COALESCE(p.total_payments, 1)                                        AS total_payments,
-      'Normal'                                                             AS salary_inflow,
-      'Normal'                                                             AS overdraft,
-      'Normal'                                                             AS card_usage,
-      CASE WHEN cl.PersonalID IS NOT NULL THEN '3 months' ELSE '0 months' END AS consec_lates,
+      CASE WHEN sal.PersonalID IS NOT NULL THEN 'Normal' ELSE 'Stopped' END  AS salary_inflow,
+      CASE WHEN ovd.PersonalID IS NOT NULL THEN 'Elevated' ELSE 'Normal' END AS overdraft,
+      CASE WHEN COALESCE(crd.card_spend, 0) > 500 THEN 'Elevated' ELSE 'Normal' END AS card_usage,
+      CASE
+        WHEN COALESCE(cl.late_months, 0) = 0 THEN '0 months'
+        WHEN cl.late_months >= 6             THEN '6+ months'
+        ELSE CAST(cl.late_months AS VARCHAR) + ' months'
+      END                                                                  AS consec_lates,
       COALESCE(rp.ProductDesc, rp.TypeOfProduct, 'Consumer')              AS product_type,
       CASE
         WHEN COALESCE(p.total_payments, 0) = 0 THEN 0
@@ -1470,13 +1549,16 @@ export async function getClientSignalsBatch(): Promise<Record<string, ClientSign
       SELECT *, ROW_NUMBER() OVER (PARTITION BY clientID ORDER BY CalculationDate DESC) AS _rn
       FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     ) rp
-    LEFT JOIN latest_dpd ld          ON ld.PersonalID = rp.clientID
-    LEFT JOIN max_dpd_12m m          ON m.PersonalID  = rp.clientID
-    LEFT JOIN payments p             ON p.PersonalID  = rp.clientID
-    LEFT JOIN consec_late_clients cl ON cl.PersonalID = rp.clientID
+    LEFT JOIN latest_dpd ld          ON ld.PersonalID  = rp.clientID
+    LEFT JOIN max_dpd_12m m          ON m.PersonalID   = rp.clientID
+    LEFT JOIN payments p             ON p.PersonalID   = rp.clientID
+    LEFT JOIN consec_late_counts cl  ON cl.PersonalID  = rp.clientID
+    LEFT JOIN salary_signals sal     ON sal.PersonalID = rp.clientID
+    LEFT JOIN overdraft_signals ovd  ON ovd.PersonalID = rp.clientID
+    LEFT JOIN card_signals crd       ON crd.PersonalID = rp.clientID
     WHERE rp._rn = 1
     ORDER BY COALESCE(rp.Stage, 1) DESC, COALESCE(ld.current_dpd, 0) DESC
-  `, { mdid, d12m, d6m }, 60000)   // 60s — batch query scans DueDaysDaily 4× across all clients
+  `, { mdid, d12m, d6m, d60d, d30d }, 90000)
   _signalsBatch = rows
   _signalsBatchExp = Date.now() + SIGNALS_TTL
   return Object.fromEntries(rows.map(r => [r.personal_id, r]))
@@ -1685,7 +1767,10 @@ export async function getVintageAnalysis(): Promise<VintageRow[]> {
       cr.FromYear                                                                 AS vintage_year,
       COUNT(DISTINCT cr.CreditAccount)                                            AS loan_count,
       ROUND(100.0 * SUM(CASE WHEN d.due_days >= 30 THEN 1 ELSE 0 END)
-            / NULLIF(COUNT(*), 0), 1)                                            AS delinquency_rate_pct
+            / NULLIF(COUNT(*), 0), 1)                                            AS delinquency_rate_pct,
+      ROUND(COALESCE(AVG(TRY_CAST(cr.Amount AS FLOAT)), 0), 0)                  AS avg_loan_amount,
+      ROUND(100.0 * SUM(CASE WHEN COALESCE(d.due_days, 0) = 0 THEN 1 ELSE 0 END)
+            / NULLIF(COUNT(*), 0), 1)                                            AS performing_pct
     FROM [dbo].[Credits] cr WITH (NOLOCK)
     LEFT JOIN dpd d ON d.CreditAccount = cr.CreditAccount
     WHERE cr.FromYear IS NOT NULL
@@ -1700,10 +1785,15 @@ export async function getECLProvisionGap(): Promise<ECLGapRow[]> {
   const cached = rc<ECLGapRow[]>('eclProvisionGap'); if (cached) return cached
   const mcd = await maxCalcDate()
   const result = await query<ECLGapRow>(`
-    SELECT Stage AS stage, SUM(TRY_CAST(totalExposure AS FLOAT)) AS total_exposure,
-      SUM(TRY_CAST(CalculatedProvision AS FLOAT)) AS calculated_ecl,
-      SUM(TRY_CAST(totalExposure AS FLOAT)) - SUM(TRY_CAST(CalculatedProvision AS FLOAT)) AS provision_gap,
-      ROUND(100.0 * SUM(TRY_CAST(CalculatedProvision AS FLOAT)) / NULLIF(SUM(TRY_CAST(totalExposure AS FLOAT)), 0), 1) AS coverage_ratio_pct
+    -- COALESCE each FLOAT so NULL CalculatedProvision rows contribute 0, not NULL,
+    -- preventing provision_gap from being NULL (which showed as full ECL gap in UI).
+    SELECT Stage AS stage,
+      SUM(COALESCE(TRY_CAST(totalExposure AS FLOAT), 0))        AS total_exposure,
+      SUM(COALESCE(TRY_CAST(CalculatedProvision AS FLOAT), 0))  AS calculated_ecl,
+      SUM(COALESCE(TRY_CAST(totalExposure AS FLOAT), 0))
+        - SUM(COALESCE(TRY_CAST(CalculatedProvision AS FLOAT), 0)) AS provision_gap,
+      ROUND(100.0 * SUM(COALESCE(TRY_CAST(CalculatedProvision AS FLOAT), 0))
+        / NULLIF(SUM(COALESCE(TRY_CAST(totalExposure AS FLOAT), 0)), 0), 1) AS coverage_ratio_pct
     FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
     WHERE CalculationDate = @mcd GROUP BY Stage ORDER BY Stage
   `, { mcd })
@@ -1810,7 +1900,10 @@ export async function getCoverageByStage(): Promise<CoverageByStage[]> {
       c.Stage                                          AS stage,
       COALESCE(p.prev_cov, 0)                         AS prev_coverage_pct,
       c.curr_cov                                      AS curr_coverage_pct,
-      ROUND(c.curr_cov - COALESCE(p.prev_cov, 0), 1) AS mom_change_pct
+      -- NULL when prevCalcDate = maxCalcDate (only one snapshot available) so UI shows N/A
+      CASE WHEN @pcd = @mcd THEN NULL
+           ELSE ROUND(c.curr_cov - COALESCE(p.prev_cov, 0), 1)
+      END                                             AS mom_change_pct
     FROM curr_calc c
     LEFT JOIN prev_calc p ON p.Stage = c.Stage
     ORDER BY c.Stage
@@ -1865,9 +1958,10 @@ export interface ClientTableRow {
 
 
 export interface ClientFilters {
-  stage?:  string   // '' | '1' | '2' | '3' | 'NA'
-  dpd?:    string   // '' | '0' | '1' | '31' | '90'
-  status?: string   // '' | 'Active' | 'Inactive' | 'Suspended' | 'Deceased'
+  stage?:   string   // '' | '1' | '2' | '3' | 'NA'
+  dpd?:     string   // '' | '0' | '1' | '31' | '90'
+  status?:  string   // '' | 'Active' | 'Inactive' | 'Suspended' | 'Deceased'
+  vintage?: number   // issuance year filter from Credits.FromYear
 }
 
 /** Returns a paginated, filtered client list for the portfolio table.
@@ -1881,22 +1975,23 @@ export async function getClientsPaginated(
   page: number,
   filters: ClientFilters = {}
 ): Promise<{ rows: ClientTableRow[]; total: number }> {
-  const offset       = (Math.max(1, page) - 1) * PAGE_SIZE
-  const [mcd, mdid]  = await Promise.all([maxCalcDate(), maxDateID(), ensureResolutionsTable()])
-  const pattern      = `%${q}%`
-  const stageFilter  = filters.stage  ?? ''
-  const dpdFilter    = filters.dpd    ?? ''
-  const statusFilter = filters.status ?? ''
+  const offset        = (Math.max(1, page) - 1) * PAGE_SIZE
+  const [mcd, mdid]   = await Promise.all([maxCalcDate(), maxDateID(), ensureResolutionsTable()])
+  const pattern       = `%${q}%`
+  const stageFilter   = filters.stage   ?? ''
+  const dpdFilter     = filters.dpd     ?? ''
+  const statusFilter  = filters.status  ?? ''
+  const vintageFilter = filters.vintage ?? null
 
   // Cache all no-filter/no-search pages — key includes page number, invalidates when ML pipeline updates dates
-  const isDefaultFilter = !q && !stageFilter && !dpdFilter && !statusFilter
+  const isDefaultFilter = !q && !stageFilter && !dpdFilter && !statusFilter && !vintageFilter
   if (isDefaultFilter) {
     const ck = `clientsPaged_p${page}_${mcd}_${mdid}`
     const cached = rc<{ rows: ClientTableRow[]; total: number }>(ck)
     if (cached) return cached
   }
 
-  const commonParams = { mcd, mdid, pattern, stageFilter, statusFilter }
+  const commonParams = { mcd, mdid, pattern, stageFilter, statusFilter, vintageFilter }
 
   const dataQ = query<ClientTableRow>(`
     WITH rp_raw AS (
@@ -1957,6 +2052,10 @@ export async function getClientsPaginated(
            OR (@dpdFilter = '31' AND COALESCE(ld.current_dpd, 0) BETWEEN 31 AND 90)
            OR (@dpdFilter = '90' AND COALESCE(ld.current_dpd, 0) > 90))
       AND (@statusFilter = '' OR cu.Status = @statusFilter)
+      AND (@vintageFilter IS NULL OR EXISTS (
+            SELECT 1 FROM [dbo].[Credits] vcr WITH (NOLOCK)
+            WHERE vcr.PersonalID = cu.PersonalID
+              AND TRY_CAST(vcr.FromYear AS INT) = @vintageFilter))
     ORDER BY rp.Stage DESC, rp.exposure DESC
     OFFSET @offset ROWS FETCH NEXT ${PAGE_SIZE} ROWS ONLY
   `, { ...commonParams, dpdFilter, offset }, 15000)
@@ -1994,6 +2093,10 @@ export async function getClientsPaginated(
                  OR (@dpdFilter = '31' AND COALESCE(ld.current_dpd, 0) BETWEEN 31 AND 90)
                  OR (@dpdFilter = '90' AND COALESCE(ld.current_dpd, 0) > 90))
             AND (@statusFilter = '' OR cu.Status = @statusFilter)
+            AND (@vintageFilter IS NULL OR EXISTS (
+                  SELECT 1 FROM [dbo].[Credits] vcr WITH (NOLOCK)
+                  WHERE vcr.PersonalID = cu.PersonalID
+                    AND TRY_CAST(vcr.FromYear AS INT) = @vintageFilter))
           GROUP BY cu.PersonalID
         ) AS dedupd
       `, { ...commonParams, dpdFilter }, 15000)
@@ -2014,6 +2117,10 @@ export async function getClientsPaginated(
            OR (COALESCE(cu.name, '') + ' ' + COALESCE(cu.surname, '')) LIKE @pattern)
           AND (@stageFilter  = '' OR (@stageFilter = 'NA' AND rp.Stage IS NULL) OR CAST(rp.Stage AS VARCHAR) = @stageFilter)
           AND (@statusFilter = '' OR cu.Status = @statusFilter)
+          AND (@vintageFilter IS NULL OR EXISTS (
+                SELECT 1 FROM [dbo].[Credits] vcr WITH (NOLOCK)
+                WHERE vcr.PersonalID = cu.PersonalID
+                  AND TRY_CAST(vcr.FromYear AS INT) = @vintageFilter))
       `, commonParams, 15000)
 
   const [rows, countRows] = await Promise.all([dataQ, cntQ])
@@ -2266,6 +2373,19 @@ export async function resolveClientFreezeAction(clientId: string): Promise<void>
      SET status = 'resolved'
      WHERE clientId = @clientId
        AND action IN ('Freeze Account', 'Freeze account', 'Credit Limit Frozen')
+       AND status = 'active'`,
+    { clientId }
+  )
+}
+
+/** Remove a client from the watchlist by resolving their active 'Add to Watchlist' action */
+export async function removeFromWatchlist(clientId: string): Promise<void> {
+  await ensureActionsTable()
+  await query(
+    `UPDATE [dbo].[ClientActions]
+     SET status = 'resolved'
+     WHERE clientId = @clientId
+       AND action IN ('Add to Watchlist', 'Add to watchlist')
        AND status = 'active'`,
     { clientId }
   )
@@ -2679,12 +2799,92 @@ export interface WatchlistClient {
   days_on_watch: number
 }
 
-/** All clients currently on the active watchlist with live risk data. */
+const WL_PAGE_SIZE = 25
+
+export interface WatchlistPage {
+  rows:  WatchlistClient[]
+  total: number
+}
+
+/** Paginated watchlist with server-side search and stage filter. */
+export async function getWatchlistClientsPaginated(
+  search = '',
+  stage  = '',
+  page   = 1,
+): Promise<WatchlistPage> {
+  try {
+    const [mcd, mdid] = await Promise.all([maxCalcDate(), maxDateID()])
+    const offset  = (Math.max(1, page) - 1) * WL_PAGE_SIZE
+    const pattern = search ? `%${search}%` : '%'
+
+    const [rows, countRows] = await Promise.all([
+      query<WatchlistClient>(`
+        WITH wl AS (
+          SELECT ca.clientId, ca.actionedBy, ca.createdAt
+          FROM [dbo].[ClientActions] ca WITH (NOLOCK)
+          WHERE ca.action IN ('Add to Watchlist', 'Add to watchlist')
+            AND ca.status = 'active'
+        ),
+        enriched AS (
+          SELECT
+            wl.clientId                                                              AS personal_id,
+            COALESCE(cu.name + ' ' + cu.surname, wl.clientId)                      AS full_name,
+            COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A')                  AS stage,
+            COALESCE(TRY_CAST(rp.totalExposure AS FLOAT), 0)                       AS exposure,
+            COALESCE(TRY_CAST(ld.DueDays AS FLOAT), 0)                             AS current_due_days,
+            COALESCE(cu.City, cu.Branch, 'Unknown')                                AS region,
+            wl.actionedBy                                                           AS added_by,
+            CONVERT(VARCHAR(20), wl.createdAt, 120)                                AS added_at,
+            DATEDIFF(DAY, wl.createdAt, GETDATE())                                 AS days_on_watch
+          FROM wl
+          LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = wl.clientId
+          LEFT JOIN (
+            SELECT clientID, Stage, totalExposure
+            FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd
+          ) rp ON rp.clientID = wl.clientId
+          LEFT JOIN (
+            SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS DueDays
+            FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
+          ) ld ON ld.PersonalID = wl.clientId
+        )
+        SELECT personal_id, full_name, stage, exposure, current_due_days,
+               region, added_by, added_at, days_on_watch
+        FROM enriched
+        WHERE (@pattern = '%' OR full_name LIKE @pattern OR personal_id LIKE @pattern OR region LIKE @pattern)
+          AND (@stage = '' OR stage = @stage)
+        ORDER BY days_on_watch DESC
+        OFFSET @offset ROWS FETCH NEXT ${WL_PAGE_SIZE} ROWS ONLY
+      `, { mcd, mdid, pattern, stage, offset }),
+
+      query<{ total: number }>(`
+        WITH wl AS (
+          SELECT ca.clientId
+          FROM [dbo].[ClientActions] ca WITH (NOLOCK)
+          WHERE ca.action IN ('Add to Watchlist', 'Add to watchlist') AND ca.status = 'active'
+        )
+        SELECT COUNT(*) AS total
+        FROM wl
+        LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = wl.clientId
+        LEFT JOIN (
+          SELECT clientID, Stage FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd
+        ) rp ON rp.clientID = wl.clientId
+        WHERE (@pattern = '%' OR COALESCE(cu.name + ' ' + cu.surname, wl.clientId) LIKE @pattern OR wl.clientId LIKE @pattern)
+          AND (@stage = '' OR COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A') = @stage)
+      `, { mcd, pattern, stage }),
+    ])
+
+    return { rows, total: countRows[0]?.total ?? 0 }
+  } catch {
+    return { rows: [], total: 0 }
+  }
+}
+
+/** All clients currently on the active watchlist — kept for CSV export and summary stats. */
 export async function getWatchlistClients(): Promise<WatchlistClient[]> {
   try {
     const [mcd, mdid] = await Promise.all([maxCalcDate(), maxDateID()])
     return await query<WatchlistClient>(`
-      SELECT TOP 200
+      SELECT
         ca.clientId                                                                AS personal_id,
         COALESCE(cu.name + ' ' + cu.surname, ca.clientId)                        AS full_name,
         COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A')                    AS stage,
@@ -2695,17 +2895,14 @@ export async function getWatchlistClients(): Promise<WatchlistClient[]> {
         CONVERT(VARCHAR(20), ca.createdAt, 120)                                  AS added_at,
         DATEDIFF(DAY, ca.createdAt, GETDATE())                                   AS days_on_watch
       FROM [dbo].[ClientActions] ca WITH (NOLOCK)
-      LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK)
-        ON cu.PersonalID = ca.clientId
+      LEFT JOIN [dbo].[Customer] cu WITH (NOLOCK) ON cu.PersonalID = ca.clientId
       LEFT JOIN (
         SELECT clientID, Stage, totalExposure
-        FROM [dbo].[RiskPortfolio] WITH (NOLOCK)
-        WHERE CalculationDate = @mcd
+        FROM [dbo].[RiskPortfolio] WITH (NOLOCK) WHERE CalculationDate = @mcd
       ) rp ON rp.clientID = ca.clientId
       LEFT JOIN (
         SELECT PersonalID, MAX(TRY_CAST(DueDays AS FLOAT)) AS DueDays
-        FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
-        WHERE dateID = @mdid GROUP BY PersonalID
+        FROM [dbo].[DueDaysDaily] WITH (NOLOCK) WHERE dateID = @mdid GROUP BY PersonalID
       ) ld ON ld.PersonalID = ca.clientId
       WHERE ca.action IN ('Add to Watchlist', 'Add to watchlist')
         AND ca.status = 'active'
@@ -2726,6 +2923,79 @@ export async function getWatchlistCount(): Promise<number> {
     return rows[0]?.cnt ?? 0
   } catch {
     return 0
+  }
+}
+
+// ─── AI Deterioration Alerts ──────────────────────────────────────────────────
+
+export interface DPDTrajectoryClient {
+  personal_id: string
+  full_name:   string
+  stage:       string
+  exposure:    number
+  dpd_now:     number
+  dpd_1w:      number | null
+  dpd_2w:      number | null
+  dpd_3w:      number | null
+  dpd_delta:   number
+}
+
+/** Top 30 at-risk clients with weekly DPD snapshots (days 0 / 7 / 14 / 21). */
+export async function getDPDTrajectoryCandidates(): Promise<DPDTrajectoryClient[]> {
+  try {
+    const mcd = await maxCalcDate()
+    return await query<DPDTrajectoryClient>(`
+      WITH date_rn AS (
+        SELECT DISTINCT dateID,
+          ROW_NUMBER() OVER (ORDER BY dateID DESC) AS rn
+        FROM [dbo].[DueDaysDaily] WITH (NOLOCK)
+      ),
+      sampled_dates AS (
+        -- Weekly samples: most recent, ~7 days ago, ~14 days ago, ~21 days ago
+        SELECT dateID, 1 AS slot FROM date_rn WHERE rn = 1
+        UNION ALL
+        SELECT TOP 1 dateID, 2 AS slot FROM date_rn WHERE rn BETWEEN 5  AND 9  ORDER BY ABS(rn - 7)
+        UNION ALL
+        SELECT TOP 1 dateID, 3 AS slot FROM date_rn WHERE rn BETWEEN 12 AND 16 ORDER BY ABS(rn - 14)
+        UNION ALL
+        SELECT TOP 1 dateID, 4 AS slot FROM date_rn WHERE rn BETWEEN 19 AND 23 ORDER BY ABS(rn - 21)
+      ),
+      client_dpd AS (
+        SELECT d.PersonalID, sd.slot,
+          MAX(TRY_CAST(d.DueDays AS FLOAT)) AS max_dpd
+        FROM [dbo].[DueDaysDaily] d WITH (NOLOCK)
+        INNER JOIN sampled_dates sd ON sd.dateID = d.dateID
+        WHERE d.PersonalID IS NOT NULL AND d.PersonalID != ''
+        GROUP BY d.PersonalID, sd.slot
+      ),
+      pivoted AS (
+        SELECT PersonalID,
+          MAX(CASE WHEN slot = 1 THEN max_dpd END) AS dpd_now,
+          MAX(CASE WHEN slot = 2 THEN max_dpd END) AS dpd_1w,
+          MAX(CASE WHEN slot = 3 THEN max_dpd END) AS dpd_2w,
+          MAX(CASE WHEN slot = 4 THEN max_dpd END) AS dpd_3w
+        FROM client_dpd
+        GROUP BY PersonalID
+      )
+      SELECT TOP 30
+        p.PersonalID                                                           AS personal_id,
+        COALESCE(cu.name + ' ' + cu.surname, p.PersonalID)                    AS full_name,
+        COALESCE('Stage ' + CAST(rp.Stage AS VARCHAR), 'N/A')                 AS stage,
+        COALESCE(TRY_CAST(rp.totalExposure AS FLOAT), 0)                      AS exposure,
+        p.dpd_now,
+        p.dpd_1w,
+        p.dpd_2w,
+        p.dpd_3w,
+        (p.dpd_now - COALESCE(p.dpd_3w, p.dpd_now))                          AS dpd_delta
+      FROM pivoted p
+      LEFT JOIN [dbo].[RiskPortfolio] rp ON rp.clientID = p.PersonalID AND rp.CalculationDate = @mcd
+      LEFT JOIN [dbo].[Customer] cu      ON cu.PersonalID = p.PersonalID
+      WHERE p.dpd_now IS NOT NULL
+        AND p.dpd_now >= 5
+      ORDER BY p.dpd_now DESC, (p.dpd_now - COALESCE(p.dpd_3w, 0)) DESC
+    `, { mcd })
+  } catch {
+    return []
   }
 }
 
@@ -2936,6 +3206,77 @@ export async function getAuditStats(): Promise<AuditStats> {
      FROM [dbo].[ClientActions] WITH (NOLOCK)`
   )
   return rows[0] ?? { total_today: 0, total_week: 0, active_freezes: 0, total_all: 0 }
+}
+
+// ─── Covenant Waivers ──────────────────────────────────────────────────────────
+
+export interface CovenantWaiverRow {
+  id:             string
+  client_id:      string
+  credit_id:      string | null
+  waiver_type:    string
+  requested_date: string
+  requested_by:   string
+  reason:         string | null
+  status:         'Pending' | 'Approved' | 'Rejected'
+  approved_by:    string | null
+  approved_at:    string | null
+  decision_notes: string | null
+  created_at:     string
+}
+
+export async function getCovenantWaivers(clientId: string): Promise<CovenantWaiverRow[]> {
+  const cacheKey = `covenantWaivers_${clientId}`
+  const cached = rc<CovenantWaiverRow[]>(cacheKey)
+  if (cached) return cached
+
+  const { getWaivers } = await import('@/lib/engagementService')
+  const rows = await getWaivers(clientId, 50)
+  sc(cacheKey, rows, TTL)
+  return rows as CovenantWaiverRow[]
+}
+
+// ─── Collateral Reviews ────────────────────────────────────────────────────────
+
+export interface CollateralReviewRow {
+  id:                string
+  client_id:         string
+  credit_id:         string | null
+  revaluation_date:  string
+  old_value:         number | null
+  new_value:         number
+  current_exposure:  number | null
+  ltv_recalculated:  number | null
+  reviewed_by:       string
+  notes:             string | null
+  created_at:        string
+}
+
+export async function getClientCollateralReviews(clientId: string): Promise<CollateralReviewRow[]> {
+  const cacheKey = `collateralReviews_${clientId}`
+  const cached = rc<CollateralReviewRow[]>(cacheKey)
+  if (cached) return cached
+
+  const rows = await query<CollateralReviewRow>(
+    `SELECT TOP 20
+       CAST(id AS VARCHAR(36))                        AS id,
+       client_id,
+       credit_id,
+       CONVERT(VARCHAR(10), revaluation_date, 23)     AS revaluation_date,
+       TRY_CAST(old_value        AS FLOAT)            AS old_value,
+       TRY_CAST(new_value        AS FLOAT)            AS new_value,
+       TRY_CAST(current_exposure AS FLOAT)            AS current_exposure,
+       TRY_CAST(ltv_recalculated AS FLOAT)            AS ltv_recalculated,
+       reviewed_by,
+       notes,
+       CONVERT(VARCHAR(30), created_at, 127)          AS created_at
+     FROM [dbo].[CollateralReview] WITH (NOLOCK)
+     WHERE client_id = @clientId
+     ORDER BY revaluation_date DESC, created_at DESC`,
+    { clientId }
+  )
+  sc(cacheKey, rows, TTL)
+  return rows
 }
 
 // ─── Cache control ─────────────────────────────────────────────────────────────

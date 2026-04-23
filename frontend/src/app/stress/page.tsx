@@ -116,7 +116,11 @@ export default async function StressPage() {
     )
   }
 
-  const basePDs       = predictions.map(p => p.risk_score)
+  // Normalize: old snapshots stored risk_score as 0–100; current ML pipeline uses 0–1.
+  // Guard: if any value exceeds 1 assume the whole batch is on the 0–100 scale.
+  const rawScores = predictions.map(p => p.risk_score ?? 0)
+  const needsNorm = rawScores.some(v => v > 1)
+  const basePDs   = needsNorm ? rawScores.map(v => v / 100) : rawScores
   const scenarioStats = SCENARIOS.map(s => ({ ...s, stats: computeScenario(basePDs, s.multiplier) }))
   const baseStats     = scenarioStats[0].stats
   const maxAvgPD      = Math.max(...scenarioStats.map(s => s.stats.avgPD), 0.001)

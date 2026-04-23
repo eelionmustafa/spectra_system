@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic'
+export const revalidate = 300 // Revalidate every 5 minutes — dashboard KPIs change at most once per ML pipeline run
 
 import { Suspense } from 'react'
 import Topbar from '@/components/Topbar'
@@ -176,8 +176,9 @@ export default async function Dashboard() {
 
         {/* ── Portfolio health banner ─────────────────────────────────── */}
         <div style={{
-          background: 'var(--navy)', borderRadius: '12px', padding: '18px 22px',
+          background: 'var(--navy)', borderRadius: 'var(--r-lg)', padding: '18px 24px',
           display: 'flex', alignItems: 'center', gap: '28px', flexWrap: 'wrap',
+          boxShadow: 'var(--shadow-md)',
         }}>
           <div style={{ minWidth: '180px' }}>
             <div style={{ fontSize: '9px', color: 'var(--slate)', letterSpacing: '1.5px', textTransform: 'uppercase', marginBottom: '5px' }}>
@@ -242,10 +243,11 @@ export default async function Dashboard() {
         {/* ── Priority Actions ────────────────────────────────────────── */}
         {priorityActions.length > 0 && (
           <div style={{
-            background: '#FFFBEB', border: '1px solid #FDE68A', borderLeft: '3px solid #D97706',
-            borderRadius: '8px', padding: '12px 16px',
+            background: '#FFFBEB', border: '1px solid #FDE68A', borderLeft: '4px solid #D97706',
+            borderRadius: 'var(--r-md)', padding: '14px 16px',
+            boxShadow: 'var(--shadow-xs)',
           }}>
-            <div style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: '1.5px', color: '#92400E', fontWeight: 700, marginBottom: '10px' }}>
+            <div style={{ fontSize: '9.5px', textTransform: 'uppercase', letterSpacing: '1.5px', color: '#92400E', fontWeight: 700, marginBottom: '10px' }}>
               Today&apos;s Priorities — {priorityActions.length} action{priorityActions.length > 1 ? 's' : ''} required
             </div>
 
@@ -279,40 +281,37 @@ export default async function Dashboard() {
         <div className="row4">
           <div className="kcard" style={{ background: 'var(--navy)', borderColor: 'rgba(201,168,76,0.2)', borderLeft: '3px solid var(--gold)' }}>
             <div className="kl" style={{ color: 'var(--slate)' }}>Total Exposure</div>
-            <div className="kv" style={{ color: 'var(--gold)', marginBottom: '4px' }}>
+            <div className="kv" style={{ color: 'var(--gold)', marginBottom: '5px' }}>
               €{(kpis.total_exposure / 1_000_000).toFixed(1)}M
             </div>
-            <div style={{ fontSize: '10px', color: 'var(--slate)', marginBottom: '6px' }}>Gross credit portfolio</div>
-            <span className="badge" style={{ background: 'rgba(201,168,76,0.15)', color: 'var(--gold2)' }}>{kpis.total_clients} accounts</span>
+            <div style={{ fontSize: '10px', color: 'var(--slate)', marginBottom: '8px' }}>Gross credit portfolio</div>
+            <span className="badge" style={{ background: 'rgba(201,168,76,0.15)', color: 'var(--gold2)', border: '1px solid rgba(201,168,76,0.3)' }}>{kpis.total_clients} accounts</span>
           </div>
 
-
-          <div className="kcard">
+          <div className="kcard kc-blue">
             <div className="kl">Total Clients</div>
-            <div className="kv" style={{ color: 'var(--blue)', marginBottom: '4px' }}>{kpis.total_clients}</div>
-            <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '6px' }}>In active portfolio</div>
+            <div className="kv" style={{ color: 'var(--blue)', marginBottom: '5px' }}>{kpis.total_clients}</div>
+            <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '8px' }}>In active portfolio</div>
             <span className="badge bb">Monitored</span>
           </div>
 
-
-          <div className="kcard">
+          <div className={`kcard ${kpis.delinquency_rate_pct > KPI.DELINQUENCY_RED ? 'kc-red' : 'kc-amber'}`}>
             <div className="kl">Delinquency Rate</div>
-            <div className="kv" style={{ color: kpis.delinquency_rate_pct > KPI.DELINQUENCY_RED ? 'var(--red)' : 'var(--amber)', marginBottom: '4px' }}>
+            <div className="kv" style={{ color: kpis.delinquency_rate_pct > KPI.DELINQUENCY_RED ? 'var(--red)' : 'var(--amber)', marginBottom: '5px' }}>
               {kpis.delinquency_rate_pct}%
             </div>
-            <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '6px' }}>Clients with DPD ≥ 30</div>
+            <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '8px' }}>Clients with DPD ≥ 30</div>
             <span className={`badge ${kpis.delinquency_rate_pct > KPI.DELINQUENCY_RED ? 'br' : 'ba'}`}>
               {kpis.delinquency_rate_pct > KPI.DELINQUENCY_RED ? '⚠ High' : 'Moderate'}
             </span>
           </div>
 
-
-          <div className="kcard">
+          <div className={`kcard ${kpis.npl_ratio_pct > KPI.NPL_RED ? 'kc-red' : 'kc-green'}`}>
             <div className="kl">NPL Ratio</div>
-            <div className="kv" style={{ color: kpis.npl_ratio_pct > KPI.NPL_RED ? 'var(--red)' : 'var(--amber)', marginBottom: '4px' }}>
+            <div className="kv" style={{ color: kpis.npl_ratio_pct > KPI.NPL_RED ? 'var(--red)' : 'var(--amber)', marginBottom: '5px' }}>
               {kpis.npl_ratio_pct}%
             </div>
-            <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '6px' }}>Stage 3 exposure / total (IFRS 9)</div>
+            <div style={{ fontSize: '10px', color: 'var(--muted)', marginBottom: '8px' }}>Stage 3 exposure / total (IFRS 9)</div>
             <span className={`badge ${kpis.npl_ratio_pct > KPI.NPL_RED ? 'br' : 'bg'}`}>
               {kpis.npl_ratio_pct > KPI.NPL_RED ? `⚠ Above ${KPI.NPL_RED}%` : 'In range'}
             </span>

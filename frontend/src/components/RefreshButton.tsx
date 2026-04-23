@@ -10,7 +10,7 @@ export default function RefreshButton() {
   async function handleRefresh() {
     setState('loading')
     try {
-      await fetch('/api/cache/invalidate', { method: 'POST' })
+      await fetch('/api/infra/cache-invalidate', { method: 'POST' })
       router.refresh()
       setState('done')
       setTimeout(() => setState('idle'), 4000)

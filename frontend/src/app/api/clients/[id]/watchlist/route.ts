@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
-import { seedRandomDemoSalaries } from '@/lib/scheduledSalaryService'
+import { removeFromWatchlist } from '@/lib/queries'
 
-export async function POST(_req: NextRequest) {
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const jar   = await cookies()
-    const token = jar.get(COOKIE_NAME)?.value
+    const cookieStore = await cookies()
+    const token = cookieStore.get(COOKIE_NAME)?.value
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     await verifyToken(token)
 
-    const result = await seedRandomDemoSalaries()
-    return NextResponse.json({ ok: true, ...result })
+    const { id } = await params
+    await removeFromWatchlist(id)
+    return NextResponse.json({ ok: true })
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 })
   }
