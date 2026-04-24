@@ -10,10 +10,7 @@ const CLIENT_COOKIE = 'spectra_client_session'
 
 function getClientPassword(): string {
   const pw = process.env.CLIENT_PORTAL_PASSWORD
-  if (!pw) {
-    if (process.env.NODE_ENV !== 'development') throw new Error('CLIENT_PORTAL_PASSWORD env var is not set')
-    return 'spectra2025'  // dev fallback only
-  }
+  if (!pw) throw new Error('CLIENT_PORTAL_PASSWORD env var is not set')
   return pw
 }
 

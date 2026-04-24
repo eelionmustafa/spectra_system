@@ -1,0 +1,1635 @@
+openapi: '3.0.3'
+info:
+  title: SPECTRA Credit Risk Platform API
+  version: '1.0.0'
+  description: |
+    Internal API for the SPECTRA credit risk management system.
+    All endpoints require cookie-based authentication (`spectra_session`) unless marked otherwise.
+    Authentication endpoints are excluded from the global security requirement.
+
+servers:
+  - url: /api
+    description: Next.js App Router API
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: spectra_session
+      description: HTTP-only session cookie issued on login. Valid for 8 hours.
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    OkResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+      required: [ok]
+
+    ClientSummary:
+      type: object
+      properties:
+        personal_id:    { type: string }
+        full_name:      { type: string }
+        stage:          { type: string }
+        risk_score:     { type: number }
+        total_exposure: { type: number }
+        due_days:       { type: integer }
+        frozen:         { type: boolean }
+
+    Alert:
+      type: object
+      properties:
+        id:          { type: string }
+        client_id:   { type: string }
+        client_name: { type: string }
+        severity:    { type: string, enum: [critical, high, medium] }
+        due_days:    { type: integer }
+        message:     { type: string }
+        created_at:  { type: string, format: date-time }
+
+    Notification:
+      type: object
+      properties:
+        id:           { type: string }
+        type:         { type: string }
+        title:        { type: string }
+        body:         { type: string }
+        client_id:    { type: string }
+        read_at:      { type: string, format: date-time, nullable: true }
+        created_at:   { type: string, format: date-time }
+
+    ClientAction:
+      type: object
+      properties:
+        id:           { type: string }
+        clientId:     { type: string }
+        action:       { type: string }
+        actionedBy:   { type: string }
+        notes:        { type: string, nullable: true }
+        created_at:   { type: string, format: date-time }
+
+    Prediction:
+      type: object
+      properties:
+        clientID:             { type: string }
+        pd_score:             { type: number }
+        risk_label:           { type: string }
+        stage_migration_prob: { type: number }
+        dpd_escalation_prob:  { type: number }
+        recommended_action:   { type: string }
+        top_factor_1:         { type: string, nullable: true }
+        top_factor_2:         { type: string, nullable: true }
+        top_factor_3:         { type: string, nullable: true }
+        shap_1:               { type: number, nullable: true }
+        shap_2:               { type: number, nullable: true }
+        shap_3:               { type: number, nullable: true }
+
+    Message:
+      type: object
+      properties:
+        id:         { type: string }
+        sender:     { type: string }
+        senderName: { type: string }
+        body:       { type: string, nullable: true }
+        attachment: { type: object, nullable: true }
+        created_at: { type: string, format: date-time }
+
+security:
+  - cookieAuth: []
+
+tags:
+  - name: auth
+    description: Authentication — password login and Azure AD SSO
+  - name: clients
+    description: Client portfolio — search, profile, actions, history
+  - name: ai
+    description: AI-generated risk narratives and deterioration alerts
+  - name: alerts
+    description: Active risk alerts — listing, acknowledgement, counts
+  - name: actions
+    description: Bulk and case-level client actions
+  - name: monitoring
+    description: Per-client monitoring — collateral, documents, covenants
+  - name: portal
+    description: Customer self-service portal
+  - name: infra
+    description: Infrastructure — ping, cache, rescore, seed data
+  - name: kpi
+    description: Portfolio KPI snapshots and refresh
+  - name: notifications
+    description: Staff notification inbox
+  - name: payments
+    description: Payment simulation and recent payment history
+  - name: watchlist
+    description: Watchlist management and counts
+  - name: ewi
+    description: Early Warning Indicator pipeline — fire triggers, recommendations
+  - name: predictions
+    description: ML prediction snapshots per client
+
+paths:
+
+  # ── Auth ──────────────────────────────────────────────────────────────────
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Authenticate with username and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string }
+                password: { type: string }
+              required: [username, password]
+      responses:
+        '200':
+          description: Login successful — spectra_session cookie set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Too many failed attempts — rate limited
+          headers:
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Clear session cookie
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Return the current user's session profile
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:     { type: string }
+                  username:   { type: string }
+                  name:       { type: string }
+                  role:       { type: string }
+                  department: { type: string }
+                  initials:   { type: string }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/azure/login:
+    get:
+      tags: [auth]
+      summary: Initiate Azure AD PKCE login — redirects to Microsoft login
+      security: []
+      responses:
+        '302':
+          description: Redirect to login.microsoftonline.com
+
+  /auth/azure/callback:
+    get:
+      tags: [auth]
+      summary: Azure AD OAuth2 callback — exchanges code, sets session cookie
+      security: []
+      parameters:
+        - in: query
+          name: code
+          schema: { type: string }
+          required: true
+        - in: query
+          name: state
+          schema: { type: string }
+          required: true
+      responses:
+        '302':
+          description: Redirect to / on success
+        '400':
+          description: State mismatch or missing parameters
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: No matching SPECTRA role for this account
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ── AI ────────────────────────────────────────────────────────────────────
+
+  /ai/risk-summary:
+    post:
+      tags: [ai]
+      summary: Generate a plain-text risk narrative for a client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                full_name:         { type: string }
+                personal_id:       { type: string }
+                age:               { type: integer }
+                region:            { type: string }
+                employment_type:   { type: string }
+                stage:             { type: string }
+                risk_score:        { type: number }
+                total_exposure:    { type: number }
+                current_due_days:  { type: integer }
+                max_due_days_12m:  { type: integer }
+                missed_payments:   { type: integer }
+                total_payments:    { type: integer }
+                repayment_rate_pct:{ type: number }
+                tenure_years:      { type: number }
+      responses:
+        '200':
+          description: AI-generated risk summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary: { type: string }
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: AI service not configured (missing GROQ_API_KEY)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /ai/deterioration-alerts:
+    post:
+      tags: [ai]
+      summary: Generate AI-detected deterioration alerts for high-risk clients
+      responses:
+        '200':
+          description: Detected alerts and portfolio note
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alerts:
+                    type: array
+                    items: { $ref: '#/components/schemas/Alert' }
+                  portfolio_note:
+                    type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ── Alerts ────────────────────────────────────────────────────────────────
+
+  /alerts/list:
+    get:
+      tags: [alerts]
+      summary: Return top 8 active alerts sorted by severity and DPD
+      responses:
+        '200':
+          description: Active alerts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alerts:
+                    type: array
+                    items: { $ref: '#/components/schemas/Alert' }
+                  total:
+                    type: integer
+
+  /alerts/count:
+    get:
+      tags: [alerts]
+      summary: Return count of critical unacknowledged alerts
+      responses:
+        '200':
+          description: Alert count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+
+  /alerts/ack:
+    post:
+      tags: [alerts]
+      summary: Acknowledge an alert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                alertId: { type: string }
+              required: [alertId]
+      responses:
+        '200':
+          description: Alert acknowledged
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  # ── Actions ───────────────────────────────────────────────────────────────
+
+  /actions/bulk:
+    post:
+      tags: [actions]
+      summary: Apply a single action to up to 100 clients at once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clientIds:
+                  type: array
+                  items: { type: string }
+                  maxItems: 100
+                action:
+                  type: string
+                  enum: [Add to Watchlist, Flag for Review, Request Documents, Remove from Watchlist]
+                notes:
+                  type: string
+              required: [clientIds, action]
+      responses:
+        '200':
+          description: Bulk action result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:     { type: boolean }
+                  count:  { type: integer }
+                  failed:
+                    type: array
+                    items: { type: string }
+
+  /actions/case:
+    post:
+      tags: [actions]
+      summary: Record a case-level action (escalate, resolve, legal)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clientId: { type: string }
+                action:   { type: string }
+                notes:    { type: string }
+              required: [clientId, action]
+      responses:
+        '200':
+          description: Action recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /actions/log:
+    get:
+      tags: [actions]
+      summary: Return full action audit log
+      responses:
+        '200':
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  actions:
+                    type: array
+                    items: { $ref: '#/components/schemas/ClientAction' }
+
+  # ── Clients ───────────────────────────────────────────────────────────────
+
+  /clients/search:
+    get:
+      tags: [clients]
+      summary: Search clients by name or ID, or list high-risk / EWI-filtered clients
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Search query (min 2 chars)
+        - in: query
+          name: ewi
+          schema: { type: string }
+          description: EWI filter key
+      responses:
+        '200':
+          description: Client list
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ClientSummary' }
+
+  /clients/{clientId}/action:
+    patch:
+      tags: [clients]
+      summary: Record a freeze, escalate, legal, or watchlist action for a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action: { type: string }
+                notes:  { type: string }
+              required: [action]
+      responses:
+        '200':
+          description: Action recorded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /clients/{clientId}/freeze:
+    patch:
+      tags: [clients]
+      summary: Toggle account freeze status
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                freeze: { type: boolean }
+              required: [freeze]
+      responses:
+        '200':
+          description: Freeze status updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /clients/{clientId}/insights:
+    get:
+      tags: [clients]
+      summary: Return ML risk insights for a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Risk insights
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Prediction' }
+
+  /clients/{clientId}/messages:
+    get:
+      tags: [clients]
+      summary: Return message thread with a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items: { $ref: '#/components/schemas/Message' }
+    post:
+      tags: [clients]
+      summary: Send a message or document to a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body:       { type: string }
+                attachment:
+                  type: object
+                  properties:
+                    name: { type: string }
+                    url:  { type: string }
+                    type: { type: string }
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { $ref: '#/components/schemas/Message' }
+
+  /clients/{clientId}/messages/unread:
+    get:
+      tags: [clients]
+      summary: Return count of unread messages from a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unread: { type: integer }
+
+  /clients/{clientId}/watchlist:
+    post:
+      tags: [clients]
+      summary: Add client to watchlist
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Added to watchlist
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+    delete:
+      tags: [clients]
+      summary: Remove client from watchlist
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Removed from watchlist
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /clients/{clientId}/resolve:
+    post:
+      tags: [clients]
+      summary: Mark client as resolved
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Client resolved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /clients/{clientId}/notify:
+    post:
+      tags: [clients]
+      summary: Send a notification to a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                body:  { type: string }
+              required: [title, body]
+      responses:
+        '200':
+          description: Notification sent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /clients/{clientId}/salary-sweep:
+    get:
+      tags: [clients]
+      summary: Check salary sweep eligibility for a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Eligibility check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clientId:     { type: string }
+                  eligible:     { type: boolean }
+                  overdueTotal: { type: number }
+    post:
+      tags: [clients]
+      summary: Execute a salary sweep for a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '201':
+          description: Sweep executed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:     { type: boolean }
+                  result: { type: object }
+
+  /clients/{clientId}/restructuring:
+    get:
+      tags: [clients]
+      summary: List restructuring plans for a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Restructuring plans
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items: { type: object }
+    post:
+      tags: [clients]
+      summary: Create a new restructuring plan
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201':
+          description: Plan created
+          content:
+            application/json:
+              schema: { type: object }
+
+  /clients/{clientId}/restructuring/{planId}:
+    patch:
+      tags: [clients]
+      summary: Update a restructuring plan (approve/reject — requires credit_risk_manager+)
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+        - in: path
+          name: planId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [Pending, Approved, Rejected] }
+      responses:
+        '200':
+          description: Plan updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '403':
+          description: Insufficient role
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /clients/{clientId}/recovery:
+    get:
+      tags: [clients]
+      summary: List recovery cases for a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Recovery cases
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cases:
+                    type: array
+                    items: { type: object }
+    post:
+      tags: [clients]
+      summary: Open a new recovery case
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201':
+          description: Case opened
+          content:
+            application/json:
+              schema: { type: object }
+
+  /clients/{clientId}/recovery/{caseId}:
+    patch:
+      tags: [clients]
+      summary: Update a recovery case
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+        - in: path
+          name: caseId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Case updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /clients/{clientId}/committee:
+    get:
+      tags: [clients]
+      summary: List credit committee logs for a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Committee logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items: { type: object }
+    post:
+      tags: [clients]
+      summary: Add a credit committee log entry
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201':
+          description: Log entry created
+          content:
+            application/json:
+              schema: { type: object }
+
+  /clients/{clientId}/committee/{logId}:
+    patch:
+      tags: [clients]
+      summary: Update a committee log entry
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+        - in: path
+          name: logId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Entry updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /clients/{clientId}/covenant-waivers:
+    get:
+      tags: [clients]
+      summary: List covenant waivers for a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Covenant waivers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  waivers:
+                    type: array
+                    items: { type: object }
+    post:
+      tags: [clients]
+      summary: Create a covenant waiver
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201':
+          description: Waiver created
+          content:
+            application/json:
+              schema: { type: object }
+
+  /clients/{clientId}/covenant-waivers/{waiverId}:
+    patch:
+      tags: [clients]
+      summary: Update a covenant waiver
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+        - in: path
+          name: waiverId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Waiver updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /clients/{clientId}/document-requests:
+    post:
+      tags: [clients]
+      summary: Create a document request for a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201':
+          description: Request created
+          content:
+            application/json:
+              schema: { type: object }
+
+  /clients/{clientId}/engagements:
+    get:
+      tags: [clients]
+      summary: List client engagement log
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Engagement entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  engagements:
+                    type: array
+                    items: { type: object }
+    post:
+      tags: [clients]
+      summary: Add an engagement log entry
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201':
+          description: Entry created
+          content:
+            application/json:
+              schema: { type: object }
+
+  /clients/{clientId}/engagements/{engId}:
+    patch:
+      tags: [clients]
+      summary: Update an engagement log entry
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+        - in: path
+          name: engId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Entry updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  # ── Monitoring ────────────────────────────────────────────────────────────
+
+  /monitoring/{clientId}:
+    get:
+      tags: [monitoring]
+      summary: Return monitoring data for a client (DPD trend, covenants)
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Monitoring data
+          content:
+            application/json:
+              schema: { type: object }
+
+  /monitoring/{clientId}/collateral:
+    get:
+      tags: [monitoring]
+      summary: Return collateral records for a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Collateral records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  collateral:
+                    type: array
+                    items: { type: object }
+
+  /monitoring/{clientId}/documents:
+    get:
+      tags: [monitoring]
+      summary: List monitoring documents for a client
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items: { type: object }
+    post:
+      tags: [monitoring]
+      summary: Upload a monitoring document
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '201':
+          description: Document created
+          content:
+            application/json:
+              schema: { type: object }
+
+  /monitoring/{clientId}/documents/{docId}:
+    patch:
+      tags: [monitoring]
+      summary: Update a monitoring document
+      parameters:
+        - in: path
+          name: clientId
+          schema: { type: string }
+          required: true
+        - in: path
+          name: docId
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Document updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  # ── Notifications ─────────────────────────────────────────────────────────
+
+  /notifications:
+    get:
+      tags: [notifications]
+      summary: Return notifications for the current user
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 50, maximum: 100 }
+        - in: query
+          name: unread
+          schema: { type: string, enum: ['true', 'false'] }
+      responses:
+        '200':
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items: { $ref: '#/components/schemas/Notification' }
+                  unreadCount:
+                    type: integer
+    post:
+      tags: [notifications]
+      summary: Mark all notifications as read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action: { type: string, enum: [mark-all-read] }
+              required: [action]
+      responses:
+        '200':
+          description: Marked as read
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /notifications/{id}/read:
+    post:
+      tags: [notifications]
+      summary: Mark a single notification as read
+      parameters:
+        - in: path
+          name: id
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Marked as read
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  # ── KPI ───────────────────────────────────────────────────────────────────
+
+  /kpi/refresh:
+    get:
+      tags: [kpi]
+      summary: Return timestamp of the last KPI snapshot
+      responses:
+        '200':
+          description: Last refresh info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  last_refresh: { type: string, format: date-time, nullable: true }
+                  calc_date:    { type: string }
+    post:
+      tags: [kpi]
+      summary: Manually trigger a KPI snapshot refresh
+      responses:
+        '200':
+          description: Refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:           { type: boolean }
+                  refreshed_at: { type: string, format: date-time }
+
+  /kpi/cron:
+    post:
+      tags: [kpi]
+      summary: Nightly cron handler for KPI refresh (called by Vercel cron)
+      security: []
+      responses:
+        '200':
+          description: Cron executed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  # ── Payments ──────────────────────────────────────────────────────────────
+
+  /payment/simulate:
+    post:
+      tags: [payments]
+      summary: Simulate a payment event (demo flow — triggers ML rescore)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clientId: { type: string }
+                amount:   { type: number }
+              required: [clientId, amount]
+      responses:
+        '200':
+          description: Payment simulated
+          content:
+            application/json:
+              schema: { type: object }
+
+  /payment/recent:
+    get:
+      tags: [payments]
+      summary: Return recent payment events
+      responses:
+        '200':
+          description: Recent payments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payments:
+                    type: array
+                    items: { type: object }
+
+  # ── Watchlist ─────────────────────────────────────────────────────────────
+
+  /watchlist/count:
+    get:
+      tags: [watchlist]
+      summary: Return number of clients currently on watchlist
+      responses:
+        '200':
+          description: Watchlist count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
+
+  # ── EWI ───────────────────────────────────────────────────────────────────
+
+  /ewi/fire:
+    post:
+      tags: [ewi]
+      summary: Manually fire an EWI trigger for a client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clientId: { type: string }
+              required: [clientId]
+      responses:
+        '200':
+          description: EWI fired
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /ewi/recommendations/{id}:
+    get:
+      tags: [ewi]
+      summary: Return EWI recommendations for a client
+      parameters:
+        - in: path
+          name: id
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: EWI recommendations
+          content:
+            application/json:
+              schema: { type: object }
+
+  # ── Predictions ───────────────────────────────────────────────────────────
+
+  /predictions/{id}:
+    get:
+      tags: [predictions]
+      summary: Return the latest ML prediction snapshot for a client
+      parameters:
+        - in: path
+          name: id
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Prediction snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Prediction' }
+        '404':
+          description: No prediction data found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ── Portal ────────────────────────────────────────────────────────────────
+
+  /portal/auth/login:
+    post:
+      tags: [portal]
+      summary: Customer portal login (shared portal password)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clientId: { type: string }
+                password: { type: string }
+              required: [clientId, password]
+      responses:
+        '200':
+          description: Login successful — spectra_client_session cookie set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /portal/auth/logout:
+    post:
+      tags: [portal]
+      summary: Customer portal logout
+      security: []
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /portal/{id}/messages:
+    get:
+      tags: [portal]
+      summary: Return message thread for a portal client
+      parameters:
+        - in: path
+          name: id
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items: { $ref: '#/components/schemas/Message' }
+    post:
+      tags: [portal]
+      summary: Customer sends a message to their advisor
+      parameters:
+        - in: path
+          name: id
+          schema: { type: string }
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body: { type: string }
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { $ref: '#/components/schemas/Message' }
+
+  /portal/{id}/messages/unread:
+    get:
+      tags: [portal]
+      summary: Return unread message count for a portal client
+      parameters:
+        - in: path
+          name: id
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unread: { type: integer }
+
+  /portal/events:
+    get:
+      tags: [portal]
+      summary: SSE stream for real-time portal events
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+  # ── Events ────────────────────────────────────────────────────────────────
+
+  /events:
+    get:
+      tags: [infra]
+      summary: SSE stream for real-time staff events (officer_message, freeze, etc.)
+      responses:
+        '200':
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+  # ── Infra ─────────────────────────────────────────────────────────────────
+
+  /infra/ping:
+    get:
+      tags: [infra]
+      summary: Database connectivity check
+      security: []
+      responses:
+        '200':
+          description: DB reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:      { type: boolean }
+                  latency: { type: integer }
+
+  /infra/cache-invalidate:
+    post:
+      tags: [infra]
+      summary: Manually invalidate the in-process LRU cache
+      responses:
+        '200':
+          description: Cache cleared
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  /infra/rescore:
+    post:
+      tags: [infra]
+      summary: Trigger a real-time ML rescore for a single client via the Python FastAPI service
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clientId: { type: string }
+              required: [clientId]
+      responses:
+        '200':
+          description: Rescore result
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Prediction' }
+        '503':
+          description: ML service unavailable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /infra/classify/{id}:
+    get:
+      tags: [infra]
+      summary: Run rule-based risk classification for a client
+      parameters:
+        - in: path
+          name: id
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: Classification result
+          content:
+            application/json:
+              schema: { type: object }
+
+  /infra/dpd-seed:
+    post:
+      tags: [infra]
+      summary: Seed DPD data for testing (dev/demo only)
+      responses:
+        '200':
+          description: Seeded
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OkResponse' }
+
+  # ── Automation ────────────────────────────────────────────────────────────
+
+  /automation/salary-sweep:
+    post:
+      tags: [actions]
+      summary: Run a portfolio-wide salary sweep (requires credit_risk_manager+)
+      responses:
+        '200':
+          description: Sweep results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed: { type: integer }
+                  swept:      { type: integer }
+                  skipped:    { type: integer }
+                  errors:     { type: integer }
+                  results:
+                    type: array
+                    items: { type: object }
+        '403':
+          description: Insufficient role
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }

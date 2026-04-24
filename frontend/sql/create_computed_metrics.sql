@@ -272,5 +272,22 @@ EXEC [dbo].[sp_RefreshPortfolioKPI];
 EXEC [dbo].[sp_RefreshClientMetrics];
 GO
 
+-- ── Performance index: TAccounts.Date ────────────────────────────────────────
+-- The ML feature-engineering pipeline scans 12 months of transaction history.
+-- Without this index, every feature-engineering run does a full table scan.
+IF NOT EXISTS (
+  SELECT 1 FROM sys.indexes
+  WHERE object_id = OBJECT_ID(N'dbo.TAccounts')
+    AND name = N'IX_TAccounts_Date'
+)
+BEGIN
+  CREATE NONCLUSTERED INDEX [IX_TAccounts_Date]
+    ON [dbo].[TAccounts] ([Date])
+    INCLUDE ([NoAccount], [Amount], [TDescription1]);
+  PRINT N'Created IX_TAccounts_Date on dbo.TAccounts';
+END ELSE
+  PRINT N'IX_TAccounts_Date already exists -- skipping';
+GO
+
 PRINT N'=== SPECTRA computed metrics setup complete ===';
 GO

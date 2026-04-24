@@ -25,18 +25,21 @@ export async function POST(req: NextRequest) {
 
     const profile = await req.json()
 
-    const msg = await groq.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
-      max_tokens: 400,
-      messages: [{
-        role: 'user',
-        content: `You are a senior credit risk analyst at a bank. Write a concise 3-4 sentence risk assessment for this client. Be specific about the key risk drivers and state a recommended action. Return plain text only with no headings, bullets, or markdown.
+    const SYSTEM_PROMPT = 'You are a senior credit risk analyst at a bank. Write a concise 3-4 sentence risk assessment for this client. Be specific about the key risk drivers and state a recommended action. Return plain text only with no headings, bullets, or markdown.'
 
-Client: ${profile.full_name || profile.personal_id} | Age: ${profile.age} | ${profile.region} | ${profile.employment_type}
+    const msg = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 500,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: `Client: ${profile.full_name || profile.personal_id} | Age: ${profile.age} | ${profile.region} | ${profile.employment_type}
 Stage: ${profile.stage} | Risk Score: ${profile.risk_score}/10 | Exposure: €${Number(profile.total_exposure).toLocaleString()}
 Current DPD: ${profile.current_due_days} days | Max DPD (12M): ${profile.max_due_days_12m} days
 Payments missed: ${profile.missed_payments} of ${profile.total_payments} | Repayment rate: ${profile.repayment_rate_pct}% | Tenure: ${profile.tenure_years} years`,
-      }],
+        },
+      ],
     })
 
     const text = msg.choices[0]?.message?.content ?? ''

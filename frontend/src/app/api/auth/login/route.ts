@@ -6,7 +6,7 @@ import { checkRateLimit, recordFailedAttempt, recordSuccess } from '@/lib/rateLi
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? req.headers.get('x-real-ip') ?? 'unknown'
-    const rl = checkRateLimit(ip)
+    const rl = await checkRateLimit(ip)
     if (!rl.allowed) {
       const retryAfterSec = Math.ceil(rl.retryAfterMs / 1000)
       return NextResponse.json(
@@ -19,13 +19,13 @@ export async function POST(req: NextRequest) {
 
     const user = findUser(username?.trim() ?? '', password ?? '')
     if (!user) {
-      recordFailedAttempt(ip)
+      await recordFailedAttempt(ip)
       return NextResponse.json(
         { ok: false, error: 'Invalid username or password' },
         { status: 401 }
       )
     }
-    recordSuccess(ip)
+    await recordSuccess(ip)
 
     const token = await signToken({
       userId: user.id,

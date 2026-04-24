@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { verifyToken, COOKIE_NAME } from '@/lib/auth'
 import { getMessages, sendMessage, markAllRead } from '@/lib/messagingService'
 import { emitSpectraEvent } from '@/lib/eventBus'
+import { recordClientAction } from '@/lib/queries'
 
 export async function GET(
   _req: NextRequest,
@@ -52,6 +53,9 @@ export async function POST(
   }
 
   const message = await sendMessage(id, 'officer', session.username, session.name, msgBody ?? null, attachment)
+
+  const auditLabel = attachment ? `Sent Document: ${attachment.name}` : 'Sent Message'
+  recordClientAction(id, auditLabel, session.username).catch(() => {})
 
   emitSpectraEvent({
     type:     'officer_message',

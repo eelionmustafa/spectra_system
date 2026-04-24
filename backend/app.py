@@ -27,9 +27,14 @@ from rescore_client import rescore
 
 app = FastAPI(title="SPECTRA ML Microservice", version="1.0.0")
 
+_ALLOWED_ORIGINS = [o.strip() for o in os.environ.get(
+    "ALLOWED_ORIGINS",
+    "http://localhost:3000",
+).split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # restrict to your Next.js origin in production
+    allow_origins=_ALLOWED_ORIGINS,
     allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )

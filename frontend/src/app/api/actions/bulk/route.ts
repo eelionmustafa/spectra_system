@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
         try {
           if (action === 'Remove from Watchlist') {
             await removeFromWatchlist(clientId)
+            await recordClientAction(clientId, 'Remove from Watchlist', session.username)
           } else {
             await recordClientAction(clientId, action, session.username)
           }

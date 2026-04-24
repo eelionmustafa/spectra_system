@@ -22,6 +22,12 @@ from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.preprocessing import StandardScaler
 import joblib
 
+try:
+    from imblearn.over_sampling import SMOTE
+    _SMOTE_AVAILABLE = True
+except ImportError:
+    _SMOTE_AVAILABLE = False
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("spectra.train_model")
 
@@ -73,13 +79,21 @@ def _train_target(df, target):
     pos_rate = y.mean()
     log.info("Positive rate for %s: %.2f%%", target, pos_rate * 100)
 
-    if pos_rate < 0.01:
-        log.warning("Skipping %s — positive rate %.3f%% is too low to train a reliable model "
-                    "(need at least 1%%). Label has only %d positive cases.",
-                    target, pos_rate * 100, int(y.sum()))
+    # Rare-class threshold: below 1% we apply SMOTE (if available) rather than skipping.
+    # SMOTE requires at least 2 positive samples to interpolate; hard skip below that.
+    is_rare = pos_rate < 0.01
+    n_positive = int(y.sum())
+    use_smote = is_rare and _SMOTE_AVAILABLE and n_positive >= 2
+
+    if is_rare and not use_smote:
+        reason = (
+            f"positive_rate={pos_rate:.4f}, n_positive={n_positive} — "
+            f"{'install imbalanced-learn (pip install imbalanced-learn) to enable SMOTE' if not _SMOTE_AVAILABLE else 'too few positives for SMOTE (need >= 2)'}"
+        )
+        log.warning("Skipping %s — %s", target, reason)
         return {"target": target, "best_model": None, "auc": None, "cv_auc": None,
                 "feature_cols": list(X.columns), "all_results": {},
-                "skipped": True, "skip_reason": f"positive_rate={pos_rate:.4f}"}
+                "skipped": True, "skip_reason": reason}
 
     try:
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
@@ -87,10 +101,25 @@ def _train_target(df, target):
         log.warning("Stratified split failed for %s (rare class) — falling back to random split", target)
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+    if use_smote:
+        # k_neighbors capped at (n_positive_in_train - 1) to avoid SMOTE errors on tiny sets
+        k = min(5, max(1, int(y_train.sum()) - 1))
+        log.info("  Applying SMOTE (k=%d) to address rare class (pos_rate=%.3f%%)", k, pos_rate * 100)
+        try:
+            sm = SMOTE(random_state=42, k_neighbors=k)
+            X_train_arr, y_train_arr = sm.fit_resample(X_train.values, y_train.values)
+            X_train = pd.DataFrame(X_train_arr, columns=X_train.columns)
+            y_train = pd.Series(y_train_arr)
+            log.info("  After SMOTE: %d samples (%.1f%% positive)", len(y_train), y_train.mean() * 100)
+        except Exception as smote_err:
+            log.warning("  SMOTE failed (%s) — continuing without resampling", smote_err)
+
     scaler = StandardScaler()
     X_train_s = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
     X_test_s  = pd.DataFrame(scaler.transform(X_test),      columns=X_test.columns,  index=X_test.index)
 
+    # GradientBoosting has no class_weight; for rare classes we rely on SMOTE resampling above.
+    # RandomForest and LogisticRegression always use class_weight="balanced".
     candidates = {
         "GradientBoosting": GradientBoostingClassifier(n_estimators=200, max_depth=4, learning_rate=0.05,
             subsample=0.8, random_state=42),
